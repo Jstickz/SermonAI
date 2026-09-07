@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions granted to the operator window and the two output windows. Tauri 2 denies any command not listed here, so this file grows deliberately, one permission at a time, as milestones need them.",
+  "windows": ["operator", "projector", "alternate"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "opener:default",
+    "fs:default"
+  ]
+}

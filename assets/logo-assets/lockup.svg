@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg"  height="60" viewBox="0 0 240 60">
+      
+      <g transform="translate(8, 10) scale(1.25)">
+        
+  <path d="M4 12 L4 26 C4 26.5523 4.44772 27 5 27 L14.5 27 C15.3284 27 16 26.3284 16 25.5 L16 15 C16 14.7239 15.8912 14.4592 15.6975 14.2657 L13.4142 11.9853 C13.2266 11.7979 12.9723 11.6926 12.707 11.6926 L5 11.6926 C4.44772 11.6926 4 12.1403 4 12.6926 Z"
+        fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M28 12 L28 26 C28 26.5523 27.5523 27 27 27 L17.5 27 C16.6716 27 16 26.3284 16 25.5 L16 15 C16 14.7239 16.1088 14.4592 16.3025 14.2657 L18.5858 11.9853 C18.7734 11.7979 19.0277 11.6926 19.293 11.6926 L27 11.6926 C27.5523 11.6926 28 12.1403 28 12.6926 Z"
+        fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M11 8 Q16 4 21 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M8 6 Q16 1 24 6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+  <circle cx="16" cy="4.4" r="1.35" fill="#B980E8"/>
+
+      </g>
+      <text x="58" y="40" font-family="Inter, -apple-system, 'Segoe UI', Roboto, sans-serif"
+            font-weight="500" font-size="34" letter-spacing="-1.36"
+            fill="currentColor">SermonAI</text>
+    </svg>

@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Windows and macOS are equals: no feature ships on one without the other,
+  # and a release is blocked if either platform build fails (PRD §9.5).
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+          # macos-13 is the last Intel runner; macos-latest is Apple Silicon.
+          # Building the x86_64 target on an arm64 runner would cross-compile
+          # and could not run cargo test, so pin the Intel job explicitly.
+          - name: macos-intel
+            os: macos-13
+            target: x86_64-apple-darwin
+          - name: macos-arm
+            os: macos-latest
+            target: aarch64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint and typecheck
+        run: |
+          npm run lint
+          npx tsc --noEmit
+
+      - name: Frontend tests
+        run: npm test
+
+      - name: Rust format and clippy
+        working-directory: src-tauri
+        run: |
+          cargo fmt --check
+          cargo clippy --target ${{ matrix.target }} -- -D warnings
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --target ${{ matrix.target }}
+
+      - name: Build installer
+        # Signing and notarization are configured once the certificates are in
+        # place (M0). Until then the build is unsigned but the size gate runs.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run tauri:build -- --target ${{ matrix.target }}
+
+      # FR-59: the base installer must stay under 40 MB. This gate is the only
+      # thing keeping heavy assets from creeping out of the pack system and
+      # into the download (PRD §22.1).
+      - name: Enforce 40 MB installer limit
+        shell: bash
+        run: |
+          limit=$((40 * 1024 * 1024))
+          failed=0
+          bundle="src-tauri/target/${{ matrix.target }}/release/bundle"
+          while IFS= read -r installer; do
+            size=$(wc -c < "$installer")
+            printf '%s: %s bytes (%.1f MB)\n' "$installer" "$size" "$(echo "$size/1048576" | bc -l)"
+            if [ "$size" -gt "$limit" ]; then
+              echo "::error::$installer exceeds the 40 MB base installer limit (FR-59)"
+              failed=1
+            fi
+          done < <(find "$bundle" -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' \))
+          exit $failed
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.name }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+          if-no-files-found: warn

@@ -1,0 +1,64 @@
+{
+  "$comment": "Pack catalog served from the Pack CDN with a detached signature (PRD §15.5). Sizes and checksums below are placeholders until scripts/publish-packs.sh produces real ones in M0.",
+  "manifestVersion": 1,
+  "generatedAt": "2026-09-07T00:00:00Z",
+  "baseUrl": "https://packs.sermonai.app/v1",
+  "packs": [
+    {
+      "id": "speech-whisper-base-en",
+      "kind": "speech",
+      "name": "Offline Speech Pack",
+      "description": "Transcribe without internet. whisper.cpp base.en.",
+      "version": "1.0.0",
+      "sizeBytes": 78643200,
+      "sha256": "",
+      "path": "speech/whisper-base-en-1.0.0.tar.zst",
+      "optional": true
+    },
+    {
+      "id": "speech-whisper-small-en",
+      "kind": "speech",
+      "name": "Offline Speech Pack (higher accuracy)",
+      "description": "More accurate offline transcription. Needs more CPU. whisper.cpp small.en.",
+      "version": "1.0.0",
+      "sizeBytes": 262144000,
+      "sha256": "",
+      "path": "speech/whisper-small-en-1.0.0.tar.zst",
+      "optional": true
+    },
+    {
+      "id": "intelligence-local-summary",
+      "kind": "intelligence",
+      "name": "Offline Intelligence Pack",
+      "description": "AI summaries without internet. Large download. SermonAI produces a full summary PDF without this.",
+      "version": "1.0.0",
+      "sizeBytes": 1073741824,
+      "sha256": "",
+      "path": "intelligence/local-summary-1.0.0.tar.zst",
+      "optional": true
+    },
+    {
+      "id": "translation-niv",
+      "kind": "translation",
+      "name": "New International Version",
+      "description": "NIV, licensed through API.Bible.",
+      "version": "1.0.0",
+      "sizeBytes": 5242880,
+      "sha256": "",
+      "path": "translations/niv-1.0.0.tar.zst",
+      "tier": "plus",
+      "optional": true
+    },
+    {
+      "id": "theme-cathedral",
+      "kind": "theme",
+      "name": "Cathedral",
+      "description": "Warm, still, stained-glass backgrounds.",
+      "version": "1.0.0",
+      "sizeBytes": 2097152,
+      "sha256": "",
+      "path": "themes/cathedral-1.0.0.tar.zst",
+      "optional": true
+    }
+  ]
+}

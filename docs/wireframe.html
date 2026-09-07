@@ -1,0 +1,2267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SermonAI — Wireframe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Crimson+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-canvas: #0F0F10;
+    --bg-surface: #1B1B1D;
+    --bg-raised: #242426;
+    --bg-sunken: #141416;
+    --bg-pill: #2B2B2E;
+    --bg-hover: #2F2F32;
+    --bg-active: #3A3A3E;
+    --bg-light-cta: #E2E2E2;
+    --border-subtle: #2A2A2D;
+    --border-default: #3A3A3E;
+    --border-strong: #54545A;
+    --text-primary: #F5F5F7;
+    --text-secondary: #B8B8BD;
+    --text-muted: #7E7E85;
+    --text-disabled: #4A4A50;
+    --text-on-accent: #0F0F10;
+    --text-on-light: #0F0F10;
+    --a-50:  #F1EAF8;
+    --a-100: #DCCCE8;
+    --a-200: #C7B0D8;
+    --a-300: #B294C5;
+    --a-400: #A47CBF;
+    --a-500: #B980E8;
+    --a-600: #9F66CE;
+    --a-700: #7C4CA8;
+    --a-800: #5A3680;
+    --a-900: #2E1B45;
+    --success: #4ADE80;
+    --success-bg: #0F2A1A;
+    --warning: #F5B84A;
+    --warning-bg: #2E220A;
+    --danger:  #F87171;
+    --danger-bg: #2E1414;
+    --info:    #7DB4F5;
+    --info-bg: #111F2E;
+    --font-ui: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-serif: 'Crimson Pro', Georgia, serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #050506; color: var(--text-primary); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  button { font-family: inherit; font-size: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; }
+
+  /* ========= APP CHROME (screen switcher) ========= */
+  .app-chrome {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(15,15,16,0.85);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px 20px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .chrome-brand { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .chrome-brand svg { width: 22px; height: 22px; }
+  .chrome-sep { width: 1px; height: 20px; background: var(--border-default); }
+  .chrome-group-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; }
+  .chrome-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .chrome-tab {
+    padding: 6px 12px; border-radius: 999px; background: transparent;
+    color: var(--text-secondary); font-size: 13px; transition: all 120ms var(--ease-out);
+    white-space: nowrap;
+  }
+  .chrome-tab:hover { background: var(--bg-pill); color: var(--text-primary); }
+  .chrome-tab.active { background: var(--bg-raised); color: var(--text-primary); }
+  .chrome-spacer { flex: 1; }
+  .chrome-meta { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+
+  /* ========= SCREEN FRAMES ========= */
+  .screen-shell { padding-top: 68px; min-height: 100vh; }
+  .screen { display: none; padding: 32px; max-width: 1600px; margin: 0 auto; }
+  .screen.active { display: block; }
+  .screen-title-bar { margin-bottom: 20px; display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
+  .screen-title { font-size: 13px; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; }
+  .screen-desc { font-size: 12px; color: var(--text-muted); max-width: 60ch; }
+
+  /* ========= WINDOW FRAMES (mock desktop chrome) ========= */
+  .window {
+    background: var(--bg-canvas);
+    border-radius: 24px;
+    border: 1px solid var(--border-subtle);
+    overflow: hidden;
+    box-shadow: 0 32px 96px -32px rgba(0,0,0,0.9);
+  }
+  .window-titlebar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px;
+    background: var(--bg-sunken);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .traffic { width: 12px; height: 12px; border-radius: 50%; }
+  .traffic.r { background: #FF5F57; }
+  .traffic.y { background: #FEBC2E; }
+  .traffic.g { background: #28C840; }
+  .window-title { flex: 1; text-align: center; font-size: 12px; color: var(--text-muted); }
+  .window-body { padding: 0; }
+
+  /* ========= TOP BAR (in-app) ========= */
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .brand svg { width: 22px; height: 22px; }
+  .navpill {
+    display: inline-flex; background: var(--bg-pill); border-radius: 999px; padding: 4px; gap: 2px;
+  }
+  .navpill button {
+    padding: 6px 14px; border-radius: 999px; font-size: 13px; color: var(--text-secondary);
+    transition: all 150ms var(--ease-out);
+  }
+  .navpill button:hover { color: var(--text-primary); }
+  .navpill button.active { background: var(--bg-raised); color: var(--text-primary); }
+  .spacer { flex: 1; }
+
+  /* ========= ATOMS ========= */
+  .btn-primary {
+    background: var(--bg-light-cta); color: var(--text-on-light);
+    padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 13px;
+    transition: background 150ms var(--ease-out);
+  }
+  .btn-primary:hover { background: #FFFFFF; }
+  .btn-secondary {
+    background: var(--bg-pill); color: var(--text-primary);
+    padding: 10px 18px; border-radius: 999px; font-size: 13px;
+    transition: background 150ms var(--ease-out);
+  }
+  .btn-secondary:hover { background: var(--bg-hover); }
+  .btn-danger {
+    background: transparent; color: var(--danger);
+    padding: 10px 18px; border-radius: 999px; font-size: 13px;
+    transition: background 150ms var(--ease-out);
+  }
+  .btn-danger:hover { background: var(--danger-bg); }
+  .btn-icon {
+    width: 40px; height: 40px; border-radius: 999px; background: var(--bg-pill);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); transition: all 150ms var(--ease-out);
+  }
+  .btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px; background: var(--bg-pill);
+    font-size: 11px; color: var(--text-secondary); font-weight: 500;
+  }
+  .chip.accent { background: var(--a-900); color: var(--a-100); }
+  .chip.success { background: var(--success-bg); color: var(--success); }
+  .chip.warning { background: var(--warning-bg); color: var(--warning); }
+  .chip.danger { background: var(--danger-bg); color: var(--danger); }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.success { background: var(--success); }
+  .dot.warning { background: var(--warning); }
+  .dot.danger { background: var(--danger); }
+  .dot.accent  { background: var(--a-500); }
+  .dot.regex   { background: var(--success); }
+  .dot.vector  { background: var(--info); }
+  .dot.llm     { background: var(--a-500); }
+  .dot.manual  { background: var(--text-muted); }
+
+  .badge-live {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px; background: var(--a-900); color: var(--a-100);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  }
+  .badge-live .pulse {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--a-500);
+    box-shadow: 0 0 12px var(--a-500);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.85); } }
+
+  .field {
+    background: var(--bg-sunken); border: 1px solid var(--border-default);
+    border-radius: 12px; padding: 10px 14px; color: var(--text-primary);
+    font-size: 14px; width: 100%; font-family: inherit;
+  }
+  .field:focus { outline: none; border-color: var(--a-500); box-shadow: 0 0 0 3px var(--a-900); }
+  .field-label { display: block; font-size: 12px; color: var(--text-secondary); font-weight: 500; margin-bottom: 6px; }
+
+  .card {
+    background: var(--bg-raised); border-radius: 16px; padding: 24px;
+  }
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+  .card-title { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+  .card-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .icon-circle {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--bg-pill); display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-secondary);
+  }
+  .icon-circle.accent { background: var(--a-500); color: var(--text-on-accent); }
+
+  /* ========= OPERATOR LAYOUT ========= */
+  .op-shell {
+    display: grid; grid-template-columns: 1fr 480px; gap: 20px;
+    padding: 20px; background: var(--bg-canvas); min-height: 780px;
+  }
+  .op-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* transcript */
+  .transcript-panel {
+    background: var(--bg-surface); border-radius: 16px; padding: 20px; flex: 1;
+    display: flex; flex-direction: column; gap: 12px; min-height: 500px;
+  }
+  .transcript-header { display: flex; align-items: center; justify-content: space-between; }
+  .transcript-body {
+    flex: 1; overflow-y: auto; font-size: 15px; line-height: 1.8; color: var(--text-secondary);
+    padding: 8px 4px;
+  }
+  .transcript-body .interim { color: var(--text-muted); font-style: italic; }
+  .transcript-body .scripture-hit {
+    background: var(--a-900); color: var(--a-100);
+    padding: 2px 6px; border-radius: 6px; font-weight: 500;
+  }
+
+  /* audio meter */
+  .meter {
+    display: inline-flex; gap: 2px; align-items: flex-end; height: 20px;
+  }
+  .meter .bar { width: 3px; background: var(--border-default); border-radius: 2px; }
+  .meter .bar.on { background: var(--success); }
+  .meter .bar.hot { background: var(--warning); }
+
+  /* detection cards */
+  .stack-header { display: flex; align-items: center; justify-content: space-between; padding: 0 4px; }
+  .stack-header h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .stack-header .count { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+
+  .detection {
+    background: var(--bg-raised); border-radius: 16px; padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    animation: cardIn 200ms var(--ease-out);
+  }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .detection .top {
+    display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-muted);
+  }
+  .detection .top .src-letter { font-family: var(--font-mono); font-weight: 600; color: var(--text-secondary); }
+  .detection .ref { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+  .detection .verse-text {
+    font-family: var(--font-serif); font-size: 15px; line-height: 1.6; color: var(--text-secondary);
+    max-height: 4.8em; overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+  }
+  .confidence-bar {
+    height: 3px; background: var(--bg-sunken); border-radius: 2px; overflow: hidden;
+  }
+  .confidence-bar > div { height: 100%; background: var(--a-500); border-radius: 2px; }
+  .detection .actions { display: flex; gap: 8px; }
+  .detection .actions button.accept {
+    background: var(--bg-light-cta); color: var(--text-on-light); font-weight: 600;
+    padding: 8px 14px; border-radius: 999px; font-size: 12px;
+  }
+  .detection .actions button.reject {
+    background: var(--bg-pill); color: var(--text-secondary);
+    padding: 8px 14px; border-radius: 999px; font-size: 12px;
+  }
+  .detection .actions button.edit {
+    color: var(--text-secondary); padding: 8px 8px; font-size: 12px;
+  }
+
+  /* staging */
+  .staging {
+    background: var(--bg-raised); border-radius: 16px; padding: 20px;
+  }
+  .staging-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .staging-slot {
+    background: var(--bg-sunken); border: 1px dashed var(--border-default);
+    border-radius: 12px; padding: 14px; min-height: 130px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .staging-slot .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; }
+  .staging-slot.live { border: 1px solid var(--a-500); background: linear-gradient(180deg, rgba(185,128,232,0.08), transparent); }
+  .staging-slot.live .label { color: var(--a-500); display: flex; align-items: center; gap: 6px; }
+  .staging-slot .ref { font-size: 13px; font-weight: 600; }
+  .staging-slot .txt { font-family: var(--font-serif); font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+  .staging-slot.empty { justify-content: center; align-items: center; color: var(--text-muted); font-size: 12px; text-align: center; }
+
+  .go-live-btn {
+    width: 100%; margin-top: 12px;
+    background: var(--a-500); color: var(--text-on-accent);
+    padding: 12px 18px; border-radius: 999px; font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background 150ms var(--ease-out);
+  }
+  .go-live-btn:hover { background: var(--a-600); }
+
+  /* Bottom bar */
+  .op-bottom {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px; border-top: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+  }
+  .translation-select {
+    background: var(--bg-pill); border-radius: 999px; padding: 6px 14px;
+    font-size: 12px; color: var(--text-primary); display: inline-flex; align-items: center; gap: 8px;
+  }
+
+  /* ========= PROJECTOR ========= */
+  .projector {
+    background: #000; border-radius: 16px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    aspect-ratio: 16/9; position: relative;
+    box-shadow: inset 0 0 0 1px var(--border-subtle);
+  }
+  .projector-verse {
+    text-align: center; padding: 8%; max-width: 90%;
+  }
+  .projector-verse .verse-text {
+    font-family: var(--font-serif); font-size: clamp(24px, 5vw, 64px);
+    line-height: 1.35; color: var(--text-primary); font-weight: 400;
+  }
+  .projector-verse .verse-ref {
+    margin-top: 32px;
+    text-transform: uppercase; letter-spacing: 0.16em; font-size: 14px;
+    color: var(--text-secondary); font-weight: 500;
+  }
+  .projector-verse .verse-ref::after {
+    content: ''; display: block; margin: 12px auto 0; width: 60px; height: 2px; background: var(--a-500);
+  }
+  .projector-watermark {
+    position: absolute; bottom: 16px; right: 16px;
+    display: flex; align-items: center; gap: 6px; opacity: 0.55;
+    font-size: 11px; color: var(--text-secondary);
+  }
+  .projector-watermark svg { width: 14px; height: 14px; }
+  .projector-blank { color: var(--text-disabled); font-size: 12px; letter-spacing: 0.1em; }
+
+  /* ========= ALTERNATE (stage confidence) ========= */
+  .alt-out {
+    background: #000; border-radius: 16px; overflow: hidden; padding: 24px;
+    display: grid; grid-template-columns: 3fr 2fr; gap: 20px; min-height: 300px;
+  }
+  .alt-live-block { display: flex; flex-direction: column; justify-content: space-between; }
+  .alt-live-block .label { font-size: 10px; letter-spacing: 0.16em; color: var(--a-500); font-weight: 600; }
+  .alt-live-block .verse { font-family: var(--font-serif); font-size: 28px; color: var(--text-primary); line-height: 1.35; margin-top: 12px; }
+  .alt-live-block .ref { font-size: 12px; letter-spacing: 0.12em; color: var(--text-secondary); text-transform: uppercase; margin-top: 12px; }
+  .alt-side { display: flex; flex-direction: column; gap: 16px; }
+  .alt-side .box { background: var(--bg-sunken); border-radius: 12px; padding: 16px; }
+  .alt-side .box .label { font-size: 10px; letter-spacing: 0.14em; color: var(--text-muted); text-transform: uppercase; }
+  .alt-side .box .clock { font-family: var(--font-mono); font-size: 24px; font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .alt-side .box .staged { font-family: var(--font-serif); font-size: 14px; color: var(--text-secondary); margin-top: 6px; line-height: 1.5; }
+
+  /* ========= LIBRARY GRID ========= */
+  .lib-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .lib-header h1 { font-size: 22px; font-weight: 600; }
+  .lib-tools { display: flex; gap: 8px; margin-left: auto; }
+  .lib-search {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-sunken); border: 1px solid var(--border-default);
+    border-radius: 999px; padding: 8px 14px; min-width: 260px;
+  }
+  .lib-search input { background: none; border: none; outline: none; color: var(--text-primary); font-size: 13px; flex: 1; font-family: inherit; }
+  .lib-filters { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-chip { padding: 6px 12px; border-radius: 999px; background: var(--bg-pill); font-size: 12px; color: var(--text-secondary); }
+  .filter-chip.on { background: var(--bg-active); color: var(--text-primary); }
+
+  .lib-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;
+  }
+  .sermon-card {
+    background: var(--bg-raised); border-radius: 16px; padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    transition: transform 180ms var(--ease-out);
+  }
+  .sermon-card:hover { transform: translateY(-2px); box-shadow: 0 1px 0 0 rgba(255,255,255,0.05); }
+  .sermon-card .meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .sermon-card .title { font-size: 16px; font-weight: 600; line-height: 1.4; }
+  .sermon-card .scriptures { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sermon-card .actions { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+  .sermon-card .status { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+  .sermon-card .dl { font-size: 12px; color: var(--text-primary); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+  .sermon-card .dl:hover { color: var(--a-300); }
+  .sermon-card.processing .dl { color: var(--text-muted); pointer-events: none; }
+
+  /* progress inline */
+  .inline-progress { height: 3px; background: var(--bg-sunken); border-radius: 2px; overflow: hidden; margin-top: 4px; }
+  .inline-progress > div { height: 100%; background: var(--a-500); border-radius: 2px; animation: progress-scan 1.6s ease-in-out infinite; }
+  @keyframes progress-scan { 0% { width: 0%; margin-left: 0%; } 50% { width: 60%; margin-left: 20%; } 100% { width: 0%; margin-left: 100%; } }
+
+  /* ========= SETTINGS ========= */
+  .settings-layout { display: grid; grid-template-columns: 240px 1fr; gap: 24px; }
+  .settings-nav {
+    display: flex; flex-direction: column; gap: 2px;
+    background: var(--bg-surface); padding: 12px; border-radius: 16px;
+    height: fit-content; position: sticky; top: 88px;
+  }
+  .settings-nav button {
+    text-align: left; padding: 10px 14px; border-radius: 12px;
+    color: var(--text-secondary); font-size: 13px; display: flex; align-items: center; gap: 10px;
+  }
+  .settings-nav button:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .settings-nav button.on { background: var(--bg-raised); color: var(--text-primary); }
+  .settings-content { display: flex; flex-direction: column; gap: 20px; }
+  .settings-section-title { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+  .row {
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    padding: 16px 0; border-bottom: 1px solid var(--border-subtle);
+  }
+  .row:last-child { border-bottom: none; }
+  .row .label { font-size: 13px; font-weight: 500; }
+  .row .hint { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .switch { width: 42px; height: 24px; background: var(--bg-pill); border-radius: 999px; position: relative; cursor: pointer; }
+  .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: var(--text-secondary); border-radius: 50%; transition: all 180ms var(--ease-out); }
+  .switch.on { background: var(--a-500); }
+  .switch.on::after { left: 21px; background: var(--text-primary); }
+
+  /* Packs */
+  .pack-row {
+    display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 16px;
+    padding: 16px; background: var(--bg-raised); border-radius: 12px;
+  }
+  .pack-row .pack-name { font-weight: 600; font-size: 14px; }
+  .pack-row .pack-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .pack-row .pack-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-secondary); }
+  .pack-row .bar { width: 120px; height: 4px; background: var(--bg-sunken); border-radius: 2px; overflow: hidden; }
+  .pack-row .bar > div { height: 100%; background: var(--a-500); }
+
+  /* ========= COMMAND PALETTE ========= */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+    display: none; align-items: flex-start; justify-content: center; padding-top: 15vh; z-index: 200;
+  }
+  .modal-backdrop.on { display: flex; }
+  .palette {
+    background: var(--bg-raised); border-radius: 16px; width: 640px; max-width: 92vw;
+    box-shadow: 0 24px 48px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+    overflow: hidden;
+  }
+  .palette-input { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border-subtle); }
+  .palette-input input { background: none; border: none; outline: none; color: var(--text-primary); font-size: 16px; flex: 1; font-family: inherit; }
+  .palette-list { max-height: 400px; overflow-y: auto; padding: 8px; }
+  .palette-group { padding: 8px 12px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
+  .palette-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  }
+  .palette-item.on { background: var(--bg-hover); }
+  .palette-item .ref { font-weight: 600; font-size: 14px; }
+  .palette-item .snippet { font-family: var(--font-serif); font-size: 13px; color: var(--text-secondary); flex: 1; margin-left: 8px; }
+  .palette-item .hint { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+  .palette-footer {
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px 20px; border-top: 1px solid var(--border-subtle);
+    font-size: 11px; color: var(--text-muted);
+  }
+  .kbd { background: var(--bg-pill); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); }
+
+  /* ========= ONBOARDING ========= */
+  .onboarding {
+    display: grid; grid-template-columns: 320px 1fr; min-height: 640px;
+    background: var(--bg-canvas);
+  }
+  .onboarding-side {
+    background: var(--bg-surface); padding: 32px;
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border-subtle);
+  }
+  .onboarding-steps { margin-top: 32px; display: flex; flex-direction: column; gap: 4px; }
+  .onboarding-step { padding: 12px 14px; border-radius: 12px; font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 12px; }
+  .onboarding-step.done { color: var(--text-secondary); }
+  .onboarding-step.done .step-num { background: var(--success-bg); color: var(--success); }
+  .onboarding-step.active { background: var(--bg-raised); color: var(--text-primary); }
+  .onboarding-step.active .step-num { background: var(--a-500); color: var(--text-on-accent); }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--bg-pill); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+
+  .onboarding-main { padding: 48px 64px; display: flex; flex-direction: column; }
+  .onboarding-main h1 { font-size: 32px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.15; }
+  .onboarding-main .lead { color: var(--text-secondary); margin-top: 12px; max-width: 56ch; }
+  .onboarding-main .form { margin-top: 32px; max-width: 480px; display: flex; flex-direction: column; gap: 20px; }
+  .onboarding-main .footer { margin-top: auto; display: flex; justify-content: space-between; align-items: center; padding-top: 40px; }
+  .onboarding-main .footer .hint { color: var(--text-muted); font-size: 12px; }
+
+  /* device meter */
+  .device-visual {
+    background: var(--bg-sunken); border-radius: 12px; padding: 20px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .device-visual .large-meter { flex: 1; display: flex; gap: 3px; align-items: flex-end; height: 40px; }
+  .device-visual .large-meter .bar { width: 6px; background: var(--bg-pill); border-radius: 2px; }
+
+  /* monitor picker */
+  .monitors { display: flex; gap: 16px; }
+  .monitor {
+    flex: 1; aspect-ratio: 16/10; background: var(--bg-sunken); border-radius: 12px;
+    border: 2px solid var(--border-default); padding: 16px;
+    display: flex; flex-direction: column; justify-content: space-between; cursor: pointer;
+    transition: all 150ms var(--ease-out);
+  }
+  .monitor:hover { border-color: var(--border-strong); }
+  .monitor.on { border-color: var(--a-500); background: var(--a-900); }
+  .monitor .m-label { font-size: 12px; font-weight: 500; }
+  .monitor .m-detail { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+
+  /* ========= PHONE REMOTE ========= */
+  .phone-frame {
+    width: 380px; margin: 0 auto;
+    background: #0A0A0B; border-radius: 44px; padding: 12px;
+    box-shadow: 0 24px 64px -16px rgba(0,0,0,0.8), 0 0 0 1px #1a1a1c;
+  }
+  .phone-screen {
+    background: var(--bg-canvas); border-radius: 32px; overflow: hidden;
+    aspect-ratio: 9/19.5;
+    display: flex; flex-direction: column;
+  }
+  .phone-notch { height: 28px; display: flex; align-items: center; justify-content: center; }
+  .phone-notch::before { content: ''; width: 100px; height: 22px; background: #050506; border-radius: 999px; }
+  .phone-topbar { padding: 8px 20px; font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; }
+  .phone-header {
+    padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .phone-header .who { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+  .phone-header h1 { font-size: 18px; font-weight: 600; }
+  .phone-tabs { display: flex; gap: 4px; padding: 0 16px; }
+  .phone-tab { flex: 1; text-align: center; padding: 8px; font-size: 12px; color: var(--text-secondary); border-radius: 999px; }
+  .phone-tab.on { background: var(--bg-raised); color: var(--text-primary); }
+  .phone-body { flex: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+  .phone-slot {
+    background: var(--bg-raised); border-radius: 16px; padding: 16px;
+  }
+  .phone-slot.staged { border: 1px dashed var(--border-default); }
+  .phone-slot.live { border: 1px solid var(--a-500); background: linear-gradient(180deg, rgba(185,128,232,0.08), transparent); }
+  .phone-slot .label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+  .phone-slot.live .label { color: var(--a-500); }
+  .phone-slot .ref { font-size: 15px; font-weight: 600; margin-top: 4px; }
+  .phone-slot .txt { font-family: var(--font-serif); font-size: 14px; line-height: 1.55; color: var(--text-secondary); margin-top: 8px; }
+  .phone-golive {
+    width: 100%; padding: 16px; border-radius: 999px; background: var(--a-500); color: var(--text-on-accent);
+    font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .phone-controls { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 4px; }
+  .phone-btn {
+    background: var(--bg-pill); border-radius: 16px; padding: 14px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    color: var(--text-secondary); font-size: 12px; font-weight: 500;
+  }
+  .phone-btn svg { width: 20px; height: 20px; }
+  .phone-btn.danger { color: var(--danger); }
+  .phone-navbar { padding: 8px 16px 20px; display: flex; justify-content: space-around; border-top: 1px solid var(--border-subtle); }
+  .phone-navbar .nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: var(--text-muted); flex: 1; padding: 6px; }
+  .phone-navbar .nav-item.on { color: var(--text-primary); }
+  .phone-navbar .nav-item svg { width: 20px; height: 20px; }
+
+  /* QR pairing screen */
+  .pair-screen { text-align: center; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .qr-box { width: 200px; height: 200px; background: #FFF; border-radius: 16px; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(12, 1fr); padding: 10px; gap: 2px; }
+  .qr-box div { background: #000; border-radius: 2px; }
+  .qr-box div.off { background: transparent; }
+  .pair-code { font-family: var(--font-mono); font-size: 32px; letter-spacing: 0.2em; color: var(--text-primary); }
+
+  /* ========= CONTENT STUDIO ========= */
+  .studio {
+    display: grid; grid-template-columns: 260px 1fr 320px; gap: 16px; padding: 20px;
+    background: var(--bg-canvas); min-height: 700px;
+  }
+  .studio-outline { background: var(--bg-surface); border-radius: 16px; padding: 20px; }
+  .studio-outline h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px; }
+  .studio-outline ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .studio-outline li { padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+  .studio-outline li.on { background: var(--bg-raised); color: var(--text-primary); }
+  .studio-outline li:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .studio-editor { background: var(--bg-surface); border-radius: 16px; padding: 32px; overflow: auto; }
+  .studio-editor h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+  .studio-editor .meta-row { font-size: 12px; color: var(--text-muted); display: flex; gap: 8px; align-items: center; margin-bottom: 24px; }
+  .studio-section { margin-top: 28px; }
+  .studio-section h2 { font-size: 15px; color: var(--a-300); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+  .studio-section p, .studio-section li { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+  .studio-section .scripture-block {
+    background: var(--bg-raised); border-left: 3px solid var(--a-500);
+    padding: 14px 18px; border-radius: 8px; margin: 10px 0;
+    font-family: var(--font-serif); font-size: 15px; line-height: 1.6; color: var(--text-primary);
+  }
+  .studio-section .scripture-block .cite { display: block; margin-top: 8px; font-family: var(--font-ui); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+  .studio-right { background: var(--bg-surface); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+  .studio-right h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+  .version-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-subtle); font-size: 13px; }
+  .version-item .v { font-family: var(--font-mono); color: var(--text-primary); }
+  .version-item .when { color: var(--text-muted); }
+  .version-item .who { color: var(--text-muted); font-size: 11px; }
+  .derivative-list button {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: var(--bg-raised); border-radius: 10px; width: 100%; text-align: left;
+    font-size: 13px; color: var(--text-primary); margin-bottom: 6px;
+  }
+  .derivative-list button:hover { background: var(--bg-hover); }
+  .derivative-list .icon { color: var(--text-muted); }
+
+  /* ========= SERIES ========= */
+  .series-hero {
+    background: linear-gradient(180deg, var(--a-900) 0%, var(--bg-surface) 100%);
+    border-radius: 16px; padding: 32px; margin-bottom: 20px;
+  }
+  .series-hero .eyebrow { font-size: 11px; letter-spacing: 0.12em; color: var(--a-200); font-weight: 600; }
+  .series-hero h1 { font-size: 28px; font-weight: 600; margin-top: 8px; }
+  .series-hero .desc { color: var(--text-secondary); max-width: 60ch; margin-top: 12px; }
+  .series-hero .stats { display: flex; gap: 32px; margin-top: 20px; }
+  .series-hero .stat .n { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .series-hero .stat .l { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .series-list { display: flex; flex-direction: column; gap: 10px; }
+  .series-row {
+    background: var(--bg-raised); border-radius: 12px; padding: 16px 20px;
+    display: grid; grid-template-columns: 40px 1fr auto auto; gap: 20px; align-items: center;
+  }
+  .series-row .num { font-family: var(--font-mono); color: var(--text-muted); font-size: 13px; }
+  .series-row .t-title { font-weight: 600; font-size: 14px; }
+  .series-row .t-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .series-row .duration { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
+
+  /* ========= LIVE SERVICE HEADER ========= */
+  .live-header {
+    padding: 12px 20px;
+    display: flex; align-items: center; gap: 16px;
+    background: var(--bg-sunken);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 13px;
+  }
+  .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 8px var(--danger); animation: pulse 1.6s ease-in-out infinite; }
+  .live-timer { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-primary); }
+  .status-cluster { display: flex; align-items: center; gap: 12px; color: var(--text-muted); font-size: 12px; }
+
+  /* ========= END SERVICE MODAL & PROCESSING ========= */
+  .processing-card {
+    background: var(--bg-raised); border-radius: 16px; padding: 24px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .processing-card .spinner {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 3px solid var(--bg-pill); border-top-color: var(--a-500);
+    animation: spin 1.2s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .processing-card .steps { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .processing-card .step { font-size: 12px; color: var(--text-muted); }
+  .processing-card .step.done { color: var(--text-secondary); }
+  .processing-card .step.doing { color: var(--text-primary); }
+
+  /* ========= PDF PREVIEW ========= */
+  .pdf-wrap {
+    background: #E7E4DE;
+    border-radius: 16px; padding: 40px 20px; overflow-x: auto;
+  }
+  .pdf-page {
+    background: #FBFAF7; color: #1A1A1E;
+    max-width: 700px; margin: 0 auto 24px auto;
+    padding: 56px 64px;
+    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.4);
+    font-family: var(--font-ui);
+  }
+  .pdf-cover-title { font-size: 40px; font-weight: 600; line-height: 1.1; }
+  .pdf-eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; color: #7C4CA8; font-weight: 600; }
+  .pdf-cover-meta { margin-top: 32px; color: #4A4A50; font-size: 13px; line-height: 1.7; }
+  .pdf-cover-rule { height: 4px; width: 80px; background: #7C4CA8; margin: 32px 0; }
+  .pdf-h2 { font-size: 20px; font-weight: 600; color: #7C4CA8; margin: 24px 0 12px; }
+  .pdf-body { font-family: 'Crimson Pro', Georgia, serif; font-size: 14px; line-height: 1.7; color: #1A1A1E; }
+  .pdf-scripture {
+    background: #FFFFFF; border-left: 4px solid #7C4CA8;
+    padding: 14px 18px; margin: 12px 0;
+    font-family: 'Crimson Pro', Georgia, serif; font-size: 14px; line-height: 1.6;
+  }
+  .pdf-scripture .cite { display: block; margin-top: 8px; font-family: var(--font-ui); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #7C4CA8; font-weight: 600; }
+  .pdf-footer { border-top: 1px solid #E7E4DE; padding-top: 16px; margin-top: 40px; font-size: 10px; color: #8A8A90; display: flex; justify-content: space-between; }
+  .pdf-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .pdf-columns ol { padding-left: 20px; }
+  .pdf-columns li { margin-bottom: 6px; font-family: var(--font-ui); font-size: 13px; }
+
+  /* ========= MARKETING SITE ========= */
+  .marketing-hero {
+    padding: 80px 40px 60px;
+    text-align: center;
+  }
+  .marketing-hero h1 { font-size: clamp(40px, 6vw, 76px); font-weight: 500; line-height: 1.05; letter-spacing: -0.02em; }
+  .marketing-hero h1 .accent { color: var(--a-200); }
+  .marketing-hero .sub { color: var(--text-secondary); font-size: 17px; margin: 24px auto 0; max-width: 60ch; line-height: 1.5; }
+  .marketing-hero .ctas { margin-top: 40px; display: flex; gap: 12px; justify-content: center; }
+  .marketing-nav {
+    display: flex; align-items: center; padding: 20px 40px; gap: 24px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .marketing-nav .navpill { margin: 0 auto; }
+  .marketing-showcase {
+    padding: 40px; background: var(--bg-surface);
+    border-radius: 24px; margin: 0 40px 60px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  /* ========= HELPERS ========= */
+  .row-flex { display: flex; align-items: center; gap: 12px; }
+  .col-flex { display: flex; flex-direction: column; gap: 12px; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .divider { height: 1px; background: var(--border-subtle); }
+
+  @media (max-width: 1200px) {
+    .op-shell { grid-template-columns: 1fr; }
+    .settings-layout { grid-template-columns: 1fr; }
+    .settings-nav { position: static; }
+    .studio { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 768px) {
+    .app-chrome { flex-wrap: wrap; }
+    .screen { padding: 16px; }
+    .chrome-tabs { order: 3; width: 100%; }
+    .marketing-hero { padding: 40px 20px; }
+    .lib-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ SVG SPRITE ============ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 5 L4 19 C4 19.5 4.5 20 5 20 L11 20 L11 5.5 C11 5 10 4 9 4 L5 4 C4.5 4 4 4.5 4 5 Z"/>
+    <path d="M20 5 L20 19 C20 19.5 19.5 20 19 20 L13 20 L13 5.5 C13 5 14 4 15 4 L19 4 C19.5 4 20 4.5 20 5 Z"/>
+    <path d="M3 13 Q7 10 12 13 Q17 16 21 13" stroke-width="1.2"/>
+  </symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M6 11l6 6 6-6M4 21h16"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M6 4l14 8-14 8V4z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 5 5L20 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 12h18"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6a3 3 0 0 1 3 3v14a2 2 0 0 0-2-2H4V4z"/><path d="M20 4h-6a3 3 0 0 0-3 3v14a2 2 0 0 1 2-2h7V4z"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 15-5-5-9 9"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M12 18h.01"/></symbol>
+</svg>
+
+<!-- ============ APP CHROME ============ -->
+<nav class="app-chrome" aria-label="Screen selector">
+  <div class="chrome-brand"><svg><use href="#i-mark"/></svg> SermonAI</div>
+  <div class="chrome-sep"></div>
+  <span class="chrome-group-label">Setup</span>
+  <div class="chrome-tabs" id="group-setup">
+    <button class="chrome-tab" data-screen="marketing">Website</button>
+    <button class="chrome-tab" data-screen="onboarding">Onboarding</button>
+  </div>
+  <div class="chrome-sep"></div>
+  <span class="chrome-group-label">Live</span>
+  <div class="chrome-tabs">
+    <button class="chrome-tab active" data-screen="operator-live">Operator</button>
+    <button class="chrome-tab" data-screen="projector">Projector</button>
+    <button class="chrome-tab" data-screen="alternate">Confidence monitor</button>
+    <button class="chrome-tab" data-screen="phone-remote">Phone remote</button>
+    <button class="chrome-tab" data-screen="phone-pair">Pair phone</button>
+    <button class="chrome-tab" data-screen="end-service">End service</button>
+  </div>
+  <div class="chrome-sep"></div>
+  <span class="chrome-group-label">Post</span>
+  <div class="chrome-tabs">
+    <button class="chrome-tab" data-screen="library">Library</button>
+    <button class="chrome-tab" data-screen="studio">Content studio</button>
+    <button class="chrome-tab" data-screen="pdf-preview">PDF summary</button>
+    <button class="chrome-tab" data-screen="series">Series & book</button>
+  </div>
+  <div class="chrome-sep"></div>
+  <span class="chrome-group-label">System</span>
+  <div class="chrome-tabs">
+    <button class="chrome-tab" data-screen="settings">Settings</button>
+    <button class="chrome-tab" data-screen="packs">Packs</button>
+  </div>
+</nav>
+
+<div class="screen-shell">
+
+<!-- =================================================== -->
+<!-- MARKETING SITE                                       -->
+<!-- =================================================== -->
+<section class="screen" id="screen-marketing">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Website · sermonai.app</div>
+      <div class="screen-desc">Public landing page. First impression, download, pricing. The "End Service → PDF" demo video lives here.</div>
+    </div>
+  </div>
+
+  <div class="window">
+    <div class="window-titlebar"><div class="traffic r"></div><div class="traffic y"></div><div class="traffic g"></div><div class="window-title">sermonai.app</div></div>
+    <div class="window-body">
+      <div class="marketing-nav">
+        <div class="brand"><svg><use href="#i-mark"/></svg> SermonAI</div>
+        <div class="navpill">
+          <button class="active">Features</button>
+          <button>How it works</button>
+          <button>Pricing</button>
+          <button>For churches</button>
+          <button>Support</button>
+        </div>
+        <button class="btn-secondary">Sign in</button>
+        <button class="btn-primary">Download</button>
+      </div>
+
+      <div class="marketing-hero">
+        <h1>Every verse. Every sermon. <span class="accent">Kept.</span></h1>
+        <p class="sub">SermonAI listens to your Sunday sermon, finds each scripture before the operator can, and hands you a complete PDF summary the moment the service ends.</p>
+        <div class="ctas">
+          <button class="btn-primary">Download for macOS <svg style="width:14px;height:14px;vertical-align:middle;margin-left:6px"><use href="#i-arrow-right"/></svg></button>
+          <button class="btn-secondary">Watch the 60-second demo</button>
+        </div>
+        <div style="margin-top: 24px; font-size: 12px; color: var(--text-muted);">Free forever · 40 MB installer · Works offline · Windows and macOS</div>
+      </div>
+
+      <div class="marketing-showcase">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--a-300); font-weight: 600;">The operator dashboard</div>
+          <div style="font-size: 24px; font-weight: 500; margin-top: 8px;">What your booth volunteer sees</div>
+        </div>
+        <div style="border-radius: 20px; overflow: hidden; border: 1px solid var(--border-subtle);">
+          <!-- mini operator preview -->
+          <div class="topbar">
+            <div class="brand"><svg><use href="#i-mark"/></svg> SermonAI</div>
+            <div class="navpill">
+              <button class="active">Live</button>
+              <button>Library</button>
+              <button>Series</button>
+              <button>Studio</button>
+              <button>Settings</button>
+            </div>
+            <div class="spacer"></div>
+            <span class="badge-live"><span class="pulse"></span>ON AIR · 34:12</span>
+          </div>
+          <div style="padding: 20px; background: var(--bg-canvas); display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="transcript-panel">
+              <div class="transcript-header">
+                <div style="font-size: 12px; color: var(--text-muted);">Live transcript · Pastor Emeka</div>
+                <div class="meter" aria-hidden="true">
+                  <div class="bar on" style="height: 30%"></div><div class="bar on" style="height: 50%"></div><div class="bar on" style="height: 70%"></div><div class="bar on" style="height: 90%"></div><div class="bar hot" style="height: 100%"></div><div class="bar" style="height: 60%"></div><div class="bar" style="height: 40%"></div>
+                </div>
+              </div>
+              <div class="transcript-body">
+                …for I know the plans I have for you, declares the Lord. Turn with me if you will to <span class="scripture-hit">Jeremiah 29:11</span>. Because before we can walk into what God has for us, we have to trust the One who wrote our story. Paul reminds us in <span class="scripture-hit">Romans 8:28</span> that all things work together for good…
+              </div>
+            </div>
+            <div class="detection">
+              <div class="top">
+                <span class="dot regex"></span><span class="src-letter">R</span> · Regex detection · 98%
+                <span style="margin-left: auto;" class="chip">KJV</span>
+              </div>
+              <div class="ref">Jeremiah 29:11</div>
+              <div class="verse-text">For I know the thoughts that I think toward you, saith the Lord, thoughts of peace, and not of evil, to give you an expected end.</div>
+              <div class="confidence-bar"><div style="width:98%"></div></div>
+              <div class="actions">
+                <button class="accept">Stage · ↵</button>
+                <button class="reject">Reject</button>
+                <button class="edit">Edit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
+        <div class="card">
+          <div class="icon-circle" style="margin-bottom: 12px;"><svg style="width:20px;height:20px"><use href="#i-mic"/></svg></div>
+          <div class="card-title" style="font-size: 16px;">Detection in under 500 ms</div>
+          <div style="color: var(--text-secondary); margin-top: 8px; font-size: 13px;">Regex catches direct quotes. Semantic vectors catch paraphrases. Nothing gets missed.</div>
+        </div>
+        <div class="card">
+          <div class="icon-circle" style="margin-bottom: 12px;"><svg style="width:20px;height:20px"><use href="#i-doc"/></svg></div>
+          <div class="card-title" style="font-size: 16px;">A PDF the moment you're done</div>
+          <div style="color: var(--text-secondary); margin-top: 8px; font-size: 13px;">Title, outline, every verse, key quotes, applications, discussion questions, prayer points. Editable. Downloadable.</div>
+        </div>
+        <div class="card">
+          <div class="icon-circle" style="margin-bottom: 12px;"><svg style="width:20px;height:20px"><use href="#i-book"/></svg></div>
+          <div class="card-title" style="font-size: 16px;">A series becomes a book</div>
+          <div style="color: var(--text-secondary); margin-top: 8px; font-size: 13px;">Compile ten weeks of preaching into a manuscript with a table of contents and a combined scripture index.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- ONBOARDING                                           -->
+<!-- =================================================== -->
+<section class="screen" id="screen-onboarding">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">First-run setup · step 2 of 6</div>
+      <div class="screen-desc">Six-step wizard that runs the first time the app opens. Every step has a large live preview.</div>
+    </div>
+    <div class="chip">Runs once, then never again</div>
+  </div>
+  <div class="window">
+    <div class="window-titlebar"><div class="traffic r"></div><div class="traffic y"></div><div class="traffic g"></div><div class="window-title">Welcome to SermonAI</div></div>
+    <div class="onboarding">
+      <div class="onboarding-side">
+        <div class="brand"><svg><use href="#i-mark"/></svg> SermonAI</div>
+        <div class="onboarding-steps">
+          <div class="onboarding-step done"><span class="step-num"><svg style="width:12px;height:12px"><use href="#i-check"/></svg></span> Welcome & license</div>
+          <div class="onboarding-step active"><span class="step-num">2</span> Choose audio input</div>
+          <div class="onboarding-step"><span class="step-num">3</span> Pick projector display</div>
+          <div class="onboarding-step"><span class="step-num">4</span> Choose translations</div>
+          <div class="onboarding-step"><span class="step-num">5</span> Pick a theme</div>
+          <div class="onboarding-step"><span class="step-num">6</span> Phone remote (optional)</div>
+        </div>
+        <div style="margin-top: auto; padding-top: 24px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border-subtle);">
+          You can change any of this later in Settings.
+        </div>
+      </div>
+      <div class="onboarding-main">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--a-300); font-weight: 600;">Step 2</div>
+        <h1 style="margin-top: 8px;">Where should SermonAI listen?</h1>
+        <p class="lead">Pick the microphone, USB audio interface, or HDMI capture card that carries the preacher's voice. Speak or tap the test button to confirm we're getting sound.</p>
+        <div class="form">
+          <div>
+            <label class="field-label">Audio input device</label>
+            <div class="field" style="display: flex; align-items: center; justify-content: space-between;">
+              <span>Behringer UMC202HD (channel 1)</span>
+              <span style="color: var(--text-muted); font-size: 12px;">▾</span>
+            </div>
+          </div>
+          <div class="device-visual">
+            <div class="large-meter" aria-label="Live audio level">
+              <div class="bar" style="height: 20%; background: var(--success)"></div>
+              <div class="bar" style="height: 40%; background: var(--success)"></div>
+              <div class="bar" style="height: 60%; background: var(--success)"></div>
+              <div class="bar" style="height: 80%; background: var(--success)"></div>
+              <div class="bar" style="height: 90%; background: var(--warning)"></div>
+              <div class="bar" style="height: 55%; background: var(--success)"></div>
+              <div class="bar" style="height: 30%; background: var(--success)"></div>
+              <div class="bar" style="height: 15%; background: var(--success)"></div>
+              <div class="bar" style="height: 45%; background: var(--success)"></div>
+              <div class="bar" style="height: 70%; background: var(--success)"></div>
+              <div class="bar" style="height: 25%; background: var(--success)"></div>
+              <div class="bar" style="height: 10%; background: var(--bg-pill)"></div>
+            </div>
+            <button class="btn-secondary">Test with 3-second playback</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; color: var(--success); font-size: 13px;">
+            <div class="dot success"></div> Signal detected. Peak -6 dBFS. You're ready.
+          </div>
+        </div>
+        <div class="footer">
+          <button class="btn-danger">← Back</button>
+          <div class="row-flex">
+            <span class="hint">Step 2 of 6</span>
+            <button class="btn-primary">Continue <svg style="width:14px;height:14px;vertical-align:middle;margin-left:6px"><use href="#i-arrow-right"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- OPERATOR — LIVE                                      -->
+<!-- =================================================== -->
+<section class="screen active" id="screen-operator-live">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Operator window · Live tab</div>
+      <div class="screen-desc">The primary control surface. Volunteer works here for the whole service. Press Cmd/Ctrl+K to open the palette.</div>
+    </div>
+    <div class="row-flex">
+      <span class="chip">Primary window</span>
+      <button class="btn-secondary" onclick="document.getElementById('palette').classList.add('on')">Open command palette (⌘K)</button>
+    </div>
+  </div>
+
+  <div class="window">
+    <div class="window-titlebar"><div class="traffic r"></div><div class="traffic y"></div><div class="traffic g"></div><div class="window-title">SermonAI — Faith Foundations · Week 3</div></div>
+    <div class="topbar">
+      <div class="brand"><svg><use href="#i-mark"/></svg> SermonAI</div>
+      <div class="navpill">
+        <button class="active">Live</button>
+        <button>Library</button>
+        <button>Series</button>
+        <button>Studio</button>
+        <button>Settings</button>
+      </div>
+      <div class="spacer"></div>
+      <span class="badge-live"><span class="pulse"></span>ON AIR</span>
+      <div class="live-timer">34:12</div>
+      <button class="btn-icon" title="Blank projector"><svg style="width:18px;height:18px"><use href="#i-blank"/></svg></button>
+      <button class="btn-danger">End service</button>
+    </div>
+
+    <div class="live-header">
+      <div class="rec-dot"></div>
+      <div class="mono" style="color: var(--text-secondary);">Recording · 34:12</div>
+      <div class="status-cluster">
+        <span><span class="dot success"></span> Deepgram Nova-3</span>
+        <span><span class="dot success"></span> API.Bible cache</span>
+        <span><span class="dot success"></span> Claude</span>
+        <span><span class="dot accent"></span> 2 phones connected</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="meter">
+        <div class="bar on" style="height: 30%"></div><div class="bar on" style="height: 50%"></div><div class="bar on" style="height: 70%"></div><div class="bar on" style="height: 90%"></div><div class="bar hot" style="height: 100%"></div><div class="bar on" style="height: 80%"></div><div class="bar" style="height: 40%"></div><div class="bar" style="height: 20%"></div>
+      </div>
+      <div class="mono" style="color: var(--text-muted); font-size: 11px;">-6 dBFS</div>
+    </div>
+
+    <div class="op-shell">
+      <div class="op-col">
+        <div class="transcript-panel">
+          <div class="transcript-header">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Live transcript</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Pastor Emeka · English · KJV default</div>
+            </div>
+            <div class="row-flex">
+              <div class="chip"><svg style="width:12px;height:12px"><use href="#i-search"/></svg> Search this session</div>
+              <button class="btn-icon" title="Text size"><span style="font-weight:600">Aa</span></button>
+            </div>
+          </div>
+          <div class="transcript-body">
+            <p>Good morning church. Thank you for being here today. I want us to open our Bibles this morning to the book of <span class="scripture-hit">Jeremiah, the twenty-ninth chapter, verse eleven</span>. And I want you to receive this word not as history, but as a promise God is speaking over your life today.</p>
+            <p style="margin-top: 12px;">Because before we can walk into what God has for us, we have to first trust the One who wrote our story. Paul understood this. He said in <span class="scripture-hit">Romans 8:28</span> that all things — <em>all things</em> — work together for good to them that love God, to them who are the called according to his purpose.</p>
+            <p style="margin-top: 12px;">And I know some of us are in a season where it doesn't look good. It doesn't feel good. But hear this: God is not surprised by your situation. He said before you were formed in your mother's womb <span class="interim">…he knew you, he set you apart…</span></p>
+          </div>
+          <div style="padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted);">
+            <span><span class="dot success"></span> Autoscrolling · 2,847 words</span>
+            <span class="mono">saved 3s ago</span>
+          </div>
+        </div>
+
+        <!-- staging -->
+        <div class="staging">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <div style="font-weight: 600; font-size: 14px;">Staging</div>
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-muted);">
+              Auto-live <span class="switch"></span>
+            </div>
+          </div>
+          <div class="staging-grid">
+            <div class="staging-slot">
+              <div class="label">Staged · press ↵ to go live</div>
+              <div class="ref">Jeremiah 29:11 · KJV</div>
+              <div class="txt">For I know the thoughts that I think toward you, saith the Lord, thoughts of peace, and not of evil, to give you an expected end.</div>
+            </div>
+            <div class="staging-slot live">
+              <div class="label"><span class="dot accent"></span> LIVE ON PROJECTOR</div>
+              <div class="ref">Romans 8:28 · KJV</div>
+              <div class="txt">And we know that all things work together for good to them that love God, to them who are the called according to his purpose.</div>
+            </div>
+          </div>
+          <button class="go-live-btn">Go Live · Enter <svg style="width:16px;height:16px"><use href="#i-arrow-right"/></svg></button>
+        </div>
+      </div>
+
+      <div class="op-col">
+        <div class="stack-header">
+          <h3>Detections</h3>
+          <span class="count">3 waiting</span>
+        </div>
+
+        <div class="detection" style="border: 1px solid var(--a-800);">
+          <div class="top">
+            <span class="dot llm"></span><span class="src-letter">A</span> · Paraphrase (Claude) · 78% confidence
+            <span style="margin-left: auto;" class="chip">Suggested</span>
+          </div>
+          <div class="ref">Psalm 139:13–16</div>
+          <div class="verse-text">For thou hast possessed my reins: thou hast covered me in my mother's womb. I will praise thee; for I am fearfully and wonderfully made…</div>
+          <div class="confidence-bar"><div style="width:78%"></div></div>
+          <div class="actions">
+            <button class="accept">Stage · ↵</button>
+            <button class="reject">Reject</button>
+            <button class="edit">Edit</button>
+          </div>
+        </div>
+
+        <div class="detection">
+          <div class="top">
+            <span class="dot vector"></span><span class="src-letter">V</span> · Semantic match · 89% confidence
+          </div>
+          <div class="ref">Ephesians 2:10</div>
+          <div class="verse-text">For we are his workmanship, created in Christ Jesus unto good works, which God hath before ordained that we should walk in them.</div>
+          <div class="confidence-bar"><div style="width:89%"></div></div>
+          <div class="actions">
+            <button class="accept">Stage · ↵</button>
+            <button class="reject">Reject</button>
+            <button class="edit">Edit</button>
+          </div>
+        </div>
+
+        <div class="detection">
+          <div class="top">
+            <span class="dot regex"></span><span class="src-letter">R</span> · Direct reference · 98% confidence
+          </div>
+          <div class="ref">John 10:10</div>
+          <div class="verse-text">The thief cometh not, but for to steal, and to kill, and to destroy: I am come that they might have life, and that they might have it more abundantly.</div>
+          <div class="confidence-bar"><div style="width:98%"></div></div>
+          <div class="actions">
+            <button class="accept">Stage · ↵</button>
+            <button class="reject">Reject</button>
+            <button class="edit">Edit</button>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 16px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Detected this service</div>
+            <span class="chip">7 scriptures</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+            <span class="chip">Jer 29:11</span>
+            <span class="chip">Rom 8:28</span>
+            <span class="chip accent">Rom 8:28 · Live</span>
+            <span class="chip">Ps 139:14</span>
+            <span class="chip">John 3:16</span>
+            <span class="chip">Isa 41:10</span>
+            <span class="chip">Prov 3:5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="op-bottom">
+      <div class="translation-select">
+        <svg style="width:14px;height:14px;color:var(--text-muted)"><use href="#i-book"/></svg>
+        King James Version (KJV) ▾
+      </div>
+      <div class="translation-select" style="background:transparent;color:var(--text-muted)">
+        Classic theme ▾
+      </div>
+      <div class="spacer"></div>
+      <button class="btn-secondary" onclick="document.getElementById('palette').classList.add('on')"><svg style="width:14px;height:14px;margin-right:6px;vertical-align:middle"><use href="#i-search"/></svg>Search verse · ⌘K</button>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- COMMAND PALETTE                                      -->
+<!-- =================================================== -->
+<div class="modal-backdrop" id="palette" onclick="if(event.target===this) this.classList.remove('on')">
+  <div class="palette">
+    <div class="palette-input">
+      <svg style="width:18px;height:18px;color:var(--text-muted)"><use href="#i-search"/></svg>
+      <input placeholder="Search any verse, e.g. john 3 16" autofocus />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="palette-list">
+      <div class="palette-group">Recent</div>
+      <div class="palette-item">
+        <span class="ref">Romans 8:28</span>
+        <span class="snippet">All things work together for good…</span>
+        <span class="hint">↵ Stage</span>
+      </div>
+      <div class="palette-item on">
+        <span class="ref">Jeremiah 29:11</span>
+        <span class="snippet">For I know the thoughts that I think…</span>
+        <span class="hint">↵ Stage · ⇧↵ Go live</span>
+      </div>
+      <div class="palette-group">Suggestions from transcript</div>
+      <div class="palette-item">
+        <span class="ref">Psalm 139:14</span>
+        <span class="snippet">I am fearfully and wonderfully made…</span>
+        <span class="hint">↵ Stage</span>
+      </div>
+      <div class="palette-item">
+        <span class="ref">Ephesians 2:10</span>
+        <span class="snippet">For we are his workmanship…</span>
+        <span class="hint">↵ Stage</span>
+      </div>
+    </div>
+    <div class="palette-footer">
+      <span><span class="kbd">↑↓</span> Navigate</span>
+      <span><span class="kbd">↵</span> Stage</span>
+      <span><span class="kbd">⇧↵</span> Go live</span>
+      <span><span class="kbd">Tab</span> Switch translation</span>
+      <span style="margin-left: auto;">KJV</span>
+    </div>
+  </div>
+</div>
+
+<!-- =================================================== -->
+<!-- PROJECTOR                                            -->
+<!-- =================================================== -->
+<section class="screen" id="screen-projector">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Projector window · full-screen output</div>
+      <div class="screen-desc">This is what the congregation sees. Frameless, no controls, no branding except the small watermark on the free tier.</div>
+    </div>
+    <div class="row-flex">
+      <span class="chip">Sent to HDMI-2</span>
+      <span class="chip">Classic theme</span>
+      <span class="chip accent">Free tier watermark on</span>
+    </div>
+  </div>
+
+  <div class="projector">
+    <div class="projector-verse">
+      <div class="verse-text">
+        And we know that all things work together for good to them that love God, to them who are the called according to his purpose.
+      </div>
+      <div class="verse-ref">Romans 8:28 · King James Version</div>
+    </div>
+    <div class="projector-watermark">
+      <svg><use href="#i-mark"/></svg> SermonAI
+    </div>
+  </div>
+
+  <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="card">
+      <div class="card-title" style="font-size: 14px;">Blanked state</div>
+      <div class="projector" style="margin-top: 12px; aspect-ratio: 16/6;">
+        <div class="projector-blank">— screen blanked —</div>
+        <div class="projector-watermark"><svg><use href="#i-mark"/></svg> SermonAI</div>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 12px;">
+        Triggered by the <span class="kbd">B</span> hotkey or the remote's Blank button. Instant, no fade.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size: 14px;">With reference-only layout</div>
+      <div class="projector" style="margin-top: 12px; aspect-ratio: 16/6;">
+        <div class="projector-verse">
+          <div class="verse-text" style="font-size: 40px;">Turn with me to</div>
+          <div class="verse-ref">Jeremiah 29:11</div>
+        </div>
+        <div class="projector-watermark"><svg><use href="#i-mark"/></svg> SermonAI</div>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 12px;">
+        Used during preaching transitions where the reference matters but the verse text isn't projected yet.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- ALTERNATE / CONFIDENCE MONITOR                       -->
+<!-- =================================================== -->
+<section class="screen" id="screen-alternate">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Alternate output · stage confidence monitor</div>
+      <div class="screen-desc">A second, separate output aimed at a monitor on stage. Shows the preacher what's live plus what's staged next, plus a service clock.</div>
+    </div>
+    <span class="chip">Sent to HDMI-3</span>
+  </div>
+
+  <div class="alt-out">
+    <div class="alt-live-block">
+      <div class="label">■ LIVE</div>
+      <div class="verse">And we know that all things work together for good to them that love God, to them who are the called according to his purpose.</div>
+      <div class="ref">Romans 8:28 · KJV</div>
+    </div>
+    <div class="alt-side">
+      <div class="box">
+        <div class="label">Service time</div>
+        <div class="clock">00:34:12</div>
+      </div>
+      <div class="box">
+        <div class="label">Staged next</div>
+        <div class="staged">"For I know the thoughts that I think toward you, saith the Lord…"</div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Jer 29:11</div>
+      </div>
+      <div class="box">
+        <div class="label">Time until soft cue</div>
+        <div class="clock" style="color: var(--warning); font-size: 20px;">00:05:48</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+    <div class="card">
+      <div class="card-title" style="font-size: 14px;">Layouts</div>
+      <div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; line-height: 1.7;">
+        Live + Staged + Clock (default)<br>
+        Live only<br>
+        Live + Elapsed<br>
+        Staged only (for cue producer)
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size: 14px;">Never shows</div>
+      <div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; line-height: 1.7;">
+        Detection cards<br>
+        Confidence scores<br>
+        Operator chat<br>
+        Sensitive service metadata
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size: 14px;">Behaviour</div>
+      <div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; line-height: 1.7;">
+        Sub-100 ms lag with the projector.<br>
+        Never blanks with the main output.<br>
+        Preacher sees it even during offering / prayer.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- PHONE REMOTE                                         -->
+<!-- =================================================== -->
+<section class="screen" id="screen-phone-remote">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Phone remote · Now tab</div>
+      <div class="screen-desc">A React web app served by the Tauri backend over LAN. Volunteers pair once, use it for the whole service. Thumb-reachable, offline, revocable.</div>
+    </div>
+    <div class="row-flex">
+      <span class="chip">LAN only · TLS not required</span>
+      <span class="chip">Any modern browser</span>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: auto 1fr; gap: 40px; align-items: start;">
+    <div class="phone-frame">
+      <div class="phone-screen">
+        <div class="phone-notch"></div>
+        <div class="phone-topbar"><span>9:41</span><span>SermonAI Remote · Grace Chapel</span></div>
+        <div class="phone-header">
+          <div class="who">
+            <span class="dot success"></span> Connected as Usher Ada
+            <span style="margin-left:auto; font-size: 11px; color: var(--text-muted);">34:12</span>
+          </div>
+          <h1>Faith Foundations, Week 3</h1>
+        </div>
+        <div class="phone-tabs">
+          <div class="phone-tab on">Now</div>
+          <div class="phone-tab">Search</div>
+          <div class="phone-tab">Devices</div>
+        </div>
+        <div class="phone-body">
+          <div class="phone-slot live">
+            <div class="label">● LIVE</div>
+            <div class="ref">Romans 8:28 · KJV</div>
+            <div class="txt">All things work together for good to them that love God, to them who are the called according to his purpose.</div>
+          </div>
+          <div class="phone-slot staged">
+            <div class="label">Staged</div>
+            <div class="ref">Jeremiah 29:11 · KJV</div>
+            <div class="txt">For I know the thoughts that I think toward you, saith the Lord…</div>
+          </div>
+          <button class="phone-golive">Go Live <svg style="width:16px;height:16px"><use href="#i-arrow-right"/></svg></button>
+          <div class="phone-controls">
+            <button class="phone-btn"><svg><use href="#i-prev"/></svg>Previous</button>
+            <button class="phone-btn"><svg><use href="#i-next"/></svg>Next</button>
+            <button class="phone-btn"><svg><use href="#i-search"/></svg>Search</button>
+            <button class="phone-btn danger"><svg><use href="#i-blank"/></svg>Blank</button>
+          </div>
+        </div>
+        <div class="phone-navbar">
+          <div class="nav-item on"><svg><use href="#i-home"/></svg>Now</div>
+          <div class="nav-item"><svg><use href="#i-search"/></svg>Search</div>
+          <div class="nav-item"><svg><use href="#i-phone"/></svg>Devices</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-flex" style="max-width: 480px;">
+      <div class="card">
+        <div class="card-title">How it works</div>
+        <div style="color: var(--text-secondary); margin-top: 12px; font-size: 13px; line-height: 1.7;">
+          The operator turns on Phone Remote in the top bar. A QR code and 6-digit code appear on the operator screen. Volunteers scan the QR, land on the pairing page, type the code once, and stay signed in until End Service.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Actions the phone can do</div>
+        <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px; font-size: 13px;"><div class="dot success"></div> Go Live on the staged verse</div>
+          <div style="display: flex; align-items: center; gap: 10px; font-size: 13px;"><div class="dot success"></div> Advance verse-by-verse in the current passage</div>
+          <div style="display: flex; align-items: center; gap: 10px; font-size: 13px;"><div class="dot success"></div> Search any verse and stage it</div>
+          <div style="display: flex; align-items: center; gap: 10px; font-size: 13px;"><div class="dot success"></div> Blank / unblank the projector</div>
+          <div style="display: flex; align-items: center; gap: 10px; font-size: 13px;"><div class="dot danger"></div> Cannot End Service (operator only)</div>
+          <div style="display: flex; align-items: center; gap: 10px; font-size: 13px;"><div class="dot danger"></div> Cannot delete transcripts or change settings</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Security</div>
+        <div style="color: var(--text-secondary); margin-top: 12px; font-size: 13px; line-height: 1.7;">
+          Off by default. Only reachable on the same wifi. Token-based, expires at End Service. Operator sees every connected device and can revoke any with one tap.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- PHONE PAIRING (operator side)                        -->
+<!-- =================================================== -->
+<section class="screen" id="screen-phone-pair">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Phone remote pairing · operator view</div>
+      <div class="screen-desc">Modal that opens when the operator taps "Phone remote" in the top bar. Scan the QR from any phone on the same wifi.</div>
+    </div>
+  </div>
+
+  <div style="max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div class="card" style="text-align: center; padding: 40px;">
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--a-300); font-weight: 600;">Scan on any phone</div>
+      <div style="margin: 24px auto; display: flex; justify-content: center;">
+        <div class="qr-box" id="qrbox"></div>
+      </div>
+      <div class="pair-code" id="paircode">4 7 2 9 6 1</div>
+      <div style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">Or type this code at sermonai.local/pair</div>
+      <div class="divider" style="margin: 24px 0;"></div>
+      <div style="display: flex; justify-content: space-around; text-align: center;">
+        <div>
+          <div style="font-size: 22px; font-weight: 600;" class="mono">2</div>
+          <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px;">Connected</div>
+        </div>
+        <div>
+          <div style="font-size: 22px; font-weight: 600;" class="mono">5</div>
+          <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px;">Max</div>
+        </div>
+        <div>
+          <div style="font-size: 22px; font-weight: 600;" class="mono">15:22</div>
+          <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px;">Session ends in</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-flex">
+      <div class="card">
+        <div class="card-title">Connected devices</div>
+        <div style="margin-top: 16px;">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle);">
+            <div class="icon-circle"><svg style="width:18px;height:18px"><use href="#i-phone"/></svg></div>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 14px;">iPhone 14 · Ada</div>
+              <div style="font-size: 12px; color: var(--text-muted);">Paired 12 min ago · Safari</div>
+            </div>
+            <button class="btn-danger">Revoke</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 0;">
+            <div class="icon-circle"><svg style="width:18px;height:18px"><use href="#i-phone"/></svg></div>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 14px;">Pixel 8 · Emeka</div>
+              <div style="font-size: 12px; color: var(--text-muted);">Paired 4 min ago · Chrome</div>
+            </div>
+            <button class="btn-danger">Revoke</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="font-size: 14px;">If the QR doesn't work</div>
+        <div style="color: var(--text-secondary); font-size: 13px; margin-top: 8px; line-height: 1.7;">
+          Both devices must be on the same wifi. If your church has "client isolation" turned on, ask IT to disable it just for the SermonAI machine.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- END SERVICE                                          -->
+<!-- =================================================== -->
+<section class="screen" id="screen-end-service">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">End service · confirmation and processing</div>
+      <div class="screen-desc">Clicking End Service seals the transcript and kicks off the summary pipeline. This screen shows both stages.</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); font-weight: 600; margin-bottom: 12px;">Confirmation modal</div>
+      <div class="card">
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+          <div class="icon-circle" style="background: var(--warning-bg); color: var(--warning); flex-shrink: 0;">
+            <svg style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+          </div>
+          <div style="flex: 1;">
+            <div style="font-size: 18px; font-weight: 600;">End Faith Foundations, Week 3?</div>
+            <div style="color: var(--text-secondary); font-size: 13px; margin-top: 8px; line-height: 1.6;">
+              This closes the recording, seals the transcript, and starts summary generation. The service card will be in your Library within 90 seconds.
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px; margin-top: 16px; font-size: 12px; color: var(--text-muted);">
+              <span>Duration <strong style="color: var(--text-primary);">47:22</strong></span>
+              <span>Scriptures <strong style="color: var(--text-primary);">9 accepted</strong></span>
+              <span>Words <strong style="color: var(--text-primary);">4,318</strong></span>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+          <button class="btn-secondary">Keep recording</button>
+          <button class="btn-primary">End service and generate summary</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); font-weight: 600; margin-bottom: 12px;">Processing overlay</div>
+      <div class="processing-card">
+        <div class="spinner"></div>
+        <div class="steps">
+          <div style="font-weight: 600; font-size: 14px; color: var(--text-primary);">Preparing your sermon summary</div>
+          <div class="step done">✓ Transcript sealed · 4,318 words</div>
+          <div class="step done">✓ Scripture log verified · 9 references</div>
+          <div class="step doing">Writing outline and applications with Claude…</div>
+          <div class="step">Rendering PDF from your church template</div>
+        </div>
+      </div>
+      <div style="margin-top: 12px; padding: 12px 16px; background: var(--info-bg); border-radius: 12px; font-size: 12px; color: var(--info); display: flex; align-items: center; gap: 10px;">
+        <svg style="width:16px;height:16px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+        You can close this and use the app. We'll notify you when the PDF is ready.
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 40px;">
+    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); font-weight: 600; margin-bottom: 12px;">Ready state (about 60 seconds later)</div>
+    <div class="card" style="display: flex; align-items: center; gap: 20px;">
+      <div class="icon-circle accent" style="width: 48px; height: 48px;">
+        <svg style="width:22px;height:22px"><use href="#i-check"/></svg>
+      </div>
+      <div style="flex: 1;">
+        <div style="font-size: 16px; font-weight: 600;">Your summary is ready</div>
+        <div style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">Faith Foundations, Week 3 · 6 pages · Sermon Brief template</div>
+      </div>
+      <button class="btn-secondary">Open in Studio</button>
+      <button class="btn-primary"><svg style="width:14px;height:14px;vertical-align:middle;margin-right:6px"><use href="#i-download"/></svg>Download PDF</button>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- LIBRARY                                              -->
+<!-- =================================================== -->
+<section class="screen" id="screen-library">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Sermon library</div>
+      <div class="screen-desc">The archive of every service. Search by keyword, scripture, preacher, series, or date. Every card shows summary status.</div>
+    </div>
+  </div>
+
+  <div class="window">
+    <div class="topbar">
+      <div class="brand"><svg><use href="#i-mark"/></svg> SermonAI</div>
+      <div class="navpill">
+        <button>Live</button>
+        <button class="active">Library</button>
+        <button>Series</button>
+        <button>Studio</button>
+        <button>Settings</button>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn-secondary"><svg style="width:14px;height:14px;margin-right:6px;vertical-align:middle"><use href="#i-download"/></svg> Import audio</button>
+      <button class="btn-primary"><svg style="width:14px;height:14px;margin-right:6px;vertical-align:middle"><use href="#i-plus"/></svg>Start service</button>
+    </div>
+
+    <div style="padding: 24px; background: var(--bg-canvas);">
+      <div class="lib-header">
+        <h1>Library</h1>
+        <div class="chip">128 sermons · 6 series</div>
+        <div class="lib-tools">
+          <div class="lib-search">
+            <svg style="width:14px;height:14px;color:var(--text-muted)"><use href="#i-search"/></svg>
+            <input placeholder="Search transcripts, scriptures, preachers…" />
+            <span class="kbd">⌘⇧F</span>
+          </div>
+        </div>
+      </div>
+      <div class="lib-filters">
+        <span class="filter-chip on">All time</span>
+        <span class="filter-chip">This month</span>
+        <span class="filter-chip">This year</span>
+        <span class="filter-chip">Pastor Emeka</span>
+        <span class="filter-chip">Pastor Grace</span>
+        <span class="filter-chip">Guest speakers</span>
+        <span class="filter-chip">Faith Foundations</span>
+        <span class="filter-chip">Advent 2026</span>
+      </div>
+
+      <div class="lib-grid">
+        <div class="sermon-card">
+          <div class="meta">
+            <span class="chip">Faith Foundations · Wk 3</span>
+            <span>Pastor Emeka</span>
+          </div>
+          <div class="title">The Story God Wrote Before You Were Born</div>
+          <div class="meta">7 Sept 2026 · 47:22 · 9 scriptures</div>
+          <div class="scriptures">
+            <span class="chip">Jer 29:11</span>
+            <span class="chip">Rom 8:28</span>
+            <span class="chip">Ps 139:14</span>
+            <span class="chip">+6</span>
+          </div>
+          <div class="actions">
+            <span class="status"><span class="dot success"></span> Summary ready · v2</span>
+            <a class="dl">Download PDF <svg style="width:14px;height:14px"><use href="#i-download"/></svg></a>
+          </div>
+        </div>
+
+        <div class="sermon-card processing">
+          <div class="meta">
+            <span class="chip">Faith Foundations · Wk 2</span>
+            <span>Pastor Emeka</span>
+          </div>
+          <div class="title">Trust Before You Understand</div>
+          <div class="meta">31 Aug 2026 · 42:10 · 7 scriptures</div>
+          <div class="scriptures">
+            <span class="chip">Prov 3:5</span>
+            <span class="chip">Heb 11:1</span>
+            <span class="chip">Isa 55:8</span>
+            <span class="chip">+4</span>
+          </div>
+          <div class="actions">
+            <span class="status"><span class="dot warning"></span> Generating…</span>
+            <a class="dl">Preparing…</a>
+          </div>
+          <div class="inline-progress"><div style="width: 60%"></div></div>
+        </div>
+
+        <div class="sermon-card">
+          <div class="meta">
+            <span class="chip">Faith Foundations · Wk 1</span>
+            <span>Pastor Grace</span>
+          </div>
+          <div class="title">The Foundations We Stand On</div>
+          <div class="meta">24 Aug 2026 · 51:04 · 12 scriptures</div>
+          <div class="scriptures">
+            <span class="chip">Matt 7:24</span>
+            <span class="chip">Ps 11:3</span>
+            <span class="chip">1 Cor 3:11</span>
+            <span class="chip">+9</span>
+          </div>
+          <div class="actions">
+            <span class="status"><span class="dot success"></span> Summary ready · v1</span>
+            <a class="dl">Download PDF <svg style="width:14px;height:14px"><use href="#i-download"/></svg></a>
+          </div>
+        </div>
+
+        <div class="sermon-card">
+          <div class="meta">
+            <span class="chip">Standalone</span>
+            <span>Guest · Rev Adaeze</span>
+          </div>
+          <div class="title">When God Feels Silent</div>
+          <div class="meta">17 Aug 2026 · 38:56 · 6 scriptures</div>
+          <div class="scriptures">
+            <span class="chip">Ps 22:1</span>
+            <span class="chip">Job 23:8</span>
+            <span class="chip">Hab 2:3</span>
+            <span class="chip">+3</span>
+          </div>
+          <div class="actions">
+            <span class="status"><span class="dot success"></span> Summary ready · v1</span>
+            <a class="dl">Download PDF <svg style="width:14px;height:14px"><use href="#i-download"/></svg></a>
+          </div>
+        </div>
+
+        <div class="sermon-card">
+          <div class="meta">
+            <span class="chip">Advent 2025</span>
+            <span>Pastor Emeka</span>
+          </div>
+          <div class="title">The King in a Manger</div>
+          <div class="meta">24 Dec 2025 · 44:18 · 11 scriptures</div>
+          <div class="scriptures">
+            <span class="chip">Luke 2:11</span>
+            <span class="chip">Isa 9:6</span>
+            <span class="chip">Mic 5:2</span>
+            <span class="chip">+8</span>
+          </div>
+          <div class="actions">
+            <span class="status"><span class="dot success"></span> In series book</span>
+            <a class="dl">Download PDF <svg style="width:14px;height:14px"><use href="#i-download"/></svg></a>
+          </div>
+        </div>
+
+        <div class="sermon-card">
+          <div class="meta">
+            <span class="chip">Standalone</span>
+            <span>Pastor Grace</span>
+          </div>
+          <div class="title">Hidden Manna in the Wilderness</div>
+          <div class="meta">10 Aug 2026 · 39:44 · 8 scriptures</div>
+          <div class="scriptures">
+            <span class="chip">Exod 16:15</span>
+            <span class="chip">John 6:31</span>
+            <span class="chip">Rev 2:17</span>
+            <span class="chip">+5</span>
+          </div>
+          <div class="actions">
+            <span class="status"><span class="dot success"></span> Summary ready · v1</span>
+            <a class="dl">Download PDF <svg style="width:14px;height:14px"><use href="#i-download"/></svg></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- CONTENT STUDIO                                       -->
+<!-- =================================================== -->
+<section class="screen" id="screen-studio">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Content studio · edit summary</div>
+      <div class="screen-desc">Editor over the summary JSON. Left: outline. Middle: editable content. Right: version history and derivative generators.</div>
+    </div>
+    <div class="row-flex">
+      <button class="btn-secondary">Preview PDF</button>
+      <button class="btn-primary">Regenerate PDF · v3</button>
+    </div>
+  </div>
+
+  <div class="window">
+    <div class="studio">
+      <div class="studio-outline">
+        <h3>Outline</h3>
+        <ul>
+          <li>Cover</li>
+          <li>At a glance</li>
+          <li class="on">Sermon outline</li>
+          <li>Scriptures referenced</li>
+          <li>Key quotes</li>
+          <li>Applications</li>
+          <li>Discussion questions</li>
+          <li>Prayer points</li>
+          <li>Closing summary</li>
+        </ul>
+        <div class="divider" style="margin: 16px 0;"></div>
+        <div style="font-size: 11px; color: var(--text-muted);">Faith Foundations, Wk 3</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">6 pages · Sermon Brief template</div>
+      </div>
+      <div class="studio-editor">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--a-300); font-weight: 600;">Editing · Sermon outline</div>
+        <h1 contenteditable="true">The Story God Wrote Before You Were Born</h1>
+        <div class="meta-row">
+          <span>Pastor Emeka Nwosu</span><span>·</span><span>7 Sept 2026</span><span>·</span><span>47 minutes</span><span>·</span><span>Faith Foundations, Week 3</span>
+        </div>
+
+        <div class="studio-section">
+          <h2>Introduction</h2>
+          <p contenteditable="true">Before God ever asked you to trust him with your future, he was already writing the story. Emeka opens the sermon in Jeremiah 29, not as a promise about prosperity, but as a reminder that God's plans were already in motion long before Israel could see the outcome.</p>
+        </div>
+
+        <div class="studio-section">
+          <h2>Main Point 1 · God writes before we see</h2>
+          <div class="scripture-block" contenteditable="true">
+            For I know the thoughts that I think toward you, saith the Lord, thoughts of peace, and not of evil, to give you an expected end.
+            <span class="cite">Jeremiah 29:11 · KJV</span>
+          </div>
+          <p contenteditable="true">The word "thoughts" here — <em>machashabah</em> — carries the sense of a plan that has been carefully designed. Israel is in Babylon. From their vantage point, the story is over. From God's vantage point, he is already writing the next chapter.</p>
+        </div>
+
+        <div class="studio-section">
+          <h2>Main Point 2 · The story includes the pain</h2>
+          <div class="scripture-block" contenteditable="true">
+            And we know that all things work together for good to them that love God, to them who are the called according to his purpose.
+            <span class="cite">Romans 8:28 · KJV</span>
+          </div>
+          <p contenteditable="true">Paul doesn't say all things are good. He says all things work together. The season you're in right now is a paragraph in a larger book. Don't judge the book by the paragraph.</p>
+        </div>
+      </div>
+      <div class="studio-right">
+        <div>
+          <h3>Versions</h3>
+          <div class="version-item">
+            <div>
+              <div class="v">v2 · current</div>
+              <div class="who">Edited by Ada · 4 min ago</div>
+            </div>
+            <span class="chip accent">Current</span>
+          </div>
+          <div class="version-item">
+            <div>
+              <div class="v">v1 · auto</div>
+              <div class="who">Generated after End Service</div>
+            </div>
+            <button class="btn-icon" title="Restore" style="width:28px;height:28px;font-size:11px">↺</button>
+          </div>
+        </div>
+        <div>
+          <h3>Generate derivative</h3>
+          <div class="derivative-list">
+            <button><svg class="icon" style="width:16px;height:16px"><use href="#i-image"/></svg> Social post captions</button>
+            <button><svg class="icon" style="width:16px;height:16px"><use href="#i-list"/></svg> Small-group guide</button>
+            <button><svg class="icon" style="width:16px;height:16px"><use href="#i-doc"/></svg> Weekday devotional</button>
+            <button><svg class="icon" style="width:16px;height:16px"><use href="#i-globe"/></svg> Newsletter blurb</button>
+          </div>
+        </div>
+        <div>
+          <h3>Add to series</h3>
+          <div class="chip accent" style="padding: 8px 14px;">Faith Foundations · Week 3 of 8</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- PDF PREVIEW                                          -->
+<!-- =================================================== -->
+<section class="screen" id="screen-pdf-preview">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">PDF summary · "Sermon Brief" template</div>
+      <div class="screen-desc">Warm off-white light mode, printable, shareable. Rendered by webview print-to-PDF using the brand tokens.</div>
+    </div>
+    <div class="row-flex">
+      <button class="btn-secondary">Change template</button>
+      <button class="btn-primary"><svg style="width:14px;height:14px;vertical-align:middle;margin-right:6px"><use href="#i-download"/></svg> Download PDF</button>
+    </div>
+  </div>
+
+  <div class="pdf-wrap">
+    <div class="pdf-page">
+      <div class="pdf-eyebrow">Faith Foundations · Week 3</div>
+      <div class="pdf-cover-title">The Story God Wrote<br>Before You Were Born</div>
+      <div class="pdf-cover-rule"></div>
+      <div class="pdf-cover-meta">
+        <div><strong>Preacher</strong> Pastor Emeka Nwosu</div>
+        <div><strong>Date</strong> Sunday, 7 September 2026</div>
+        <div><strong>Duration</strong> 47 minutes</div>
+        <div><strong>Translation</strong> King James Version</div>
+        <div><strong>Church</strong> Grace Chapel · Abuja</div>
+      </div>
+      <div class="pdf-footer">
+        <span>Generated by SermonAI · 07/09/2026 11:14</span>
+        <span>1</span>
+      </div>
+    </div>
+
+    <div class="pdf-page">
+      <div class="pdf-h2">At a glance</div>
+      <div class="pdf-body">
+        <p><strong>Theme.</strong> God's plans are drafted before we see them. Trust is what carries us across the gap between the writing and the reading.</p>
+        <p style="margin-top: 12px;"><strong>Overview.</strong> Emeka walked the church through two anchor passages — Jeremiah 29:11 and Romans 8:28 — reframing them not as promises of comfort but as evidence of authorship. God is writing before you're reading. Your job is not to understand the whole story; your job is to trust the Author.</p>
+      </div>
+
+      <div class="pdf-h2" style="margin-top: 32px;">Sermon outline</div>
+      <div class="pdf-body">
+        <p><strong>Introduction.</strong> A pastoral opener rooted in Israel's exile in Babylon. God's plans were in motion long before Israel could name them.</p>
+        <p style="margin-top: 16px;"><strong>Main point 1 — God writes before we see.</strong></p>
+        <div class="pdf-scripture">
+          For I know the thoughts that I think toward you, saith the Lord, thoughts of peace, and not of evil, to give you an expected end.
+          <span class="cite">Jeremiah 29:11 · KJV</span>
+        </div>
+        <p>The Hebrew "thoughts" (machashabah) means a designed, deliberate plan. Emeka contrasts Israel's vantage point with God's.</p>
+
+        <p style="margin-top: 16px;"><strong>Main point 2 — The story includes the pain.</strong></p>
+        <div class="pdf-scripture">
+          And we know that all things work together for good to them that love God, to them who are the called according to his purpose.
+          <span class="cite">Romans 8:28 · KJV</span>
+        </div>
+        <p>Paul doesn't say all things are good — he says they work together. A paragraph is not the book.</p>
+      </div>
+      <div class="pdf-footer">
+        <span>The Story God Wrote Before You Were Born · 7 Sept 2026</span>
+        <span>2</span>
+      </div>
+    </div>
+
+    <div class="pdf-page">
+      <div class="pdf-h2">Discussion questions</div>
+      <div class="pdf-body">
+        <div class="pdf-columns">
+          <ol>
+            <li>Where in your life right now does the story feel unfinished?</li>
+            <li>Emeka said "a paragraph is not the book." What paragraph are you tempted to judge as the whole book?</li>
+            <li>Read Jeremiah 29 in full. What does verse 10 tell us about God's timeline?</li>
+            <li>Romans 8:28 has a condition — "to them that love God." Why does that condition matter?</li>
+          </ol>
+          <ol start="5">
+            <li>Name one place where you've seen God "work things together" in hindsight.</li>
+            <li>Trust and control often trade places. Which one wins in you this week?</li>
+            <li>What does it look like practically to submit a plan to God this week?</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="pdf-h2" style="margin-top: 32px;">Prayer points</div>
+      <div class="pdf-body">
+        <ul style="padding-left: 20px;">
+          <li>For the person in the room who cannot see the end of their story right now.</li>
+          <li>For trust in the Author, not just interest in the plot.</li>
+          <li>For the courage to submit our plans to be edited by God this week.</li>
+          <li>For a right memory of past faithfulness that fuels present faith.</li>
+        </ul>
+      </div>
+      <div class="pdf-footer">
+        <span>The Story God Wrote Before You Were Born · 7 Sept 2026</span>
+        <span>3</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- SERIES & BOOK                                        -->
+<!-- =================================================== -->
+<section class="screen" id="screen-series">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Series manager · Faith Foundations</div>
+      <div class="screen-desc">Group sermons into a series. Drag to reorder. Compile a book-ready manuscript with one click.</div>
+    </div>
+    <div class="row-flex">
+      <button class="btn-secondary">Rename series</button>
+      <button class="btn-primary"><svg style="width:14px;height:14px;vertical-align:middle;margin-right:6px"><use href="#i-book"/></svg>Compile book</button>
+    </div>
+  </div>
+
+  <div class="series-hero">
+    <div class="eyebrow">8-week series</div>
+    <h1>Faith Foundations</h1>
+    <div class="desc">A guided walk through the foundations of Christian faith, from the doctrine of God through practical discipleship. Preached Sundays, August through October 2026.</div>
+    <div class="stats">
+      <div class="stat"><div class="n">8</div><div class="l">Sermons planned</div></div>
+      <div class="stat"><div class="n">3</div><div class="l">Preached so far</div></div>
+      <div class="stat"><div class="n">28</div><div class="l">Scriptures covered</div></div>
+      <div class="stat"><div class="n">2h 21m</div><div class="l">Total teaching</div></div>
+      <div class="stat"><div class="n">v0</div><div class="l">Book draft</div></div>
+    </div>
+  </div>
+
+  <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); font-weight: 600; margin-bottom: 12px;">Chapters in order · drag the number to reorder</div>
+  <div class="series-list">
+    <div class="series-row">
+      <div class="num">01</div>
+      <div>
+        <div class="t-title">The Foundations We Stand On</div>
+        <div class="t-meta">Pastor Grace · 24 Aug 2026 · 12 scriptures</div>
+      </div>
+      <div class="duration">51:04</div>
+      <span class="chip success">Summary ready</span>
+    </div>
+    <div class="series-row">
+      <div class="num">02</div>
+      <div>
+        <div class="t-title">Trust Before You Understand</div>
+        <div class="t-meta">Pastor Emeka · 31 Aug 2026 · 7 scriptures</div>
+      </div>
+      <div class="duration">42:10</div>
+      <span class="chip warning">Generating</span>
+    </div>
+    <div class="series-row">
+      <div class="num">03</div>
+      <div>
+        <div class="t-title">The Story God Wrote Before You Were Born</div>
+        <div class="t-meta">Pastor Emeka · 7 Sept 2026 · 9 scriptures</div>
+      </div>
+      <div class="duration">47:22</div>
+      <span class="chip success">Summary ready</span>
+    </div>
+    <div class="series-row" style="opacity: 0.5;">
+      <div class="num">04</div>
+      <div>
+        <div class="t-title">Not yet preached · <em style="color:var(--text-muted)">Placeholder</em></div>
+        <div class="t-meta">Pastor Emeka · 14 Sept 2026</div>
+      </div>
+      <div class="duration">—</div>
+      <span class="chip">Upcoming</span>
+    </div>
+  </div>
+
+  <div style="margin-top: 32px;" class="grid-3">
+    <div class="card">
+      <div class="card-title" style="font-size: 14px;">Book template</div>
+      <div style="margin-top: 12px;">
+        <div style="padding: 10px; border: 1px solid var(--a-500); border-radius: 10px; margin-bottom: 8px; font-size: 13px;">Devotional (default)</div>
+        <div style="padding: 10px; border: 1px solid var(--border-default); border-radius: 10px; margin-bottom: 8px; font-size: 13px; color: var(--text-secondary);">Academic / study</div>
+        <div style="padding: 10px; border: 1px solid var(--border-default); border-radius: 10px; font-size: 13px; color: var(--text-secondary);">Conversational</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size: 14px;">What the book includes</div>
+      <div style="color: var(--text-secondary); font-size: 13px; margin-top: 12px; line-height: 1.8;">
+        Cover with dedication<br>
+        Table of contents<br>
+        One chapter per sermon<br>
+        Each chapter opens with its summary<br>
+        Combined scripture index<br>
+        Discussion questions grouped by chapter
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size: 14px;">Formats</div>
+      <div style="color: var(--text-secondary); font-size: 13px; margin-top: 12px; line-height: 1.8;">
+        <strong style="color:var(--text-primary)">PDF</strong> — print-ready, embedded fonts<br>
+        <strong style="color:var(--text-primary)">DOCX</strong> — edit in Word / Google Docs<br>
+        <strong style="color:var(--text-primary)">EPUB</strong> — Phase 4
+      </div>
+      <button class="btn-primary" style="margin-top: 16px; width: 100%;">Compile & preview</button>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- SETTINGS                                             -->
+<!-- =================================================== -->
+<section class="screen" id="screen-settings">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Settings · General</div>
+      <div class="screen-desc">Every configurable knob in the app. Grouped by intent, one screen at a time. Nothing hidden.</div>
+    </div>
+  </div>
+
+  <div class="settings-layout">
+    <nav class="settings-nav">
+      <button class="on"><svg style="width:16px;height:16px"><use href="#i-cog"/></svg> General</button>
+      <button><svg style="width:16px;height:16px"><use href="#i-mic"/></svg> Audio & speech</button>
+      <button><svg style="width:16px;height:16px"><use href="#i-monitor"/></svg> Displays & themes</button>
+      <button><svg style="width:16px;height:16px"><use href="#i-book"/></svg> Translations</button>
+      <button><svg style="width:16px;height:16px"><use href="#i-doc"/></svg> Summary template</button>
+      <button><svg style="width:16px;height:16px"><use href="#i-phone"/></svg> Phone remote</button>
+      <button><svg style="width:16px;height:16px"><use href="#i-globe"/></svg> Broadcast (NDI · OBS)</button>
+      <button><svg style="width:16px;height:16px"><use href="#i-download"/></svg> Packs</button>
+      <button><svg style="width:16px;height:16px"><use href="#i-user"/></svg> License & devices</button>
+      <button><svg style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2v4M12 18v4M5 5l3 3M16 16l3 3M2 12h4M18 12h4M5 19l3-3M16 8l3-3"/></svg> Diagnostics</button>
+    </nav>
+
+    <div class="settings-content">
+      <div class="card">
+        <div class="settings-section-title">Church & service</div>
+        <div style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">These appear on every PDF cover and export.</div>
+        <div class="row">
+          <div><div class="label">Church name</div><div class="hint">Shown on the PDF cover</div></div>
+          <input class="field" value="Grace Chapel" style="max-width: 320px;" />
+        </div>
+        <div class="row">
+          <div><div class="label">Location</div><div class="hint">City and country</div></div>
+          <input class="field" value="Abuja, Nigeria" style="max-width: 320px;" />
+        </div>
+        <div class="row">
+          <div><div class="label">Default preacher</div><div class="hint">Prefilled at start of service</div></div>
+          <input class="field" value="Pastor Emeka Nwosu" style="max-width: 320px;" />
+        </div>
+        <div class="row">
+          <div><div class="label">Default translation</div><div class="hint">Used until an operator changes it</div></div>
+          <div class="translation-select">King James Version (KJV) ▾</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="settings-section-title">Behaviour</div>
+        <div class="row">
+          <div><div class="label">Auto-live detected verses</div><div class="hint">Skip staging when confidence is above 90%. Off by default — the operator stays in control.</div></div>
+          <div class="switch"></div>
+        </div>
+        <div class="row">
+          <div><div class="label">Enhance summary when online</div><div class="hint">If a service is summarized offline, regenerate the full AI version when the internet returns.</div></div>
+          <div class="switch on"></div>
+        </div>
+        <div class="row">
+          <div><div class="label">Auto-save PDF to folder</div><div class="hint">A second copy is dropped into a shared folder each time a summary is ready.</div></div>
+          <button class="btn-secondary" style="font-size: 12px;">Choose folder…</button>
+        </div>
+        <div class="row">
+          <div><div class="label">Anonymous crash reporting</div><div class="hint">Never includes transcript content. Off unless you turn it on.</div></div>
+          <div class="switch"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="settings-section-title">Danger zone</div>
+        <div class="row">
+          <div><div class="label">Reset onboarding</div><div class="hint">Run the six-step setup again.</div></div>
+          <button class="btn-secondary">Reset</button>
+        </div>
+        <div class="row">
+          <div><div class="label">Delete all sermons</div><div class="hint">Removes every transcript, summary, and export. Cannot be undone.</div></div>
+          <button class="btn-danger">Delete all</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================== -->
+<!-- PACKS                                                -->
+<!-- =================================================== -->
+<section class="screen" id="screen-packs">
+  <div class="screen-title-bar">
+    <div>
+      <div class="screen-title">Settings · Packs</div>
+      <div class="screen-desc">Downloadable add-ons. Base install is under 40 MB. Everything heavy — speech, extra translations, offline AI — is opt-in.</div>
+    </div>
+  </div>
+
+  <div style="max-width: 900px; margin: 0 auto;">
+    <div class="card" style="margin-bottom: 20px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <div class="card-title">Currently installed</div>
+          <div class="card-subtitle">128 MB total · 3 packs</div>
+        </div>
+        <div class="chip">Base install: 38 MB</div>
+      </div>
+    </div>
+
+    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); font-weight: 600; margin: 24px 0 12px;">Speech</div>
+    <div class="col-flex">
+      <div class="pack-row">
+        <div class="icon-circle" style="background: var(--success-bg); color: var(--success);"><svg style="width:18px;height:18px"><use href="#i-check"/></svg></div>
+        <div>
+          <div class="pack-name">Offline speech pack (base.en)</div>
+          <div class="pack-desc">whisper.cpp base English model. Runs speech-to-text without internet.</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">75 MB · installed</div>
+          <button class="btn-danger" style="font-size: 12px; padding: 4px 10px;">Remove</button>
+        </div>
+      </div>
+      <div class="pack-row">
+        <div class="icon-circle"><svg style="width:18px;height:18px"><use href="#i-download"/></svg></div>
+        <div>
+          <div class="pack-name">Higher accuracy speech (small.en)</div>
+          <div class="pack-desc">Larger whisper.cpp model. Slower, more accurate on accented English.</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">250 MB</div>
+          <button class="btn-secondary" style="font-size: 12px; padding: 4px 10px;">Install</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); font-weight: 600; margin: 24px 0 12px;">Translations</div>
+    <div class="col-flex">
+      <div class="pack-row">
+        <div class="icon-circle" style="background: var(--success-bg); color: var(--success);"><svg style="width:18px;height:18px"><use href="#i-check"/></svg></div>
+        <div>
+          <div class="pack-name">King James Version (KJV)</div>
+          <div class="pack-desc">Bundled. Public domain.</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">5 MB · bundled</div>
+        </div>
+      </div>
+      <div class="pack-row">
+        <div class="icon-circle" style="background: var(--a-900); color: var(--a-500);"><svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" stroke-dasharray="30 20"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg></div>
+        <div>
+          <div class="pack-name">New International Version (NIV)</div>
+          <div class="pack-desc">Downloading… 3.2 MB / 5.4 MB · Plus license required.</div>
+        </div>
+        <div style="text-align: right;">
+          <div class="pack-progress">
+            <div class="bar"><div style="width: 62%"></div></div>
+            <span>62%</span>
+          </div>
+          <button style="font-size: 12px; color: var(--text-muted); background: none;">Pause</button>
+        </div>
+      </div>
+      <div class="pack-row">
+        <div class="icon-circle"><svg style="width:18px;height:18px"><use href="#i-download"/></svg></div>
+        <div>
+          <div class="pack-name">English Standard Version (ESV)</div>
+          <div class="pack-desc">Requires Plus tier.</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">5.6 MB</div>
+          <button class="btn-secondary" style="font-size: 12px; padding: 4px 10px;">Install</button>
+        </div>
+      </div>
+      <div class="pack-row">
+        <div class="icon-circle"><svg style="width:18px;height:18px"><use href="#i-plus"/></svg></div>
+        <div>
+          <div class="pack-name">Import a translation</div>
+          <div class="pack-desc">USFM, OSIS, JSON, or CSV. For church-supplied Bibles including local-language editions.</div>
+        </div>
+        <div style="text-align: right;">
+          <button class="btn-secondary" style="font-size: 12px; padding: 4px 10px;">Choose file…</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); font-weight: 600; margin: 24px 0 12px;">Intelligence (optional)</div>
+    <div class="pack-row">
+      <div class="icon-circle" style="background: var(--warning-bg); color: var(--warning);">
+        <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v3M12 18v3M5 5l2 2M17 17l2 2M3 12h3M18 12h3M5 19l2-2M17 7l2-2"/><circle cx="12" cy="12" r="4"/></svg>
+      </div>
+      <div>
+        <div class="pack-name">Offline intelligence pack</div>
+        <div class="pack-desc">Local AI model for generating summaries without internet. Optional — SermonAI still creates a template-based PDF without this.</div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 12px; color: var(--warning); font-family: var(--font-mono);">1.4 GB</div>
+        <button class="btn-secondary" style="font-size: 12px; padding: 4px 10px;">Install with warning</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+  // Screen switching
+  const tabs = document.querySelectorAll('[data-screen]');
+  const screens = document.querySelectorAll('.screen');
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const id = t.dataset.screen;
+      tabs.forEach(x => x.classList.toggle('active', x.dataset.screen === id));
+      screens.forEach(s => s.classList.toggle('active', s.id === 'screen-' + id));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+
+  // Command palette shortcut
+  document.addEventListener('keydown', e => {
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    if ((isMac ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      document.getElementById('palette').classList.toggle('on');
+    }
+    if (e.key === 'Escape') {
+      document.getElementById('palette').classList.remove('on');
+    }
+  });
+
+  // Generate a fake QR pattern
+  const qr = document.getElementById('qrbox');
+  if (qr) {
+    // 12x12 grid, three corner markers, deterministic-ish pattern
+    const N = 12;
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const el = document.createElement('div');
+        const isFinderTL = (x < 3 && y < 3);
+        const isFinderTR = (x >= N-3 && y < 3);
+        const isFinderBL = (x < 3 && y >= N-3);
+        const isFinder = isFinderTL || isFinderTR || isFinderBL;
+        let on = false;
+        if (isFinder) {
+          // finder ring
+          const localX = isFinderTR ? x - (N-3) : x;
+          const localY = isFinderBL ? y - (N-3) : y;
+          on = !(localX === 1 && localY === 1);
+        } else {
+          // pseudo-random
+          on = ((x*13 + y*7 + x*y) % 3) === 0;
+        }
+        if (!on) el.classList.add('off');
+        qr.appendChild(el);
+      }
+    }
+  }
+</script>
+</body>
+</html>

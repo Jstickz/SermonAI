@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Fonts are bundled as WOFF2 subsets, never linked from Google Fonts —
+ * a runtime font fetch breaks offline mode (Branding §3.1).
+ * Drop the files in src/assets/fonts/ and uncomment as they land.
+ *
+ * @font-face { font-family: "Inter"; src: url("/fonts/Inter.woff2") format("woff2"); font-display: swap; }
+ * @font-face { font-family: "Crimson Pro"; src: url("/fonts/CrimsonPro.woff2") format("woff2"); font-display: swap; }
+ * @font-face { font-family: "JetBrains Mono"; src: url("/fonts/JetBrainsMono.woff2") format("woff2"); font-display: swap; }
+ */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg-canvas text-content-primary font-sans;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* Timers, percentages and dates must not jitter (Branding §3.3). */
+  .tabular,
+  time,
+  .mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    @apply bg-accent-900 text-content-primary;
+  }
+}
+
+@layer components {
+  /* The three button tiers. Nothing else. (Branding §5.1) */
+  .btn-primary {
+    @apply rounded-pill bg-bg-light-cta px-6 py-3 font-semibold text-content-on-light;
+    @apply transition-colors duration-base ease-brand-out hover:bg-[#F5F5F7] active:bg-[#CFCFCF];
+  }
+
+  .btn-secondary {
+    @apply rounded-pill border border-transparent bg-bg-pill px-6 py-3 text-content-primary;
+    @apply transition-colors duration-base ease-brand-out hover:bg-bg-hover active:bg-bg-active;
+  }
+
+  .btn-tertiary {
+    @apply text-content-primary underline-offset-4 hover:underline;
+  }
+
+  .btn-destructive {
+    @apply rounded-pill bg-transparent px-6 py-3 text-status-danger;
+    @apply transition-colors duration-base ease-brand-out hover:bg-status-danger-bg;
+  }
+
+  /* Never smaller than 40x40: booth clicks are shaky (Branding §5.1). */
+  .btn-icon {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-pill bg-bg-pill text-content-secondary;
+    @apply transition-colors duration-base ease-brand-out hover:bg-bg-hover hover:text-content-primary;
+  }
+
+  .card {
+    @apply rounded-lg bg-bg-raised p-6;
+  }
+
+  .field {
+    @apply h-10 w-full rounded-md border border-line-default bg-bg-sunken px-3 text-content-primary;
+    @apply placeholder:text-content-muted focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-900;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-pill bg-bg-pill px-2.5 py-1 text-xs font-medium text-content-secondary;
+  }
+}

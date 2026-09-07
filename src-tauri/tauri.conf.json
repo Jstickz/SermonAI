@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SermonAI",
+  "version": "0.1.0",
+  "identifier": "app.sermonai.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:* https://api.deepgram.com wss://api.deepgram.com https://api.scripture.api.bible https://api.anthropic.com"
+    },
+    "windows": [
+      {
+        "label": "operator",
+        "title": "SermonAI",
+        "url": "index.html",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "center": true,
+        "theme": "Dark",
+        "backgroundColor": "#0F0F10"
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "dmg", "app"],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": ["assets/*"],
+    "copyright": "© 2026 SermonAI",
+    "category": "Productivity",
+    "shortDescription": "Every verse. Every sermon. Kept.",
+    "longDescription": "SermonAI listens to a live sermon, detects scripture references, projects the verse, and produces a detailed summary PDF the moment the service ends.",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": ["https://packs.sermonai.app/updates/{{target}}/{{arch}}/{{current_version}}"],
+      "dialog": true,
+      "pubkey": ""
+    }
+  }
+}
