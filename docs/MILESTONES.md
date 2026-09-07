@@ -58,7 +58,7 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 **You are here when:** there is no repo yet, or the repo exists but `cargo tauri build` does not produce a signed installer on both platforms.
 
 **Deliverables**
-- [ ] Repo created with the structure in PRD §10.7. `README.md`, `docs/PRD.md`, `docs/MILESTONES.md` committed. *(Structure and docs are in place; `git init` and the first commit are pending Git being installed.)*
+- [x] Repo created with the structure in PRD §10.7. `README.md`, `docs/PRD.md`, `docs/MILESTONES.md` committed. *(Local repo on `main`, first commit 7 Sept. No remote yet.)*
 - [x] Tauri 2 project scaffolded: React + TypeScript + Tailwind + Zustand frontend, Rust backend, Vite dev server working. *(Verified 7 Sept: `npm run tauri:dev` builds and launches, operator window opens, 42 MB idle RSS.)*
 - [ ] Three windows (operator, projector, alternate) created from Rust and placed on chosen monitors using the monitor API. Projector window is frameless and fullscreen. *(Built: all three windows created from Rust, outputs frameless and hidden until assigned; `list_monitors` / `set_projector_monitor` / `set_alternate_monitor` commands and a Settings → Displays picker. Not yet confirmed by eye on a second screen.)*
 - [ ] GitHub Actions matrix: `windows-latest`, `macos-latest` (Intel), `macos-latest` (Apple Silicon). Builds, runs `cargo test` and `vitest`, signs (Authenticode, Apple Developer ID), notarizes macOS.
