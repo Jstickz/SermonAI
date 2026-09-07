@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DisplaySettings } from "./components/DisplaySettings";
+import { PackSettings } from "./components/PackSettings";
 
 // M0 shell only. The panels below are filled in per milestone:
 // transcript M1, detection cards M2, staging M3, library M4, packs M0/M5.
@@ -33,8 +34,9 @@ export function OperatorApp() {
       </header>
 
       {tab === "Settings" ? (
-        <main className="min-h-0 flex-1 overflow-auto p-5">
+        <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-5">
           <DisplaySettings />
+          <PackSettings />
         </main>
       ) : (
         /* Two columns: transcript 55%, cards + staging + preview 45% (PRD §16.2). */

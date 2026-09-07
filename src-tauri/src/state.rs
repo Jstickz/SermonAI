@@ -5,18 +5,25 @@ use std::sync::Mutex;
 
 use rusqlite::Connection;
 
-/// The single SQLite connection for the app data directory.
-///
-/// One connection behind a mutex is deliberate: SQLite in WAL mode serializes
-/// writers anyway, and a service produces a modest write rate (a transcript
-/// segment every few hundred ms). If read contention ever shows up during a
-/// service, this is the place to introduce a pool.
+use crate::packs::PackManager;
+
+/// Long-lived services shared by every command.
 pub struct AppState {
+    /// The single SQLite connection for the app data directory.
+    ///
+    /// One connection behind a mutex is deliberate: SQLite in WAL mode
+    /// serializes writers anyway, and a service produces a modest write rate (a
+    /// transcript segment every few hundred ms). If read contention shows up
+    /// during a service, this is the place to introduce a pool.
     pub db: Mutex<Connection>,
+    pub packs: PackManager,
 }
 
 impl AppState {
-    pub fn new(db: Connection) -> Self {
-        Self { db: Mutex::new(db) }
+    pub fn new(db: Connection, packs: PackManager) -> Self {
+        Self {
+            db: Mutex::new(db),
+            packs,
+        }
     }
 }

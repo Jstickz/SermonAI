@@ -67,7 +67,7 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [ ] `scripts/build-verse-index.py`: embeds 31,102 verses (OpenAI `text-embedding-3-small`), reduces to 384 dims, quantizes to int8, writes `src-tauri/assets/verse-index.bin` (~12 MB). Run once, output committed.
 - [ ] Small on-device sentence encoder chosen and bundled for runtime query embedding (must be under 25 MB, must run on both platforms without GPU).
 - [ ] KJV, WEB, ASV built into bundled translation assets by `scripts/build-translation-pack.py`.
-- [ ] Pack system: `packs-manifest.json` format, `packs/downloader.rs` with ranged resumable downloads and SHA-256 verification, Settings → Packs screen listing packs with sizes and progress. Tested against a manifest on a test bucket.
+- [x] Pack system: `packs-manifest.json` format, `packs/downloader.rs` with ranged resumable downloads and SHA-256 verification, Settings → Packs screen listing packs with sizes and progress. Tested against a manifest on a test bucket. *(7 Sept: manifest/downloader/registry modules, five commands, Packs screen with size labels, progress, pause/resume/remove. Integration tests run against a local range-capable server: resume-after-restart asserts the Range header continues from the halfway byte; checksum mismatch is rejected and the part file discarded. Not yet run against a real CDN bucket — pending deliverable 6.)*
 - [x] SQLite schema from PRD §14.2 created via migrations on first launch. *(Verified 7 Sept: first launch logged `applying migration 0001_init` and created `%APPDATA%/app.sermonai.desktop/db/sermonai.sqlite` in WAL mode. Idempotency covered by `cargo test`.)*
 - [x] ADRs written: Tauri over Electron; staging-first output; three-stage detection; local-only data; summary JSON schema; packs strategy. *(`docs/adr/0001`–`0006`.)*
 
@@ -399,6 +399,8 @@ Ideas that came up early but belong to a later milestone. Write the idea and the
 | Idea | Belongs to | Noted on |
 |---|---|---|
 | **Decision needed, not an idea:** build the verse index with the *same* encoder used at runtime. PRD §15.4 embeds verses with OpenAI `text-embedding-3-small` but embeds spoken phrases with a bundled on-device model; cosine similarity across two different embedding spaces is meaningless. Proposal: use `all-MiniLM-L6-v2` for both (natively 384-dim, CPU-only, ~23 MB quantized), which also drops the OpenAI dependency. Requires a PRD §15.4 amendment. | M0 (deliverables 7, 8) | 7 Sept 2026 |
+| Pack **archive extraction** (`.tar.zst`): packs install as one verified file today, which suits whisper models and theme JSON. Translation packs shipped as archives will need a decompress step. | M5 / M6 | 7 Sept 2026 |
+| **Manifest signature verification** is not implemented — packs are checksum-verified against the manifest, but the manifest itself is trusted on TLS alone. Needs the signing key from deliverable 6. | M0 (deliverable 6) | 7 Sept 2026 |
 | Wordmark/lockup art in `assets/logo-assets/` is not yet used anywhere in the UI — the operator top bar renders "SermonAI" as text, not the lockup. | M8 (design pass) | 7 Sept 2026 |
 
 ---

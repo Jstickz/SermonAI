@@ -29,7 +29,7 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
 
 # Audio capture: WASAPI on Windows, CoreAudio on macOS (PRD §10.2).
 cpal = "0.15"
@@ -72,3 +72,12 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# Integration tests spin up a local range-capable server to stand in for the
+# Pack CDN, so they need these directly rather than through the lib.
+[dev-dependencies]
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+sha2 = "0.10"
+hex = "0.4"

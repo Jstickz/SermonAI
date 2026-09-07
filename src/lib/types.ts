@@ -115,4 +115,17 @@ export interface Pack {
   status: PackStatus;
   /** 0..1 while downloading; resumable across restarts (FR-61). */
   progress: number;
+  /** Bytes fetched so far, including a partial download from an earlier run. */
+  bytesOnDisk: number;
+  optional: boolean;
+  tier: string | null;
+}
+
+/** Payload of the `pack:progress` event. */
+export interface PackProgress {
+  packId: string;
+  status: PackStatus;
+  progress: number;
+  bytesOnDisk: number;
+  sizeBytes: number;
 }

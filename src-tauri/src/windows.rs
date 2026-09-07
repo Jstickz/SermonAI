@@ -5,7 +5,9 @@
 //! They are shown only when assigned to a monitor (M0 deliverable, PRD §10.3).
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
 
 use crate::error::{Error, Result};
 
@@ -30,19 +32,27 @@ pub struct MonitorInfo {
 pub fn create_output_windows(app: &AppHandle) -> Result<()> {
     let dark = tauri::window::Color(0x0F, 0x0F, 0x10, 0xFF);
 
-    WebviewWindowBuilder::new(app, PROJECTOR_LABEL, WebviewUrl::App("projector.html".into()))
-        .title("SermonAI — Projector")
-        .decorations(false)
-        .visible(false)
-        .background_color(dark)
-        .build()?;
+    WebviewWindowBuilder::new(
+        app,
+        PROJECTOR_LABEL,
+        WebviewUrl::App("projector.html".into()),
+    )
+    .title("SermonAI — Projector")
+    .decorations(false)
+    .visible(false)
+    .background_color(dark)
+    .build()?;
 
-    WebviewWindowBuilder::new(app, ALTERNATE_LABEL, WebviewUrl::App("alternate.html".into()))
-        .title("SermonAI — Confidence Monitor")
-        .decorations(false)
-        .visible(false)
-        .background_color(dark)
-        .build()?;
+    WebviewWindowBuilder::new(
+        app,
+        ALTERNATE_LABEL,
+        WebviewUrl::App("alternate.html".into()),
+    )
+    .title("SermonAI — Confidence Monitor")
+    .decorations(false)
+    .visible(false)
+    .background_color(dark)
+    .build()?;
 
     Ok(())
 }
@@ -101,19 +111,27 @@ pub fn place_on_monitor(app: &AppHandle, label: &str, monitor_name: Option<&str>
                 .iter()
                 .find(|m| m.name().map(|n| n.as_str()) == Some(wanted))
         })
-        .or_else(|| target.primary_monitor().ok().flatten().as_ref().and_then(|primary| {
-            let primary_name = primary.name().cloned();
-            monitors
-                .iter()
-                .find(|m| m.name().cloned() == primary_name)
-        }))
+        .or_else(|| {
+            target
+                .primary_monitor()
+                .ok()
+                .flatten()
+                .as_ref()
+                .and_then(|primary| {
+                    let primary_name = primary.name().cloned();
+                    monitors.iter().find(|m| m.name().cloned() == primary_name)
+                })
+        })
         .or_else(|| monitors.first())
         .ok_or_else(|| Error::Window("no displays are attached".into()))?;
 
     // Position before fullscreen: the OS makes a window fullscreen on whichever
     // monitor it currently sits on.
     target.set_fullscreen(false)?;
-    target.set_position(PhysicalPosition::new(chosen.position().x, chosen.position().y))?;
+    target.set_position(PhysicalPosition::new(
+        chosen.position().x,
+        chosen.position().y,
+    ))?;
     target.set_fullscreen(true)?;
     target.show()?;
 

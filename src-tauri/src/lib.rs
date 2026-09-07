@@ -32,7 +32,15 @@ pub fn run() {
             // Migrations run before any window can issue a command (M0 deliverable).
             let data_dir = app.path().app_data_dir()?;
             let conn = db::init(&data_dir)?;
-            app.manage(state::AppState::new(conn));
+
+            // Pack catalog location is overridable for testing against a local
+            // bucket; production points at the Pack CDN (PRD §15.5).
+            let cdn = std::env::var("PACK_CDN_BASE_URL")
+                .unwrap_or_else(|_| "https://packs.sermonai.app".to_string());
+            let manifest_url = format!("{}/packs-manifest.json", cdn.trim_end_matches('/'));
+            let packs = packs::PackManager::new(&data_dir, manifest_url);
+
+            app.manage(state::AppState::new(conn, packs));
 
             // The projector and alternate windows are created from Rust so we can
             // place them on the operator's chosen monitors (PRD §10.3).
@@ -44,6 +52,11 @@ pub fn run() {
             commands::display::list_monitors,
             commands::display::set_projector_monitor,
             commands::display::set_alternate_monitor,
+            commands::packs::refresh_pack_catalog,
+            commands::packs::list_packs,
+            commands::packs::download_pack,
+            commands::packs::pause_pack_download,
+            commands::packs::remove_pack,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SermonAI");

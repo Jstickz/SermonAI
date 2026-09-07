@@ -10,6 +10,8 @@ import type {
   MonitorInfo,
   OutputState,
   Pack,
+  PackProgress,
+  PackStatus,
   Sermon,
   TranscriptSegment,
   Verse,
@@ -59,7 +61,9 @@ export const library = {
 
 export const packs = {
   list: () => invoke<Pack[]>("list_packs"),
-  download: (packId: string) => invoke<void>("download_pack", { packId }),
+  /** Re-read the catalog from the Pack CDN, then list. */
+  refresh: () => invoke<Pack[]>("refresh_pack_catalog"),
+  download: (packId: string) => invoke<PackStatus>("download_pack", { packId }),
   pause: (packId: string) => invoke<void>("pause_pack_download", { packId }),
   remove: (packId: string) => invoke<void>("remove_pack", { packId }),
 };
@@ -72,7 +76,7 @@ interface EventMap {
   "detection:new": Detection;
   "output:changed": OutputState;
   "summary:progress": { sermonId: number; step: string; percent: number };
-  "pack:progress": { packId: string; progress: number };
+  "pack:progress": PackProgress;
 }
 
 export function on<K extends keyof EventMap>(

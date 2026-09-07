@@ -13,3 +13,4 @@
 //!   remote.rs       enable/disable remote, pairing, revoke devices (M7)
 
 pub mod display;
+pub mod packs;
