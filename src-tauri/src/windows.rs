@@ -145,3 +145,15 @@ pub fn hide_output(app: &AppHandle, label: &str) -> Result<()> {
     target.hide()?;
     Ok(())
 }
+
+/// Which monitor each output window was last sent to.
+///
+/// `None` means the window is hidden. A name here is only meaningful while
+/// that display is still attached; the operator UI reconciles against the live
+/// monitor list so an unplugged screen stops showing as assigned.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputAssignments {
+    pub projector: Option<String>,
+    pub alternate: Option<String>,
+}

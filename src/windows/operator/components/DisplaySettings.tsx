@@ -1,25 +1,33 @@
 import { useCallback, useEffect, useState } from "react";
 import { display } from "@/lib/ipc";
-import type { MonitorInfo } from "@/lib/types";
+import type { MonitorInfo, OutputAssignments } from "@/lib/types";
 
-type Assignment = "projector" | "alternate" | null;
+type Role = "projector" | "alternate";
+
+const NO_OUTPUTS: OutputAssignments = { projector: null, alternate: null };
 
 /**
  * Assign the projector and confidence-monitor outputs to displays
  * (M0 deliverable 3, FR-23, FR-24).
  *
- * Displays are re-read whenever the operator asks, so a monitor plugged in
- * after launch shows up without restarting the app.
+ * Assignments live in the Rust backend, not in this component: the operator
+ * switches tabs constantly during a service, which unmounts this panel. Local
+ * state here would forget which screen is live the moment they looked at the
+ * Library.
  */
 export function DisplaySettings() {
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
-  const [projector, setProjector] = useState<string | null>(null);
-  const [alternate, setAlternate] = useState<string | null>(null);
+  const [outputs, setOutputs] = useState<OutputAssignments>(NO_OUTPUTS);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      setMonitors(await display.listMonitors());
+      const [attached, assigned] = await Promise.all([
+        display.listMonitors(),
+        display.getAssignments(),
+      ]);
+      setMonitors(attached);
+      setOutputs(assigned);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -30,37 +38,40 @@ export function DisplaySettings() {
     void refresh();
   }, [refresh]);
 
-  async function assign(monitor: MonitorInfo, role: Exclude<Assignment, null>) {
+  async function assign(monitor: MonitorInfo, role: Role) {
     try {
-      // A display can only carry one output, so clear the other role first.
-      if (role === "projector") {
-        if (alternate === monitor.name) {
-          await display.setAlternate(null);
-          setAlternate(null);
-        }
-        const next = projector === monitor.name ? null : monitor.name;
-        await display.setProjector(next);
-        setProjector(next);
-      } else {
-        if (projector === monitor.name) {
-          await display.setProjector(null);
-          setProjector(null);
-        }
-        const next = alternate === monitor.name ? null : monitor.name;
-        await display.setAlternate(next);
-        setAlternate(next);
+      // A display carries one output, so clear the other role from it first.
+      if (role === "projector" && outputs.alternate === monitor.name) {
+        setOutputs(await display.setAlternate(null));
+      } else if (role === "alternate" && outputs.projector === monitor.name) {
+        setOutputs(await display.setProjector(null));
       }
+
+      const current = role === "projector" ? outputs.projector : outputs.alternate;
+      const next = current === monitor.name ? null : monitor.name;
+
+      setOutputs(role === "projector" ? await display.setProjector(next) : await display.setAlternate(next));
       setError(null);
     } catch (e) {
       setError(String(e));
+      void refresh();
     }
   }
 
-  function roleOf(monitor: MonitorInfo): Assignment {
-    if (projector === monitor.name) return "projector";
-    if (alternate === monitor.name) return "alternate";
+  /**
+   * A role only counts if that display is still attached. After an unplug the
+   * backend still holds the old name, and showing it as live would tell the
+   * operator a screen is projecting when nothing is.
+   */
+  function roleOf(monitor: MonitorInfo): Role | null {
+    if (outputs.projector === monitor.name) return "projector";
+    if (outputs.alternate === monitor.name) return "alternate";
     return null;
   }
+
+  const attachedNames = new Set(monitors.map((m) => m.name));
+  const missingProjector = outputs.projector !== null && !attachedNames.has(outputs.projector);
+  const missingAlternate = outputs.alternate !== null && !attachedNames.has(outputs.alternate);
 
   return (
     <section className="card">
@@ -78,6 +89,17 @@ export function DisplaySettings() {
 
       {error && (
         <p className="mb-4 rounded-md bg-status-danger-bg px-3 py-2 text-status-danger">{error}</p>
+      )}
+
+      {(missingProjector || missingAlternate) && (
+        <p className="mb-4 rounded-md bg-status-warning-bg px-3 py-2 text-status-warning">
+          {missingProjector && missingAlternate
+            ? "The projector and stage displays are no longer connected."
+            : missingProjector
+              ? "The projector display is no longer connected."
+              : "The stage display is no longer connected."}{" "}
+          Reconnect it, or pick another screen below.
+        </p>
       )}
 
       {monitors.length === 0 ? (

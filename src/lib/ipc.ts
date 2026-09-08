@@ -8,6 +8,7 @@ import type {
   AudioDevice,
   Detection,
   MonitorInfo,
+  OutputAssignments,
   OutputState,
   Pack,
   PackProgress,
@@ -28,9 +29,13 @@ export const audio = {
 
 export const display = {
   listMonitors: () => invoke<MonitorInfo[]>("list_monitors"),
-  /** Pass null to hide the output again. */
-  setProjector: (monitorName: string | null) => invoke<void>("set_projector_monitor", { monitorName }),
-  setAlternate: (monitorName: string | null) => invoke<void>("set_alternate_monitor", { monitorName }),
+  /** The backend owns this: the Settings panel unmounts on tab switch. */
+  getAssignments: () => invoke<OutputAssignments>("get_output_assignments"),
+  /** Pass null to hide the output again. Returns the updated assignments. */
+  setProjector: (monitorName: string | null) =>
+    invoke<OutputAssignments>("set_projector_monitor", { monitorName }),
+  setAlternate: (monitorName: string | null) =>
+    invoke<OutputAssignments>("set_alternate_monitor", { monitorName }),
 };
 
 export const service = {

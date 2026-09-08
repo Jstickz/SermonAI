@@ -50,6 +50,12 @@ export interface OutputState {
   blanked: boolean;
 }
 
+/** Which display each output window is currently on. Null means hidden. */
+export interface OutputAssignments {
+  projector: string | null;
+  alternate: string | null;
+}
+
 /** A display the operator can send the projector or alternate output to. */
 export interface MonitorInfo {
   name: string;

@@ -52,6 +52,7 @@ pub fn run() {
             commands::display::list_monitors,
             commands::display::set_projector_monitor,
             commands::display::set_alternate_monitor,
+            commands::display::get_output_assignments,
             commands::packs::refresh_pack_catalog,
             commands::packs::list_packs,
             commands::packs::download_pack,

@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use rusqlite::Connection;
 
 use crate::packs::PackManager;
+use crate::windows::OutputAssignments;
 
 /// Long-lived services shared by every command.
 pub struct AppState {
@@ -17,6 +18,11 @@ pub struct AppState {
     /// during a service, this is the place to introduce a pool.
     pub db: Mutex<Connection>,
     pub packs: PackManager,
+    /// Which display each output window is on. The backend owns this because
+    /// the operator UI unmounts when the operator switches tabs, and a
+    /// remounted panel must be able to ask what is actually on screen rather
+    /// than guess.
+    pub outputs: Mutex<OutputAssignments>,
 }
 
 impl AppState {
@@ -24,6 +30,7 @@ impl AppState {
         Self {
             db: Mutex::new(db),
             packs,
+            outputs: Mutex::new(OutputAssignments::default()),
         }
     }
 }
