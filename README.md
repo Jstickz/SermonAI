@@ -16,6 +16,7 @@ Windows and macOS as equals. Works offline. Base installer under 40 MB.
 | [docs/PRD.md](docs/PRD.md) | Product requirements, v2.1. The source of truth. Architecture decisions in §10 and §11 are binding. |
 | [docs/MILESTONES.md](docs/MILESTONES.md) | Stage tracker. **Read the Status Board before doing anything.** |
 | [docs/BRANDING.md](docs/BRANDING.md) | Design system. Reference tokens by name, never hard-code hex. |
+| [docs/INSTALL.md](docs/INSTALL.md) | How testers install an unsigned build past SmartScreen and Gatekeeper. |
 | [docs/wireframe.html](docs/wireframe.html) | Every screen as a static mock. Open it in a browser. |
 | [docs/adr/](docs/adr/) | Architecture decision records. |
 
@@ -35,6 +36,14 @@ the backend. See PRD §11.
 | Git | any | |
 | Windows | VS 2022 Build Tools with the C++ workload; WebView2 (present on Windows 11) | |
 | macOS | Xcode Command Line Tools | |
+
+## Installing a build
+
+Builds are **unsigned during development**, so Windows SmartScreen and macOS
+Gatekeeper both warn on first run. [docs/INSTALL.md](docs/INSTALL.md) walks
+testers through it — send that link with every build you share. Code signing
+(Apple Developer ID with notarization, Windows Authenticode) arrives before
+public launch in M11.
 
 ## Getting started
 

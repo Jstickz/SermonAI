@@ -53,15 +53,15 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 ## M0 — Foundation & Lightweight Installer
 **Phase 0 · 8 Sept – 21 Sept 2026 · 2 weeks**
 
-**Goal:** A signed, under-40 MB SermonAI installer exists for Windows and macOS, opens three empty windows on the right monitors, and can download a test pack.
+**Goal:** An under-40 MB SermonAI installer exists for Windows and macOS, opens three empty windows on the right monitors, and can download a test pack. Builds are unsigned during development; OS code signing is deliberately deferred to M11.
 
-**You are here when:** there is no repo yet, or the repo exists but `cargo tauri build` does not produce a signed installer on both platforms.
+**You are here when:** there is no repo yet, or the repo exists but `cargo tauri build` does not produce an installer on both platforms.
 
 **Deliverables**
 - [x] Repo created with the structure in PRD §10.7. `README.md`, `docs/PRD.md`, `docs/MILESTONES.md` committed. *(Local repo on `main`, first commit 7 Sept. No remote yet.)*
 - [x] Tauri 2 project scaffolded: React + TypeScript + Tailwind + Zustand frontend, Rust backend, Vite dev server working. *(Verified 7 Sept: `npm run tauri:dev` builds and launches, operator window opens, 42 MB idle RSS.)*
 - [ ] Three windows (operator, projector, alternate) created from Rust and placed on chosen monitors using the monitor API. Projector window is frameless and fullscreen. *(Built: all three windows created from Rust, outputs frameless and hidden until assigned; `list_monitors` / `set_projector_monitor` / `set_alternate_monitor` commands and a Settings → Displays picker. Not yet confirmed by eye on a second screen.)*
-- [ ] GitHub Actions matrix: `windows-latest`, `macos-latest` (Intel), `macos-latest` (Apple Silicon). Builds, runs `cargo test` and `vitest`, signs (Authenticode, Apple Developer ID), notarizes macOS.
+- [ ] GitHub Actions matrix: `windows-latest`, `macos-13` (Intel), `macos-latest` (Apple Silicon). Builds, runs `cargo test` and `vitest`, produces unsigned `.msi` / `.exe` / `.dmg`. *(OS code signing and notarization moved to M11; the Tauri updater key still signs update bundles.)*
 - [ ] CI gate: build fails if any installer exceeds 40 MB.
 - [ ] Vendor accounts and keys: Deepgram, API.Bible, Anthropic. Stored in CI secrets and local `.env`, never committed.
 - [ ] `scripts/build-verse-index.py`: embeds 31,102 verses (OpenAI `text-embedding-3-small`), reduces to 384 dims, quantizes to int8, writes `src-tauri/assets/verse-index.bin` (~12 MB). Run once, output committed.
@@ -72,9 +72,9 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [x] ADRs written: Tauri over Electron; staging-first output; three-stage detection; local-only data; summary JSON schema; packs strategy. *(`docs/adr/0001`–`0006`.)*
 
 **Definition of Done**
-- Fresh Windows 10 VM with no WebView2: run installer, no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently.
-- Fresh macOS 12 machine: open `.dmg`, drag to Applications, launch, no Gatekeeper warning.
-- Installer sizes printed in CI logs: both under 40 MB.
+- Fresh Windows 10 VM with no WebView2: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently.
+- Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`.
+- Installer sizes printed in CI logs: both under 40 MB (unsigned builds).
 - App cold start under 1 second on both platforms.
 - Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash.
 - Download a 30 MB test pack, kill the app at 50%, relaunch, download resumes and verifies.
@@ -357,6 +357,7 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 **You are here when:** M10 is ✅ and only pilot churches can get the app.
 
 **Deliverables**
+- [ ] **Add code signing: Apple Developer ID + notarization, Windows Authenticode via Azure Trusted Signing.** Deferred from M0 while builds went to a private tester group. Public downloads must not trigger SmartScreen or Gatekeeper. Restore the signing secrets to the CI build step, set `bundle.macOS.signingIdentity`, and re-test both DoD installer lines on clean machines.
 - [ ] Free / Plus / Pro tiers wired to licensing per PRD §23; checkout and key delivery.
 - [ ] Public website with download, pricing, and the "End Service → PDF in 60 seconds" demo video.
 - [ ] Knowledge base and in-app help for every feature.

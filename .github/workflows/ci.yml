@@ -74,17 +74,16 @@ jobs:
         run: cargo test --target ${{ matrix.target }}
 
       - name: Build installer
-        # Signing and notarization are configured once the certificates are in
-        # place (M0). Until then the build is unsigned but the size gate runs.
+        # Builds are deliberately UNSIGNED during development: no Authenticode
+        # certificate and no Apple Developer ID until M11 (see docs/INSTALL.md
+        # for the SmartScreen and Gatekeeper prompts testers will see).
+        #
+        # The two secrets below are the Tauri UPDATER signing key, which is a
+        # separate, free mechanism that lets the updater verify a release came
+        # from us. It is not OS code signing.
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run tauri:build -- --target ${{ matrix.target }}
 
       # FR-59: the base installer must stay under 40 MB. This gate is the only

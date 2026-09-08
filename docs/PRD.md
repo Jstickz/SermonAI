@@ -450,7 +450,7 @@ SermonAI wins on four things:
 
 ### 8.11 Installation & On-Demand Packs *(new in v2.1)*
 
-- **FR-59:** The base installer for each platform (signed `.msi`/`.exe` for Windows, signed and notarized `.dmg` for macOS) shall be **under 40 MB** and shall include: the application, KJV, WEB and ASV translations, the quantized verse embedding index, and the default theme. It shall install without administrator rights and without a setup wizard beyond audio device and display selection.
+- **FR-59:** The base installer for each platform (`.msi`/`.exe` for Windows, `.dmg` for macOS — unsigned during development, signed and notarized before M11 public launch, see §9.5) shall be **under 40 MB** and shall include: the application, KJV, WEB and ASV translations, the quantized verse embedding index, and the default theme. It shall install without administrator rights and without a setup wizard beyond audio device and display selection.
 - **FR-60:** The app shall offer **on-demand packs** from a Settings → Packs screen, each with a clear size label, progress bar, pause/resume, and integrity check: **Offline Speech Pack** (whisper.cpp base model, about 75 MB), **Translation Packs** (one per translation, 4 to 6 MB compressed), **Offline Intelligence Pack** (quantized local summary model, 1 GB or more, clearly marked optional), and **Theme Packs**.
 - **FR-61:** All packs shall be resumable across app restarts and network drops, and shall be verified by checksum before activation.
 - **FR-62:** Updates shall be delivered as **delta patches** via the Tauri updater, so routine releases are a few MB and never require re-downloading packs.
@@ -494,11 +494,12 @@ SermonAI wins on four things:
 - Linux: community best effort.
 - Outputs: HDMI, NDI 5.x, OBS 28+ Browser Source.
 - Windows and macOS are equals: no feature ships on one platform without the other, and CI blocks a release if either platform build fails.
+- **Unsigned builds during development. Code signing (Apple Developer ID with notarization; Windows Authenticode) added before M11 public launch.**
 
 ### 9.6 Maintainability
 
 - Single Tauri project: `src/` for the React frontend, `src-tauri/` for the Rust backend.
-- CI/CD builds, tests, signs, notarizes, and releases for both platforms from one pipeline.
+- CI/CD builds, tests, and releases for both platforms from one pipeline. Signing and notarization are added before M11 (§9.5).
 - Opt-in crash telemetry only; no transcript content ever leaves the machine in telemetry.
 - Auto-update via the Tauri updater with delta patches.
 
@@ -641,7 +642,7 @@ sermonai/
 | Animation | Framer Motion | Verse transitions |
 | Backend calls | `@tauri-apps/api` commands + events | In-process, typed, no HTTP hop |
 | Remote app | React (mobile-first) | Same stack, served over LAN by the Rust server |
-| Build | Vite + Tauri CLI | Fast dev, signed and notarized installers |
+| Build | Vite + Tauri CLI | Fast dev; installers for both platforms, unsigned until M11 |
 
 ### 11.2 Backend (Rust, compiled into the Tauri binary)
 
@@ -678,7 +679,7 @@ sermonai/
 ### 11.4 Tooling
 
 - GitHub, GitHub Actions CI/CD (matrix: windows-latest, macos-latest for both Intel and Apple Silicon), ESLint + Prettier, `cargo fmt` + `clippy`, Vitest + Playwright (frontend), `cargo test` (backend), `tauri-driver` for end-to-end, Sentry (opt-in).
-- Code signing: Windows Authenticode certificate; Apple Developer ID with notarization.
+- Unsigned builds during development. Code signing (Apple Developer ID with notarization; Windows Authenticode) added before M11 public launch.
 
 ---
 
@@ -1073,7 +1074,7 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 **Exit:** Tauri project scaffolded, CI green with signed builds on Windows and macOS, vendor keys provisioned, verse index built and bundled, pack downloader working against a test manifest.
 
 - [ ] Tauri 2 project: React + TypeScript frontend, Rust backend, three windows opening on the correct monitors.
-- [ ] CI/CD matrix for Windows and macOS (Intel + Apple Silicon) with signing and notarization.
+- [ ] CI/CD matrix for Windows and macOS (Intel + Apple Silicon). Signing and notarization deferred to M11 (§9.5).
 - [ ] Deepgram, API.Bible, Anthropic keys.
 - [ ] `build-verse-index.py` run once; ~12 MB quantized index committed to `src-tauri/assets/`.
 - [ ] KJV, WEB, ASV bundled as assets; `build-translation-pack.py` producing packs for the CDN.
