@@ -40,10 +40,11 @@ Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅
 |---|---|
 | Base installer (Windows msi) | 5.12 MB |
 | KJV + WEB + ASV | ~4 MB |
-| Verse index (int8) | ~12 MB |
-| **Headroom for the encoder** | **~19 MB** |
+| Verse index, 256 dims int8 | 7.71 MB |
+| Encoder matrix + tokenizer | 7.97 MB |
+| **Projected installer** | **~25 MB** |
 
-That is comfortable, and it means the encoder choice is no longer size-constrained to the degree feared.
+Comfortably inside the gate, with roughly 15 MB spare. The PRD assumed 384 dims and a 12 MB index; the real model is 256 dims, so both numbers came in smaller.
 
 **Remaining M0 work needs hardware, not decisions:** DoD lines 1, 2, 4 and 5 require clean Windows and macOS machines to install and time the app on.
 
@@ -77,9 +78,9 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [x] GitHub Actions matrix: `windows-latest`, `macos-15-intel` (Intel), `macos-latest` (Apple Silicon). Builds, runs `cargo test` and `vitest`, produces unsigned `.msi` / `.exe` / `.dmg`. *(8 Sept: all three jobs green on run 34241507233. First successful Rust compile, `cargo test` and bundle on macOS. OS code signing and notarization moved to M11; the Tauri updater key signs update bundles.)*
 - [x] CI gate: build fails if any installer exceeds 40 MB. *(8 Sept: enforced per job. Measured sizes — msi 5.12 MB, nsis 4.16 MB, dmg x64 3.43 MB, dmg aarch64 3.21 MB.)*
 - [x] Vendor accounts and keys: Deepgram, API.Bible, Anthropic. Stored in CI secrets and local `.env`, never committed. *(8 Sept: all three in local `.env` and in GitHub Actions secrets alongside `TAURI_SIGNING_PRIVATE_KEY`. API.Bible key verified live — HTTP 200, 38 English Bibles. `.env` is gitignored and no key has ever entered git history, confirmed by scanning all commits.)*
-- [ ] `scripts/build-verse-index.py`: embeds 31,102 verses, reduces to the encoder's dimensionality, quantizes to int8, writes `src-tauri/assets/verse-index.bin`. Run once, output committed. *(Blocked on deliverable 9 finishing — the verses have to exist before they can be embedded. No longer uses OpenAI: see the encoder decision below and the pending PRD §15.4 amendment.)*
+- [x] `scripts/build-verse-index.py`: embeds 31,102 verses, quantizes to int8, writes `src-tauri/assets/verse-index.bin`. Run once, output committed. *(8 Sept: 31,102 KJV verses at 256 dims, 7.71 MB. Rows are L2-normalised before quantizing so a cosine search is a plain int8 dot product. Validated against float32 — self-retrieval top-1 99.3%, top-5 99.7%; the script refuses to write below 95%. Built with the same model that answers runtime queries, not OpenAI.)*
 - [ ] Small on-device sentence encoder chosen and bundled for runtime query embedding (must run on both platforms without GPU). *(8 Sept: **decided — static embeddings bundled in the base installer**, so offline semantic detection works on first launch with no transformer runtime. The index must be built with this same model. Size cap revised: see the budget note in the blocker.)*
-- [ ] KJV, WEB, ASV built into bundled translation assets by `scripts/build-translation-pack.py`. *(8 Sept, in progress: script written with retries, an on-disk resume cache and a 66-book canon filter. **KJV done: exactly 31,102 verses across 66 books, 1.29 MB gzipped, SHA-256 sidecar.** WEB and ASV still fetching.)*
+- [x] KJV, WEB, ASV built into bundled translation assets by `scripts/build-translation-pack.py`. *(8 Sept: KJV 31,102 verses / 1.29 MB, ASV 31,077 / 1.29 MB, WEB 30,990 / 1.28 MB, each with a SHA-256 sidecar. Verse-count deltas are real translation differences over bracketed verses, not parse failures. Script has retries, a resume cache and a 66-book canon filter — API.Bible ships the Apocrypha and it is excluded.)*
 - [x] Pack system: `packs-manifest.json` format, `packs/downloader.rs` with ranged resumable downloads and SHA-256 verification, Settings → Packs screen listing packs with sizes and progress. Tested against a manifest on a test bucket. *(7 Sept: manifest/downloader/registry modules, five commands, Packs screen with size labels, progress, pause/resume/remove. Integration tests run against a local range-capable server: resume-after-restart asserts the Range header continues from the halfway byte; checksum mismatch is rejected and the part file discarded. Not yet run against a real CDN bucket — pending deliverable 6.)*
 - [x] SQLite schema from PRD §14.2 created via migrations on first launch. *(Verified 7 Sept: first launch logged `applying migration 0001_init` and created `%APPDATA%/app.sermonai.desktop/db/sermonai.sqlite` in WAL mode. Idempotency covered by `cargo test`.)*
 - [x] ADRs written: Tauri over Electron; staging-first output; three-stage detection; local-only data; summary JSON schema; packs strategy. *(`docs/adr/0001`–`0006`.)*
