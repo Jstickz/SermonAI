@@ -25,11 +25,12 @@ jobs:
           - name: windows
             os: windows-latest
             target: x86_64-pc-windows-msvc
-          # macos-13 is the last Intel runner; macos-latest is Apple Silicon.
-          # Building the x86_64 target on an arm64 runner would cross-compile
-          # and could not run cargo test, so pin the Intel job explicitly.
+          # macos-latest is Apple Silicon; macos-15-intel is the x86_64 image.
+          # (macos-13 was retired, and jobs targeting it queue forever.)
+          # Building x86_64 on an arm64 runner would cross-compile and could
+          # not run cargo test, so pin the Intel job explicitly.
           - name: macos-intel
-            os: macos-13
+            os: macos-15-intel
             target: x86_64-apple-darwin
           - name: macos-arm
             os: macos-latest
@@ -62,6 +63,12 @@ jobs:
 
       - name: Frontend tests
         run: npm test
+
+      # Must run before any cargo command: tauri::generate_context! reads
+      # frontendDist (../dist) at COMPILE time, so clippy and cargo test fail
+      # with "proc macro panicked" if the frontend has not been built yet.
+      - name: Build frontend
+        run: npm run build
 
       - name: Rust format and clippy
         working-directory: src-tauri
