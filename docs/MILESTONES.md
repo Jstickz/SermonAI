@@ -32,7 +32,7 @@ Update this table first. It is the only place status is recorded.
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
 **Current milestone:** M0
-**Current blocker:** none on Windows. Toolchain installed, all checks green (`cargo check` / `clippy -D warnings` / `fmt` / `test`, `tsc`, `vite build`, `eslint`, `vitest`), and the app launches with migrations applying on first run. Outstanding risks: (a) nothing has been built or tested on macOS, and two DoD lines plus the Intel CI job need a Mac; (b) PRD §15.4 pairs an OpenAI-built verse index with a different on-device query encoder — vectors from two models are not comparable, so the encoder decision must settle before deliverables 7 and 8 (see Parked).
+**Current blocker:** none blocking code. CI is green on all three targets (run 34241507233, 8 Sept): Windows, macOS Intel and macOS Apple Silicon all build, lint, test and bundle inside the 40 MB gate. Remaining M0 work is gated on decisions and hardware, not engineering: (a) the encoder/embedding-space decision blocks deliverables 7, 8 and 9 — PRD §15.4 pairs an OpenAI-built index with a different on-device query encoder, and vectors from two models are not comparable (see Parked); (b) the base installer leaves only ~7 to 13 MB for the encoder once the 12 MB index and three translations are added, against the 25 MB deliverable 8 allows; (c) DoD lines 1, 2, 4 and 5 need clean Windows and macOS machines to test on.
 
 ---
 
@@ -61,8 +61,8 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [x] Repo created with the structure in PRD §10.7. `README.md`, `docs/PRD.md`, `docs/MILESTONES.md` committed. *(Local repo on `main`, first commit 7 Sept. No remote yet.)*
 - [x] Tauri 2 project scaffolded: React + TypeScript + Tailwind + Zustand frontend, Rust backend, Vite dev server working. *(Verified 7 Sept: `npm run tauri:dev` builds and launches, operator window opens, 42 MB idle RSS.)*
 - [ ] Three windows (operator, projector, alternate) created from Rust and placed on chosen monitors using the monitor API. Projector window is frameless and fullscreen. *(Built: all three windows created from Rust, outputs frameless and hidden until assigned; `list_monitors` / `set_projector_monitor` / `set_alternate_monitor` commands and a Settings → Displays picker. Not yet confirmed by eye on a second screen.)*
-- [ ] GitHub Actions matrix: `windows-latest`, `macos-15-intel` (Intel), `macos-latest` (Apple Silicon). Builds, runs `cargo test` and `vitest`, produces unsigned `.msi` / `.exe` / `.dmg`. *(OS code signing and notarization moved to M11; the Tauri updater key still signs update bundles.)*
-- [ ] CI gate: build fails if any installer exceeds 40 MB.
+- [x] GitHub Actions matrix: `windows-latest`, `macos-15-intel` (Intel), `macos-latest` (Apple Silicon). Builds, runs `cargo test` and `vitest`, produces unsigned `.msi` / `.exe` / `.dmg`. *(8 Sept: all three jobs green on run 34241507233. First successful Rust compile, `cargo test` and bundle on macOS. OS code signing and notarization moved to M11; the Tauri updater key signs update bundles.)*
+- [x] CI gate: build fails if any installer exceeds 40 MB. *(8 Sept: enforced per job. Measured sizes — msi 5.12 MB, nsis 4.16 MB, dmg x64 3.43 MB, dmg aarch64 3.21 MB.)*
 - [ ] Vendor accounts and keys: Deepgram, API.Bible, Anthropic. Stored in CI secrets and local `.env`, never committed.
 - [ ] `scripts/build-verse-index.py`: embeds 31,102 verses (OpenAI `text-embedding-3-small`), reduces to 384 dims, quantizes to int8, writes `src-tauri/assets/verse-index.bin` (~12 MB). Run once, output committed.
 - [ ] Small on-device sentence encoder chosen and bundled for runtime query embedding (must be under 25 MB, must run on both platforms without GPU).
@@ -74,7 +74,7 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 **Definition of Done**
 - Fresh Windows 10 VM with no WebView2: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently.
 - Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`.
-- Installer sizes printed in CI logs: both under 40 MB (unsigned builds).
+- [x] Installer sizes printed in CI logs: both under 40 MB (unsigned builds). *(8 Sept: Windows 5.12 MB, macOS Intel 3.43 MB, macOS ARM 3.21 MB.)*
 - App cold start under 1 second on both platforms.
 - Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash.
 - Download a 30 MB test pack, kill the app at 50%, relaunch, download resumes and verifies.
