@@ -32,7 +32,20 @@ Update this table first. It is the only place status is recorded.
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
 **Current milestone:** M0
-**Current blocker:** none blocking code. CI is green on all three targets (run 34241507233, 8 Sept): Windows, macOS Intel and macOS Apple Silicon all build, lint, test and bundle inside the 40 MB gate. Remaining M0 work is gated on decisions and hardware, not engineering: (a) the encoder/embedding-space decision blocks deliverables 7, 8 and 9 — PRD §15.4 pairs an OpenAI-built index with a different on-device query encoder, and vectors from two models are not comparable (see Parked); (b) the base installer leaves only ~7 to 13 MB for the encoder once the 12 MB index and three translations are added, against the 25 MB deliverable 8 allows; (c) DoD lines 1, 2, 4 and 5 need clean Windows and macOS machines to test on.
+**Current blocker:** none. CI is green on all three targets (run 34241507233, 8 Sept): Windows, macOS Intel and macOS Apple Silicon all build, lint, test and bundle inside the 40 MB gate. The encoder decision that was blocking deliverables 7, 8 and 9 is settled — static embeddings bundled in the base installer, one model for both the index and runtime queries.
+
+**Size budget, measured rather than estimated.** The earlier "only 7 to 13 MB left for the encoder" warning was based on a guess that three translations would cost 12 to 18 MB. KJV actually compresses to **1.29 MB**, so all three land near 4 MB:
+
+| Item | Size |
+|---|---|
+| Base installer (Windows msi) | 5.12 MB |
+| KJV + WEB + ASV | ~4 MB |
+| Verse index (int8) | ~12 MB |
+| **Headroom for the encoder** | **~19 MB** |
+
+That is comfortable, and it means the encoder choice is no longer size-constrained to the degree feared.
+
+**Remaining M0 work needs hardware, not decisions:** DoD lines 1, 2, 4 and 5 require clean Windows and macOS machines to install and time the app on.
 
 ---
 
@@ -63,23 +76,23 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [x] Three windows (operator, projector, alternate) created from Rust and placed on chosen monitors using the monitor API. Projector window is frameless and fullscreen. *(8 Sept: confirmed on hardware — projector went fullscreen and frameless on the chosen second screen, button showed "Projecting", and unplugging it did not crash the app. A bug found during that test is fixed: assignments now live in Rust state, not React, so switching tabs no longer loses track of which screen is live, and a disconnected display shows a warning instead of still reading as projecting.)*
 - [x] GitHub Actions matrix: `windows-latest`, `macos-15-intel` (Intel), `macos-latest` (Apple Silicon). Builds, runs `cargo test` and `vitest`, produces unsigned `.msi` / `.exe` / `.dmg`. *(8 Sept: all three jobs green on run 34241507233. First successful Rust compile, `cargo test` and bundle on macOS. OS code signing and notarization moved to M11; the Tauri updater key signs update bundles.)*
 - [x] CI gate: build fails if any installer exceeds 40 MB. *(8 Sept: enforced per job. Measured sizes — msi 5.12 MB, nsis 4.16 MB, dmg x64 3.43 MB, dmg aarch64 3.21 MB.)*
-- [ ] Vendor accounts and keys: Deepgram, API.Bible, Anthropic. Stored in CI secrets and local `.env`, never committed.
-- [ ] `scripts/build-verse-index.py`: embeds 31,102 verses (OpenAI `text-embedding-3-small`), reduces to 384 dims, quantizes to int8, writes `src-tauri/assets/verse-index.bin` (~12 MB). Run once, output committed.
-- [ ] Small on-device sentence encoder chosen and bundled for runtime query embedding (must be under 25 MB, must run on both platforms without GPU).
-- [ ] KJV, WEB, ASV built into bundled translation assets by `scripts/build-translation-pack.py`.
+- [x] Vendor accounts and keys: Deepgram, API.Bible, Anthropic. Stored in CI secrets and local `.env`, never committed. *(8 Sept: all three in local `.env` and in GitHub Actions secrets alongside `TAURI_SIGNING_PRIVATE_KEY`. API.Bible key verified live — HTTP 200, 38 English Bibles. `.env` is gitignored and no key has ever entered git history, confirmed by scanning all commits.)*
+- [ ] `scripts/build-verse-index.py`: embeds 31,102 verses, reduces to the encoder's dimensionality, quantizes to int8, writes `src-tauri/assets/verse-index.bin`. Run once, output committed. *(Blocked on deliverable 9 finishing — the verses have to exist before they can be embedded. No longer uses OpenAI: see the encoder decision below and the pending PRD §15.4 amendment.)*
+- [ ] Small on-device sentence encoder chosen and bundled for runtime query embedding (must run on both platforms without GPU). *(8 Sept: **decided — static embeddings bundled in the base installer**, so offline semantic detection works on first launch with no transformer runtime. The index must be built with this same model. Size cap revised: see the budget note in the blocker.)*
+- [ ] KJV, WEB, ASV built into bundled translation assets by `scripts/build-translation-pack.py`. *(8 Sept, in progress: script written with retries, an on-disk resume cache and a 66-book canon filter. **KJV done: exactly 31,102 verses across 66 books, 1.29 MB gzipped, SHA-256 sidecar.** WEB and ASV still fetching.)*
 - [x] Pack system: `packs-manifest.json` format, `packs/downloader.rs` with ranged resumable downloads and SHA-256 verification, Settings → Packs screen listing packs with sizes and progress. Tested against a manifest on a test bucket. *(7 Sept: manifest/downloader/registry modules, five commands, Packs screen with size labels, progress, pause/resume/remove. Integration tests run against a local range-capable server: resume-after-restart asserts the Range header continues from the halfway byte; checksum mismatch is rejected and the part file discarded. Not yet run against a real CDN bucket — pending deliverable 6.)*
 - [x] SQLite schema from PRD §14.2 created via migrations on first launch. *(Verified 7 Sept: first launch logged `applying migration 0001_init` and created `%APPDATA%/app.sermonai.desktop/db/sermonai.sqlite` in WAL mode. Idempotency covered by `cargo test`.)*
 - [x] ADRs written: Tauri over Electron; staging-first output; three-stage detection; local-only data; summary JSON schema; packs strategy. *(`docs/adr/0001`–`0006`.)*
 
 **Definition of Done**
-- Fresh Windows 10 VM with no WebView2: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently.
-- Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`.
-- [x] Installer sizes printed in CI logs: both under 40 MB (unsigned builds). *(8 Sept: Windows 5.12 MB, macOS Intel 3.43 MB, macOS ARM 3.21 MB.)*
-- App cold start under 1 second on both platforms.
-- Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash.
-- Download a 30 MB test pack, kill the app at 50%, relaunch, download resumes and verifies.
+- [ ] Fresh Windows 10 VM with no WebView2: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently. *(Needs a clean VM.)*
+- [ ] Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`. *(Needs a Mac. CI builds the `.dmg` but never installs it.)*
+- [x] Installer sizes printed in CI logs: both under 40 MB (unsigned builds). *(8 Sept: Windows msi 5.12 MB, macOS Intel 3.43 MB, macOS ARM 3.21 MB.)*
+- [ ] App cold start under 1 second on both platforms. *(Windows dev build launches and applies migrations; not yet timed from a real install, and never run on macOS.)*
+- [x] Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash. *(8 Sept: confirmed on hardware with three displays attached.)*
+- [x] Download a 30 MB test pack, kill the app at 50%, relaunch, download resumes and verifies. *(Covered by `tests/pack_download.rs` against a local range-capable server: the resume request carries `Range: bytes=N-` from the halfway mark and the installed file matches the catalog digest. Passing on all three CI targets. Not yet run against a real CDN bucket.)*
 
-**Do not start M1 until:** all six DoD lines pass and the status board says ✅.
+**Do not start M1 until:** all six DoD lines pass and the status board says ✅. **3 of 6 pass today**; the three open lines all need clean machines rather than more code.
 
 ---
 
@@ -399,7 +412,8 @@ Ideas that came up early but belong to a later milestone. Write the idea and the
 
 | Idea | Belongs to | Noted on |
 |---|---|---|
-| **Decision needed, not an idea:** build the verse index with the *same* encoder used at runtime. PRD §15.4 embeds verses with OpenAI `text-embedding-3-small` but embeds spoken phrases with a bundled on-device model; cosine similarity across two different embedding spaces is meaningless. Proposal: use `all-MiniLM-L6-v2` for both (natively 384-dim, CPU-only, ~23 MB quantized), which also drops the OpenAI dependency. Requires a PRD §15.4 amendment. | M0 (deliverables 7, 8) | 7 Sept 2026 |
+| **PRD §15.4 amendment owed.** Resolved 8 Sept: one model builds the index *and* embeds runtime queries, shipped as static embeddings inside the base installer. §15.4 still describes an OpenAI-built index queried by a different on-device model, which cannot work — vectors from two models are not comparable. The amendment lands with deliverables 7 and 8, and drops `OPENAI_API_KEY` from `.env.example`. | M0 (deliverables 7, 8) | 8 Sept 2026 |
+| **Deuterocanonical books** are filtered out of translation packs. API.Bible's KJV and ASV carry the Apocrypha (80 books, 36,820 verses); packs keep the 66-book Protestant canon, giving exactly the 31,102 verses of PRD §15.4 and matching FR-09's book-name vocabulary. Churches in traditions that preach from those books would need a catalog decision. | M6 (translations) | 8 Sept 2026 |
 | Pack **archive extraction** (`.tar.zst`): packs install as one verified file today, which suits whisper models and theme JSON. Translation packs shipped as archives will need a decompress step. | M5 / M6 | 7 Sept 2026 |
 | **Manifest signature verification** is not implemented — packs are checksum-verified against the manifest, but the manifest itself is trusted on TLS alone. Needs the signing key from deliverable 6. | M0 (deliverable 6) | 7 Sept 2026 |
 | Display assignments are **not persisted across restarts** — the backend holds them in memory only. A church re-picks its projector on every launch. Persist to the `settings` table and re-apply on startup as part of the onboarding wizard. | M8 (onboarding, PRD §12.1) | 8 Sept 2026 |

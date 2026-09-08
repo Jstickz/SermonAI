@@ -30,3 +30,6 @@ Thumbs.db
 *.log
 coverage/
 .vitest/
+
+# Build-script cache: raw API.Bible chapter responses (see scripts/README.md)
+.cache/
