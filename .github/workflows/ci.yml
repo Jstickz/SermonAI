@@ -104,7 +104,10 @@ jobs:
           bundle="src-tauri/target/${{ matrix.target }}/release/bundle"
           while IFS= read -r installer; do
             size=$(wc -c < "$installer")
-            printf '%s: %s bytes (%.1f MB)\n' "$installer" "$size" "$(echo "$size/1048576" | bc -l)"
+            # awk, not bc: the Windows runner's Git Bash has no bc, and under
+            # `set -e` the failed printf took the whole step down even though
+            # the installer was well inside the limit.
+            awk -v s="$size" -v p="$installer" 'BEGIN { printf "%s: %d bytes (%.2f MB)\n", p, s, s / 1048576 }'
             if [ "$size" -gt "$limit" ]; then
               echo "::error::$installer exceeds the 40 MB base installer limit (FR-59)"
               failed=1
