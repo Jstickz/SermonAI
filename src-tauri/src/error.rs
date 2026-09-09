@@ -20,6 +20,9 @@ pub enum Error {
     #[error("Summary generation failed: {0}")]
     Summary(String),
 
+    #[error("Detection failed: {0}")]
+    Detection(String),
+
     #[error("Pack download failed: {0}")]
     Pack(String),
 

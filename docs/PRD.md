@@ -382,7 +382,7 @@ SermonAI wins on four things:
 - **FR-12:** Apply a compiled regex to every transcript chunk for direct references.
 - **FR-13:** Recognize standard ("John 3:16"), spoken ("John chapter three verse sixteen"), and shorthand ("third chapter of John") forms.
 - **FR-14:** Send the rolling buffer to Claude API for paraphrase detection when no direct match has appeared for 10 seconds (online mode).
-- **FR-15:** Use an in-binary vector index of all 31,102 verse embeddings (quantized, about 12 MB, brute-force cosine search under 5 ms) for semantic detection **in offline mode and as the first semantic pass in online mode**. No external vector library.
+- **FR-15:** Use an in-binary vector index of all 31,102 verse embeddings (int8, 256 dims, 7.71 MB, brute-force cosine search under 5 ms) for semantic detection **in offline mode and as the first semantic pass in online mode**. No external vector library.
 - **FR-16:** Compute and display a confidence score for every detection.
 - **FR-17:** Queue multiple detections without dropping any.
 
@@ -673,7 +673,7 @@ sermonai/
 - **Deepgram** Nova-3 streaming STT.
 - **API.Bible** licensed scripture text.
 - **Anthropic Claude API** paraphrase detection and summary generation.
-- **OpenAI Embeddings** one-time build job to embed all verses (never called from the app).
+- **OpenAI Embeddings** no longer used. Verse embeddings are built with the same bundled static encoder that answers runtime queries (§15.4).
 - **Pack CDN** (object storage + CDN) hosting translation, speech, intelligence and theme packs with a signed manifest.
 
 ### 11.4 Tooling
@@ -967,8 +967,16 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 ### 15.3 Anthropic Claude
 - `https://api.anthropic.com/v1/messages`, `claude-sonnet-4-6`. Two uses: live paraphrase detection (short prompts) and summary generation (structured JSON output, one call per sermon plus retries). Estimated $1 to $6 per church per month.
 
-### 15.4 OpenAI Embeddings (build-time only)
-- `text-embedding-3-small` over 31,102 verses, once, ~$2. Reduced to 384 dimensions and quantized to int8 by `build-verse-index.py`; the resulting ~12 MB index ships inside the binary. At runtime the app embeds the spoken phrase with a small on-device sentence encoder bundled in the same asset so semantic search is fully offline.
+### 15.4 Verse Embedding Index (amended 9 September 2026)
+
+**One model builds the index and answers queries.** The original design embedded verses with OpenAI `text-embedding-3-small` and embedded spoken phrases at runtime with a different on-device encoder. That cannot work: vectors from two different models occupy different spaces, so a cosine score between them is meaningless. There is no OpenAI dependency, and `OPENAI_API_KEY` is not required.
+
+- **Model:** `minishlab/potion-base-8M`, a static (model2vec) encoder. Embedding is a token lookup plus a mean — no transformer, no ONNX runtime, no GPU — which is what keeps offline semantic detection inside the 40 MB installer.
+- **Dimensions:** 256, not the 384 originally assumed.
+- **Index:** all 31,102 KJV verses, L2-normalised then quantized to int8, **7.71 MB**. Because rows are unit length before quantizing, runtime search is a plain integer dot product.
+- **Encoder assets:** `encoder.bin` 7.32 MB (int8 token matrix, per-row scales) and `tokenizer.json` 0.65 MB.
+- **Validation:** the build script measures the quantized pipeline against float32 and refuses to write below 95% top-5 self-retrieval. Measured: top-1 99.3%, top-5 99.7%, encoder token cosine 0.9997 minimum.
+- **Known limit:** this stage is strong on verbatim quotation and weak on paraphrase (measured 3 of 8 on a modern-paraphrase set, because the index is KJV and preachers paraphrase in modern English). Paraphrase is what FR-14's Claude stage is for; the semantic stage is the offline fallback, and staging-first (ADR 0002) means the operator is always the final check. Indexing a modern translation measured better (4 of 8) and should be revisited when the WEB pack is rebuilt.
 
 ### 15.5 On-Demand Packs (offline)
 - **Offline Speech Pack:** whisper.cpp `base.en` (~75 MB) default; `small.en` (~250 MB) offered as "higher accuracy".

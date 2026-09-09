@@ -41,7 +41,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["assets/*"],
+    "resources": ["assets/**/*"],
     "copyright": "© 2026 SermonAI",
     "category": "Productivity",
     "shortDescription": "Every verse. Every sermon. Kept.",

@@ -33,3 +33,7 @@ coverage/
 
 # Build-script cache: raw API.Bible chapter responses (see scripts/README.md)
 .cache/
+
+# Python bytecode from the build scripts
+__pycache__/
+*.pyc

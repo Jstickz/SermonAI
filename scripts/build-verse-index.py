@@ -6,7 +6,7 @@ binary (FR-15, FR-59). The app never runs this script.
     python scripts/build-verse-index.py
 
 Writes into src-tauri/assets/:
-    verse-index.bin        int8 embeddings of every KJV verse + its reference
+    verse-index.bin        int8 embeddings of every verse + its reference
     encoder/encoder.bin    the static token embedding matrix, int8
     encoder/tokenizer.json the matching tokenizer
 
@@ -28,6 +28,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
 import struct
 import sys
 from pathlib import Path
@@ -42,10 +43,21 @@ ASSETS = REPO_ROOT / "src-tauri" / "assets"
 TRANSLATIONS = ASSETS / "translations"
 ENCODER_DIR = ASSETS / "encoder"
 
-# The index is built from KJV: it is public domain, bundled in the base
-# installer, and detection only needs one semantic space. A verse found in KJV
-# is displayed in whichever translation the operator has chosen.
-INDEX_TRANSLATION = "KJV"
+# Built from KJV today, though the measurements point at WEB.
+#
+# Detection only needs one semantic space: a verse matched here is displayed in
+# whichever translation the operator chose. Preachers paraphrase in modern
+# English and a static bag-of-tokens model cannot bridge archaic wording, so on
+# a set of 8 modern paraphrases a WEB index beat a KJV one (top-5 4 vs 3, top-3
+# 4 vs 2).
+#
+# We ship the KJV index anyway, because correctness beats recall: the WEB pack
+# was found to be missing 122 verses including Jeremiah 29:11, and API.Bible's
+# monthly quota is exhausted so it cannot be rebuilt yet. KJV is verified
+# complete — 31,102 verses, every canary present, no thin chapters.
+#
+# Switch back to WEB once its pack is rebuilt and passes check_complete.
+INDEX_TRANSLATION = os.environ.get("INDEX_TRANSLATION", "KJV")
 
 INDEX_MAGIC = b"SAIVIDX1"
 ENCODER_MAGIC = b"SAIENC01"

@@ -68,7 +68,7 @@ REQUEST_PAUSE_SECONDS = 0.05
 MAX_ATTEMPTS = 6
 
 # Raw chapter responses, so a re-run resumes instead of refetching. Gitignored.
-CACHE_DIR = REPO_ROOT / ".cache" / "api-bible"
+CACHE_DIR = REPO_ROOT / ".cache" / "api-bible-v2"  # v2: requests now include verse numbers
 
 
 def api_key() -> str:
@@ -133,12 +133,18 @@ def cached_chapter(session: requests.Session, bible_id: str, chapter_id: str) ->
         except json.JSONDecodeError:
             cache_file.unlink()  # truncated by an interrupted write; refetch
 
+    # include-verse-numbers MUST stay true. With it false, API.Bible only
+    # attaches verseId to the first text node of some paragraph styles, so
+    # indented styles (pi1, used for letters and poetry) lose verse identity
+    # entirely — that silently dropped 122 verses including Jeremiah 29:11.
+    # With it true, every verse gets a `verse` tag node carrying its number,
+    # and the printed number is skipped by the parser.
     data = get(
         session,
         f"/bibles/{bible_id}/chapters/{chapter_id}",
         **{
             "content-type": "json",
-            "include-verse-numbers": "false",
+            "include-verse-numbers": "true",
             "include-notes": "false",
             "include-titles": "false",
             "include-chapter-numbers": "false",
@@ -157,9 +163,9 @@ def clean(text: str) -> str:
     congregation and quoted in summaries, so the only things removed are
     typographic marks that are not part of the verse.
 
-    We do NOT strip leading digits. Verse numbers are already excluded by the
-    API request, and a blanket strip would eat the opening of a verse that
-    genuinely starts with a numeral.
+    We do NOT strip leading digits. The printed verse number is dropped by the
+    parser, which knows exactly which text node carries it; a blanket strip
+    here would eat the opening of a verse that genuinely starts with a numeral.
     """
     # KJV/ASV carry pilcrows as paragraph markers inside the verse text.
     text = text.replace("¶", " ")
@@ -201,8 +207,16 @@ def fetch_translation(session: requests.Session, code: str) -> list[dict]:
 
 
 def verses_from_chapter(data: dict) -> list[tuple[int, str]]:
-    """Walk API.Bible's JSON content tree and collect (verse number, text)."""
+    """Walk API.Bible's JSON content tree and collect (verse number, text).
+
+    Verse identity comes from `verse` tag nodes in document order, not from
+    per-text-node attributes: those are only present on some paragraph styles,
+    and relying on them loses whole passages (Daniel's Aramaic sections,
+    Ezra's letters, Jeremiah 29). A text node's own verseId is preferred when
+    present, and the marker is the fallback.
+    """
     out: dict[int, list[str]] = {}
+    state = {"verse": None, "expect_printed_number": False}
 
     def walk(node) -> None:
         if isinstance(node, list):
@@ -213,15 +227,27 @@ def verses_from_chapter(data: dict) -> list[tuple[int, str]]:
             return
 
         attrs = node.get("attrs") or {}
-        verse_id = attrs.get("verseId") or attrs.get("verseOrgIds")
-        if node.get("name") == "verse" and verse_id:
-            return  # marker node, text lives in the following siblings
 
-        if node.get("type") == "text" and node.get("text"):
-            marker = attrs.get("verseId")
-            if marker:
-                number = int(str(marker).split(".")[-1])
-                out.setdefault(number, []).append(node["text"])
+        if node.get("name") == "verse" and node.get("type") == "tag":
+            number = attrs.get("number")
+            if number is not None:
+                # Ranges such as "1-2" are attributed to the first verse.
+                state["verse"] = int(str(number).split("-")[0])
+                state["expect_printed_number"] = True
+
+        elif node.get("type") == "text":
+            text = node.get("text") or ""
+
+            # The marker is followed by the printed number itself; that is
+            # typography, not scripture.
+            if state["expect_printed_number"] and text.strip() == str(state["verse"]):
+                state["expect_printed_number"] = False
+            else:
+                state["expect_printed_number"] = False
+                verse_id = attrs.get("verseId")
+                number = int(str(verse_id).split(".")[-1]) if verse_id else state["verse"]
+                if number is not None and text.strip():
+                    out.setdefault(number, []).append(text)
 
         walk(node.get("items", []))
         walk(node.get("content", []))
@@ -256,6 +282,74 @@ def write_pack(code: str, verses: list[dict]) -> None:
     print(f"    wrote {path.name}  {size_mb:.2f} MB  sha256 {digest[:16]}...")
 
 
+# Widely preached verses spread across the shapes that broke before: poetry,
+# letters, Aramaic sections and ordinary prose. If any of these is missing the
+# pack is wrong, whatever the totals say.
+CANARY_VERSES = [
+    ("GEN", 1, 1),
+    ("PSA", 23, 1),
+    ("PSA", 119, 105),
+    ("PRO", 3, 5),
+    ("ISA", 40, 31),
+    ("JER", 29, 11),   # inside a letter, styled pi1 — the verse this check exists for
+    ("DAN", 4, 8),     # Aramaic section
+    ("EZR", 4, 11),    # quoted letter
+    ("MAT", 6, 33),
+    ("JHN", 3, 16),
+    ("ROM", 8, 28),
+    ("PHP", 4, 13),
+    ("REV", 21, 4),
+]
+
+
+def check_complete(code: str, verses: list[dict]) -> None:
+    """Refuse to write a pack with holes in it.
+
+    A pack missing verses is worse than no pack: nobody finds out until a verse
+    fails to appear mid-service. Three checks, because the first two both
+    passed while 122 verses were missing:
+
+      1. every book present
+      2. a plausible total
+      3. no chapter that lost most of its verses, and every canary present
+    """
+    present = {(v["b"], v["c"], v["v"]) for v in verses}
+
+    missing_books = sorted(CANON_SET - {v["b"] for v in verses})
+    if missing_books:
+        sys.exit(f"{code}: missing books {missing_books}. Refusing to write.")
+
+    if len(verses) < 30_800:
+        sys.exit(
+            f"{code}: only {len(verses)} verses, expected about {EXPECTED_VERSES}. "
+            "Refusing to write an incomplete pack."
+        )
+
+    absent = [f"{b} {c}:{v}" for b, c, v in CANARY_VERSES if (b, c, v) not in present]
+    if absent:
+        sys.exit(
+            f"{code}: these verses are missing: {', '.join(absent)}. "
+            "This usually means verse markers were not parsed for some paragraph style."
+        )
+
+    # A chapter that lost most of its verses is a parse failure, not a
+    # translation difference. Highest verse number is a good proxy for length.
+    chapters: dict[tuple[str, int], set[int]] = {}
+    for v in verses:
+        chapters.setdefault((v["b"], v["c"]), set()).add(v["v"])
+
+    for (book, chapter), numbers in sorted(chapters.items()):
+        if len(numbers) < max(numbers) * 0.8:
+            sys.exit(
+                f"{code}: {book} {chapter} has {len(numbers)} verses but numbering reaches "
+                f"{max(numbers)}. Verses were dropped; refusing to write."
+            )
+
+    if len(verses) != EXPECTED_VERSES:
+        delta = len(verses) - EXPECTED_VERSES
+        print(f"    note: {len(verses)} verses ({delta:+d} vs KJV) — expected for this translation")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("codes", nargs="*", help="translation codes, e.g. KJV WEB ASV")
@@ -277,21 +371,7 @@ def main() -> None:
     for code in codes:
         verses = fetch_translation(session, code)
 
-        # A pack with holes is worse than no pack: nobody finds out until a
-        # verse fails to appear mid-service. Fail on anything structurally
-        # wrong, but only warn on small count differences, which are normal —
-        # translations disagree about bracketed verses such as Matthew 17:21.
-        missing = sorted(CANON_SET - {v["b"] for v in verses})
-        if missing or len(verses) < 30_000:
-            sys.exit(
-                f"{code}: got {len(verses)} verses across {66 - len(missing)} of 66 books. "
-                f"Missing: {missing or 'none'}. Refusing to write an incomplete pack."
-            )
-
-        if len(verses) != EXPECTED_VERSES:
-            delta = len(verses) - EXPECTED_VERSES
-            print(f"    note: {len(verses)} verses ({delta:+d} vs KJV) — expected for this translation")
-
+        check_complete(code, verses)
         write_pack(code, verses)
 
 

@@ -7,7 +7,9 @@
 //! pipeline.rs sequences them, scores confidence (FR-16) and queues results so
 //! that rapid-fire references are never dropped (FR-17).
 //!
-//! Milestone: M2.
+//! Milestone: M2, except the vector stage's assets and search, built in M0.
+
+pub mod vector;
 
 /// Fire the LLM stage only after this long without a direct hit (FR-14).
 pub const PARAPHRASE_IDLE_SECS: u64 = 10;
@@ -15,5 +17,8 @@ pub const PARAPHRASE_IDLE_SECS: u64 = 10;
 /// Verses in the protestant canon — the row count of the bundled index.
 pub const VERSE_COUNT: usize = 31_102;
 
-/// Dimensions kept after reduction, quantized to int8 (PRD §15.4).
-pub const EMBEDDING_DIMS: usize = 384;
+/// Dimensions of the bundled static encoder, quantized to int8.
+///
+/// PRD §15.4 said 384; the model chosen in M0 is 256, which is why the index
+/// came in at 7.71 MB rather than the 12 MB the PRD budgeted.
+pub const EMBEDDING_DIMS: usize = 256;

@@ -11,3 +11,5 @@
 
 /// Translations bundled in the base installer (FR-59).
 pub const BUNDLED_TRANSLATIONS: [&str; 3] = ["KJV", "WEB", "ASV"];
+
+pub mod books;

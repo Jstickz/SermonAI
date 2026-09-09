@@ -45,6 +45,10 @@ futures-util = "0.3"
 # Phone remote and OBS overlay servers, LAN only and off by default (PRD §10.3).
 axum = { version = "0.7", features = ["ws"] }
 
+# Query tokenization for the bundled static encoder (FR-15). Pure Rust, no
+# ONNX runtime: the encoder is a token lookup plus a mean.
+tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+
 # Pack integrity (FR-61).
 sha2 = "0.10"
 hex = "0.4"
@@ -66,8 +70,11 @@ default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [profile.release]
-# Binary size is a release gate, not a preference (FR-59, PRD §22.1).
-opt-level = "s"
+# Was opt-level = "s" to protect the 40 MB gate. Measured, that trade was
+# wrong twice over: the installer came in at 5 MB with ~15 MB of headroom, and
+# "s" left the verse-search loop unvectorised at 15.98 ms against FR-15's 5 ms
+# budget. Speed matters here; the size gate is enforced by CI either way.
+opt-level = 3
 lto = true
 codegen-units = 1
 panic = "abort"
