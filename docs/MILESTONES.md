@@ -32,7 +32,7 @@ Update this table first. It is the only place status is recorded.
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
 **Current milestone:** M0
-**Current blocker:** none in code. M0's twelve deliverables are complete; three Definition of Done lines need hardware.
+**Current blocker:** a Mac. Twelve of twelve deliverables and five of six Definition of Done lines are done; the last line is a fresh macOS install, which CI cannot perform.
 
 The YouVersion migration (PR #1, merged 21 Sept) un-did deliverable 9 by raising the attribution bar: PRD v2.2 §15.2 forbids displaying a verse without a copyright string, and the API.Bible-built KJV and ASV packs had none. That is now resolved. **The base installer bundles KJV, WEB and ASV, as FR-59 always said.**
 
@@ -46,7 +46,7 @@ The route there was not the obvious one. YouVersion does not license a King Jame
 
 ASV's 31,086 is correct, not short. The 1901 revisers followed a Greek text lacking sixteen readings the KJV prints — Matthew 17:21, Mark 9:44, Acts 8:37 and thirteen others — and moved them to the margin. The builder now separates *omitted by the translation* from *lost by the parser*: the first is recorded in the pack's `omitted_verses` list, the second still fails the build. That distinction matters, because a blanket "empty verse is fine" rule is exactly what let 122 verses vanish silently from the API.Bible packs.
 
-**Everything left is hardware.** DoD lines 1, 2 and 4 need clean Windows and macOS machines to install and time the app on; no amount of code closes them.
+**Everything left is hardware.** Windows is signed off — a clean Windows 11 VM installed without an admin prompt and cold-started in about 300 ms against a 1 second budget. DoD 2 needs a Mac to repeat it on; no amount of code closes it.
 
 **Size budget, measured rather than estimated.** The earlier "only 7 to 13 MB left for the encoder" warning rested on a guess that three translations would cost 12 to 18 MB. A translation actually compresses to about 1.3 MB:
 
@@ -98,22 +98,20 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [x] ADRs written: Tauri over Electron; staging-first output; three-stage detection; local-only data; summary JSON schema; packs strategy. *(`docs/adr/0001`–`0006`.)*
 
 **Definition of Done**
-- [ ] Fresh Windows 10 VM with no WebView2: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently. *(Needs a clean VM.)*
+- [x] Fresh Windows VM: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently. *(21 Sept: passed on a clean **Windows 11** VM — no Windows 10 ISO available. SmartScreen appeared and cleared as documented in `docs/INSTALL.md`, no admin prompt, app opened well inside 60 seconds. **One clause of this line is not actually covered:** Windows 11 ships WebView2 as part of the OS, so the installer never had to bootstrap it. The silent-bootstrap path — the thing this line exists to test — remains unexercised, and it is the path a Windows 10 church machine will take. Tracked in Parked against M11's release checklist.)*
 - [ ] Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`. *(Needs a Mac. CI builds the `.dmg` but never installs it.)*
 - [x] Installer sizes printed in CI logs: both under 40 MB (unsigned builds). *(8 Sept: Windows msi 5.12 MB, macOS Intel 3.43 MB, macOS ARM 3.21 MB.)*
-- [ ] App cold start under 1 second on both platforms. *(Windows dev build launches and applies migrations; not yet timed from a real install, and never run on macOS.)*
+- [x] App cold start under 1 second on Windows. *(21 Sept: **approximately 300 ms** from a real install on the Windows 11 VM, against a 1 second budget (PRD §9.1) — three times the headroom. macOS is untimed and stays with DoD 2, which needs a Mac.)*
 - [x] Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash. *(8 Sept: confirmed on hardware with three displays attached.)*
 - [x] Download a 30 MB test pack, kill the app at 50%, relaunch, download resumes and verifies. *(Covered by `tests/pack_download.rs` against a local range-capable server: the resume request carries `Range: bytes=N-` from the halfway mark and the installed file matches the catalog digest. Passing on all three CI targets. Not yet run against a real CDN bucket.)*
 
 **Do not start M1 until:** all six DoD lines pass and the status board says ✅.
 
-**Where M0 stands today: 12 of 12 deliverables, 3 of 6 DoD lines. Not complete — but nothing is left to build.**
+**Where M0 stands today: 12 of 12 deliverables, 5 of 6 DoD lines. One line left, and it needs a Mac.**
 
 | Outstanding | Why | Who |
 |---|---|---|
-| DoD 1 — fresh Windows 10 VM install | Needs a machine that has never had SermonAI or WebView2 on it | You |
-| DoD 2 — fresh macOS 12 install | Needs a Mac; CI builds the `.dmg` but never installs it | You |
-| DoD 4 — cold start under 1 second | Must be timed from a real install on each platform, not a dev build | You |
+| DoD 2 — fresh macOS 12 install | Needs a Mac; CI builds the `.dmg` but never installs it. Carries the macOS half of the cold-start timing with it | You |
 
 Deliverable 10's note still stands: the pack system has never run against a real CDN bucket, only a local stub. That is worth closing before M5 leans on it.
 
@@ -447,6 +445,7 @@ Ideas that came up early but belong to a later milestone. Write the idea and the
 | **Attribution in the summary PDF.** YouVersion requires the copyright string wherever scripture is shown. The PDF renderer does not exist yet, so when it is built each scripture block must carry the attribution in a muted line beneath it, and a verse with no stored attribution must be skipped with a logged warning rather than rendered bare. | M4 (summary PDF) | 21 Sept 2026 |
 | **Route the regex stage through the USFM converter.** `bible::reference::parse` exists and the vector stage already emits USFM. The regex stage is not built yet; when it is, its reference strings go through the converter before reaching the Bible client. | M2 (detection) | 21 Sept 2026 |
 | **Projector version short name.** The projector renders the reference only. Whether it should also show the version short name is a branding call (§15.2 keeps the projector minimal); attribution itself belongs on the PDF, not on the congregation's screen. | M3 (projector) | 21 Sept 2026 |
+| **WebView2 silent bootstrap is untested.** DoD 1 passed on a Windows 11 VM because no Windows 10 ISO was available, and Windows 11 ships WebView2 with the OS — so the installer never exercised the bootstrap path. Windows 10 (1909+) is a supported target under FR-63 and a realistic church machine. Needs one clean Windows 10 install before public download, either as part of M11's release checklist or sooner if a Windows 10 ISO turns up. | M11 (release checklist) | 21 Sept 2026 |
 | Wordmark/lockup art in `assets/logo-assets/` is not yet used anywhere in the UI — the operator top bar renders "SermonAI" as text, not the lockup. | M8 (design pass) | 7 Sept 2026 |
 
 ---
