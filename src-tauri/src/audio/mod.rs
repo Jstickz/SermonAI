@@ -9,6 +9,8 @@
 //! A device disconnect mid-service must pause and let the operator pick
 //! another, never crash (PRD §10.6).
 
+pub mod capture;
+pub mod convert;
 pub mod devices;
 
 /// Capture format. Deepgram and whisper.cpp both take 16 kHz mono PCM, so
