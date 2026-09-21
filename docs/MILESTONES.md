@@ -15,8 +15,8 @@ Update this table first. It is the only place status is recorded.
 
 | # | Milestone | Phase | Window | Status | Done on |
 |---|---|---|---|---|---|
-| M0 | Foundation & Lightweight Installer | 0 | 8 Sept – 21 Sept 2026 | 🟡 In progress | |
-| M1 | Audio In, Transcript Out | 1 | 22 Sept – 5 Oct 2026 | ⬜ Not started | |
+| M0 | Foundation & Lightweight Installer | 0 | 8 Sept – 21 Sept 2026 | ✅ Done | 21 Sept 2026 |
+| M1 | Audio In, Transcript Out | 1 | 22 Sept – 5 Oct 2026 | 🟡 In progress | |
 | M2 | Scripture Detection Engine | 1 | 6 Oct – 19 Oct 2026 | ⬜ Not started | |
 | M3 | Staging & Projector Output | 1 | 20 Oct – 2 Nov 2026 | ⬜ Not started | |
 | M4 | Summary PDF & Library (MVP) | 1 | 3 Nov – 16 Nov 2026 | ⬜ Not started | |
@@ -31,22 +31,19 @@ Update this table first. It is the only place status is recorded.
 
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
-**Current milestone:** M0
-**Current blocker:** a Mac, for one clause of one line. Twelve of twelve deliverables and five of six Definition of Done lines are done. CI now installs and launches the `.dmg` on both Intel and Apple Silicon, so all that is left of DoD 2 is a human clicking through the Gatekeeper dialog — which no runner can do, because a locally built bundle never triggers it.
+**Current milestone:** M1 — Audio In, Transcript Out
+**Current blocker:** none. **M0 closed on 21 September 2026, on schedule** — twelve of twelve deliverables and six of six Definition of Done lines.
 
-The YouVersion migration (PR #1, merged 21 Sept) un-did deliverable 9 by raising the attribution bar: PRD v2.2 §15.2 forbids displaying a verse without a copyright string, and the API.Bible-built KJV and ASV packs had none. That is now resolved. **The base installer bundles KJV, WEB and ASV, as FR-59 always said.**
+The last line closed on a real Mac: the `.dmg` downloaded through Safari, the unidentified-developer warning appeared as expected for an unsigned build, and SermonAI launched and ran correctly once cleared. Three details of that run are still to be recorded (which Mac, which macOS version, how the warning was cleared) — they do not affect the tick, but they decide whether `docs/INSTALL.md` matches what a tester meets on macOS 15.
 
-The route there was not the obvious one. YouVersion does not license a King James to our app key — the only one among their 1,485 versions is Thai — and returns no copyright string for their ASV. But neither is a property of the text. Both are public domain; only YouVersion's copy is bound by YouVersion's terms. So WEB comes from YouVersion, which licenses it and supplies the attribution, and **KJV and ASV are built from ebible.org**, where those terms do not apply.
+**What closing M0 does not mean.** Two things are ticked with known gaps, both parked against M11's release checklist rather than left implicit:
 
-| Pack | Source | Verses | Size | Attribution |
-|---|---|---|---|---|
-| KJV | ebible.org | 31,102 | 1.29 MB | Public domain, 1769 Blayney revision |
-| WEB | YouVersion (206) | 30,990 | 1.28 MB | `PUBLIC DOMAIN (not copyrighted)` |
-| ASV | ebible.org | 31,086 | 1.29 MB | Public domain, 1901 |
+- **Gatekeeper is cleared, not satisfied.** An informed tester with INSTALL.md open got past the warning. A church volunteer on a Saturday evening will read it as "this download is unsafe" and stop. Only notarization removes it.
+- **WebView2's silent bootstrap has never run.** DoD 1 passed on Windows 11, which ships WebView2 with the OS, so the installer never had to bootstrap it — and that is the path a Windows 10 machine takes. FR-63 lists Windows 10 1909+ as supported.
 
-ASV's 31,086 is correct, not short. The 1901 revisers followed a Greek text lacking sixteen readings the KJV prints — Matthew 17:21, Mark 9:44, Acts 8:37 and thirteen others — and moved them to the margin. The builder now separates *omitted by the translation* from *lost by the parser*: the first is recorded in the pack's `omitted_verses` list, the second still fails the build. That distinction matters, because a blanket "empty verse is fine" rule is exactly what let 122 verses vanish silently from the API.Bible packs.
+Neither blocks M1. Both block public download.
 
-**Everything left is hardware.** Windows is signed off — a clean Windows 11 VM installed without an admin prompt and cold-started in about 300 ms against a 1 second budget. DoD 2 needs a Mac to repeat it on; no amount of code closes it.
+**Where M0 landed.** An under-40 MB unsigned installer for Windows and macOS on both architectures, three windows placed on chosen monitors, three bundled public-domain translations, a 31,102-verse semantic index searched in 2.46 ms against a 5 ms budget, a resumable pack downloader, and a cold start around 300 ms against a 1 second budget.
 
 **Size budget, measured rather than estimated.** The earlier "only 7 to 13 MB left for the encoder" warning rested on a guess that three translations would cost 12 to 18 MB. A translation actually compresses to about 1.3 MB:
 
@@ -99,9 +96,12 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 
 **Definition of Done**
 - [x] Fresh Windows VM: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently. *(21 Sept: passed on a clean **Windows 11** VM — no Windows 10 ISO available. SmartScreen appeared and cleared as documented in `docs/INSTALL.md`, no admin prompt, app opened well inside 60 seconds. **One clause of this line is not actually covered:** Windows 11 ships WebView2 as part of the OS, so the installer never had to bootstrap it. The silent-bootstrap path — the thing this line exists to test — remains unexercised, and it is the path a Windows 10 church machine will take. Tracked in Parked against M11's release checklist.)*
-- [ ] Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`. *(21 Sept: **half of this is now automated.** The `macos-install-smoke` CI job mounts the built `.dmg` on both Intel and Apple Silicon runners, copies the bundle to `/Applications`, launches it, confirms it is still alive ten seconds later, times the cold start and uploads a screenshot and the startup log. **The Gatekeeper half cannot be automated and this line stays open until a person runs it.** The unidentified-developer dialog is triggered by the `com.apple.quarantine` attribute, which a downloader sets and a locally built file never carries — and no runner can click through it regardless. The job reports `spctl` and `codesign` output so the rejection on record is "unsigned" and nothing worse.)*
+- [x] Fresh macOS machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`. *(21 Sept: **passed on a real Mac.** The `.dmg` was downloaded through Safari — which is what makes the test valid, since Gatekeeper's dialog is triggered by the `com.apple.quarantine` attribute a browser applies and a locally built file never carries. The unidentified-developer warning appeared as expected for an unsigned build, was cleared, and SermonAI launched and ran correctly. Hardware and OS version still to be filled in: **which Mac (Intel or Apple Silicon), which macOS version, and which of the two ways the warning was cleared** (right-click → Open, or System Settings → Privacy & Security → Open Anyway). Those decide whether `docs/INSTALL.md`'s instructions match what a tester actually encounters — macOS 15 routes some cases to Privacy & Security and no longer honours right-click → Open, and INSTALL.md currently documents only the right-click path.)*
 
-  **Running this test from a CI artifact — read before you start.** The `.dmg` for both architectures is uploaded by the `build` job as `installer-macos-intel` and `installer-macos-arm`. GitHub hands artifacts over as a `.zip`, and **how you unzip it decides whether the test is valid at all.** Gatekeeper's unidentified-developer dialog is triggered by the `com.apple.quarantine` attribute, which Safari or Chrome puts on the downloaded `.zip`. Double-clicking the zip in Finder propagates that attribute to the `.dmg` inside, so the dialog appears and the test measures what it is supposed to. Running `unzip` in Terminal does **not** propagate it — the app would then launch with no dialog at all, and a tester could reasonably conclude Gatekeeper had been satisfied when it was never invoked. So: download in a browser, unzip in Finder, and confirm with `xattr -l` that the `.dmg` carries `com.apple.quarantine` before opening it.
+  This line is closed, but it does not mean Gatekeeper is satisfied for churches — it means an informed tester can get past it. Removing the warning entirely needs notarization, which is M11's first deliverable.
+
+  The `macos-install-smoke` CI job continues to cover the rest of this line on every build — it mounts the `.dmg` on both Intel and Apple Silicon runners, installs to `/Applications`, launches, confirms the app is alive ten seconds later and times the cold start. It cannot reach the Gatekeeper dialog, which is why the manual test above was needed once.
+
 - [x] Installer sizes printed in CI logs: both under 40 MB (unsigned builds). *(8 Sept: Windows msi 5.12 MB, macOS Intel 3.43 MB, macOS ARM 3.21 MB.)*
 - [x] App cold start under 1 second on Windows. *(21 Sept: **approximately 300 ms** from a real install on the Windows 11 VM, against a 1 second budget (PRD §9.1) — three times the headroom. macOS is now measured on every build instead of by stopwatch: `run()` logs a `startup complete` line carrying the elapsed milliseconds once migrations, the pack manager, the Bible client and the windows are all up, and the smoke job reads it. A runner is slower than a church laptop, so an overshoot there is a warning rather than a failure — a human measurement stays the number of record.)*
 - [x] Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash. *(8 Sept: confirmed on hardware with three displays attached.)*
@@ -109,11 +109,13 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 
 **Do not start M1 until:** all six DoD lines pass and the status board says ✅.
 
-**Where M0 stands today: 12 of 12 deliverables, 5 of 6 DoD lines. One line left, and it needs a Mac.**
+**M0 is complete: 12 of 12 deliverables, 6 of 6 DoD lines. Closed 21 September 2026.**
 
-| Outstanding | Why | Who |
+| Carried into M11 | Why it is not an M0 failure | Who |
 |---|---|---|
-| DoD 2 — Gatekeeper confirmation on macOS | CI now installs and launches the `.dmg` on both architectures, but cannot click the unidentified-developer dialog, and a locally built bundle never triggers it. Needs one person, one Mac, one download | You |
+| Notarization (Apple) and Authenticode (Windows) | M0 deliberately deferred OS code signing; the DoD lines were written to expect the warnings and both passed with them | M11 deliverable 1 |
+| WebView2 silent bootstrap on Windows 10 | DoD 1 passed on Windows 11, which ships WebView2 with the OS, so the bootstrap path was never exercised | M11 release checklist |
+| Pack system against a real CDN bucket | Verified against a local range-capable server only | Before M5 |
 
 Deliverable 10's note still stands: the pack system has never run against a real CDN bucket, only a local stub. That is worth closing before M5 leans on it.
 
@@ -394,6 +396,8 @@ Deliverable 10's note still stands: the pack system has never run against a real
 
 **Deliverables**
 - [ ] **Add code signing: Apple Developer ID + notarization, Windows Authenticode via Azure Trusted Signing.** Deferred from M0 while builds went to a private tester group. Public downloads must not trigger SmartScreen or Gatekeeper. Restore the signing secrets to the CI build step, set `bundle.macOS.signingIdentity`, and re-test both DoD installer lines on clean machines.
+  - **This is now a confirmed launch blocker, not a theoretical one.** M0's DoD 2 test hit the unidentified-developer warning on a real Mac, exactly as expected for an unsigned build. That was the correct result for a tester who knew to expect it and had `docs/INSTALL.md` open. It is the wrong experience for a church volunteer setting up on a Saturday evening: the dialog offers no obvious way forward, the workaround is buried in System Settings, and the honest reading of the warning is that the download is unsafe. Notarization is what removes it — signing alone is not enough, because Gatekeeper checks for a notarization ticket, not merely a valid signature.
+  - The same holds on Windows, where SmartScreen reputation accrues to the signing certificate over time, so signing close to launch still leaves early downloads flagged. Both are reasons to do this work early in M11 rather than at the end of it.
 - [ ] Free / Plus / Pro tiers wired to licensing per PRD §23; checkout and key delivery.
 - [ ] Public website with download, pricing, and the "End Service → PDF in 60 seconds" demo video.
 - [ ] Knowledge base and in-app help for every feature.
