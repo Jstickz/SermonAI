@@ -22,8 +22,13 @@ import type {
 /* ---------- commands (frontend → Rust) ---------- */
 
 export const audio = {
+  /** Every source the operator can pick (FR-01, FR-05). Safe to call again
+   *  on demand: devices appear and disappear while the app runs. */
   listDevices: () => invoke<AudioDevice[]>("list_audio_devices"),
-  select: (deviceId: string) => invoke<void>("select_audio_device", { deviceId }),
+  /** Confirm a remembered device is still present (FR-02). Worth calling
+   *  before capture starts, so a stale choice is caught while there is still
+   *  time to pick another rather than at the moment recording should begin. */
+  checkDevice: (name: string) => invoke<void>("check_audio_device", { name }),
   start: () => invoke<void>("start_capture"),
   stop: () => invoke<void>("stop_capture"),
 };

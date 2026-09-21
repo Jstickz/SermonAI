@@ -4,7 +4,7 @@
 //! `src/lib/ipc.ts` — add both in the same commit.
 //!
 //! Planned files:
-//!   audio.rs        list/select devices, start/stop capture (M1)
+//!   audio.rs        list/select devices (M1, done), start/stop capture (M1)
 //!   service.rs      start_service, end_service (M1, M4)
 //!   output.rs       stage_verse, go_live, blank, step_verse (M3)
 //!   bible.rs        lookup_verse, search_verses, translations (M2, M6)
@@ -12,6 +12,7 @@
 //!   packs.rs        list/download/pause/remove packs (M0)
 //!   remote.rs       enable/disable remote, pairing, revoke devices (M7)
 
+pub mod audio;
 pub mod bible;
 pub mod display;
 pub mod packs;

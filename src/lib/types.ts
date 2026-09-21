@@ -67,11 +67,33 @@ export interface MonitorInfo {
   isPrimary: boolean;
 }
 
+/** How a source is captured, which is not always what it is called.
+ *  - `input` — a microphone, USB interface or HDMI capture card
+ *  - `loopback` — a system output captured back. Windows only: CoreAudio
+ *    cannot record a render endpoint, so macOS never reports one.
+ *  - `virtual_input` — a virtual cable (BlackHole, VB-Audio) presenting as an
+ *    ordinary input. Recognised by name, so the label is best-effort; an
+ *    unrecognised cable still captures, it is just shown as `input`. */
+export type AudioDeviceKind = "input" | "loopback" | "virtual_input";
+
 export interface AudioDevice {
-  id: string;
+  /** The OS name, and the handle used to select the device again (FR-02).
+   *  There is no id: cpal exposes no stable device identifier, and index
+   *  order shifts as devices come and go, so the name is what survives a
+   *  restart. Two devices can therefore share a name — paired capture cards
+   *  do — and the first match wins. */
   name: string;
+  kind: AudioDeviceKind;
+  /** The host default, pre-selected on first run. At most one is true. */
+  isDefault: boolean;
+  /** The rate the device prefers, usually 44100 or 48000. Capture at 16 kHz
+   *  (FR-03) resamples from this. Zero when `warning` is set. */
+  defaultSampleRate: number;
   channels: number;
-  isLoopback: boolean;
+  /** Why the device could not be interrogated. It is still listed and still
+   *  selectable — a device that will not describe itself is usually busy or
+   *  asleep, and both resolve by the time someone picks it. */
+  warning: string | null;
 }
 
 export interface Sermon {
