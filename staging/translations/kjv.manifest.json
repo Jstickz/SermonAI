@@ -1,0 +1,20 @@
+{
+  "code": "KJV",
+  "name": "King James Version",
+  "short_name": "KJV",
+  "language": "eng",
+  "source": "helloao",
+  "yvp_version_id": null,
+  "attribution": "King James Version (Authorized Version), 1769 Blayney revision. Public domain in the United States; Crown copyright in the United Kingdom, administered by Cambridge University Press.",
+  "verse_count": 31102,
+  "sha256": "21771a3a6f8cbf4c4b1621b077a15d9966b751c82b3ef551b8768ca06b23bc5e",
+  "size_bytes": 1354928,
+  "enabled": false,
+  "source_detail": {
+    "api": "https://bible.helloao.org (Free Use Bible API)",
+    "text_source": "https://ebible.org/Scriptures/details.php?id=eng-kjv2006",
+    "license_url": "https://ebible.org/Scriptures/details.php?id=eng-kjv2006",
+    "provenance_note": "The 1769 Blayney revision, the same edition Project Gutenberg distributes as eBook #10 (https://www.gutenberg.org/ebooks/10) and #30. ebible.org's eng_kjv is used here because it is versified and machine-readable; the Gutenberg edition is plain prose and would need re-versifying.",
+    "uk_crown_copyright": "Public domain in the US. In the UK the KJV is under perpetual Crown copyright administered by Cambridge University Press under letters patent. PRD §4.2 lists the UK as a target market, so confirm before enabling."
+  }
+}

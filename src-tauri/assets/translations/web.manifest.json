@@ -1,0 +1,12 @@
+{
+  "code": "WEB",
+  "name": "World English Bible, American English Edition, without Strong's Numbers",
+  "short_name": "WEBUS",
+  "language": "en",
+  "source": "youversion",
+  "yvp_version_id": 206,
+  "attribution": "PUBLIC DOMAIN (not copyrighted)",
+  "verse_count": 31098,
+  "sha256": "6370d090b30692146358cae953083b682c6656a4feb51ef8c86d913aed7efadf",
+  "size_bytes": 1343619
+}
