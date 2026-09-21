@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { on, packs as packsApi } from "@/lib/ipc";
+import { bible, on, packs as packsApi } from "@/lib/ipc";
 import type { Pack, PackStatus } from "@/lib/types";
 
 /**
@@ -91,11 +91,19 @@ export function PackSettings() {
                     {pack.optional && <span className="chip">Optional</span>}
                   </div>
                   <p className="mt-1 text-xs text-content-muted">{pack.description}</p>
+                  {pack.status === "license_required" && (
+                    <p className="mt-1 text-xs text-status-warning">
+                      This translation needs its licence accepted on YouVersion before it can be
+                      downloaded.
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 gap-2">{actionsFor(pack, run)}</div>
               </div>
 
-              {pack.status !== "available" && pack.status !== "installed" && (
+              {pack.status !== "available" &&
+                pack.status !== "installed" &&
+                pack.status !== "license_required" && (
                 <div className="mt-3">
                   <div className="h-1 overflow-hidden rounded-pill bg-bg-canvas">
                     <div
@@ -118,6 +126,25 @@ export function PackSettings() {
 
 function actionsFor(pack: Pack, run: (action: Promise<unknown>) => Promise<void>) {
   switch (pack.status) {
+    // The licence belongs to our YouVersion app key, so it can only be
+    // accepted on their portal. We send the operator there, then re-check on
+    // their return rather than making them restart.
+    case "license_required":
+      return (
+        <button
+          className="btn-primary !px-4 !py-2"
+          onClick={() =>
+            void run(
+              bible
+                .openLicensePortal()
+                .then(() => bible.refreshLicenses())
+                .then(() => packsApi.refresh()),
+            )
+          }
+        >
+          Get licence
+        </button>
+      );
     case "installed":
       return (
         <button className="btn-destructive !px-4 !py-2" onClick={() => void run(packsApi.remove(pack.id))}>
@@ -150,6 +177,7 @@ function actionsFor(pack: Pack, run: (action: Promise<unknown>) => Promise<void>
 function statusLabel(pack: Pack): string {
   const labels: Record<PackStatus, string> = {
     available: "Not downloaded",
+    license_required: "Licence not approved yet",
     downloading: "Downloading",
     paused: "Paused",
     verifying: "Checking the download",

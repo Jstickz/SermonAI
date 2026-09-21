@@ -53,6 +53,25 @@ cp .env.example .env      # then fill in the vendor keys
 npm run tauri:dev
 ```
 
+### Getting a YouVersion app key
+
+Scripture comes from YouVersion Platform, which needs an app key.
+
+1. Register an application at [platform.youversion.com](https://platform.youversion.com).
+2. Copy the app key it issues.
+3. Paste it into `.env` as `YVP_APP_KEY=...`. `.env` is gitignored; never put a
+   key in `.env.example`.
+4. In the portal, accept the licence terms for each translation you intend to
+   use. A version appears in the app as **Licence not approved yet** until you
+   do, and **Get licence** on that row opens the portal.
+
+Without the key the app still runs: online lookups are disabled and the cached
+text continues to serve, which is the offline-first behaviour in PRD §2.3.
+
+Every version carries a copyright string that SermonAI stores with the cached
+text and displays wherever the verse appears. This is a licence condition, so
+text with no attribution is not displayed at all.
+
 `npm run tauri:dev` starts Vite and the Rust backend together and opens the
 operator window; the projector and alternate windows are created hidden and
 shown when an output monitor is selected.

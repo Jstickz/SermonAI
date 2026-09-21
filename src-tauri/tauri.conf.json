@@ -12,7 +12,7 @@
   "app": {
     "withGlobalTauri": false,
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:* https://api.deepgram.com wss://api.deepgram.com https://api.scripture.api.bible https://api.anthropic.com"
+      "csp": "default-src 'self'; img-src 'self' asset: data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:* https://api.deepgram.com wss://api.deepgram.com https://api.youversion.com https://api.anthropic.com"
     },
     "windows": [
       {
