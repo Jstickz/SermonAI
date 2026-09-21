@@ -20,6 +20,10 @@ pub mod windows;
 use tauri::Manager;
 
 pub fn run() {
+    // Taken before anything else so the cold-start figure covers the whole of
+    // our startup, not just the part after logging is up.
+    let started = std::time::Instant::now();
+
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
@@ -28,7 +32,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .setup(move |app| {
             // Migrations run before any window can issue a command (M0 deliverable).
             let data_dir = app.path().app_data_dir()?;
             let conn = db::init(&data_dir)?;
@@ -49,6 +53,19 @@ pub fn run() {
             // The projector and alternate windows are created from Rust so we can
             // place them on the operator's chosen monitors (PRD §10.3).
             windows::create_output_windows(app.handle())?;
+
+            // Cold start marker. PRD §9.1 budgets one second from launch to
+            // ready, and M0's DoD line measures it. Emitting it here rather
+            // than timing with a stopwatch means CI can check the budget on
+            // every build, and means the number covers the same work on both
+            // platforms: migrations, pack manager, Bible client, windows.
+            //
+            // Needs RUST_LOG to be set, since the filter comes from the
+            // environment and is empty by default.
+            tracing::info!(
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                "startup complete"
+            );
 
             Ok(())
         })

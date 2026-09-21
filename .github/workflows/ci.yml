@@ -128,3 +128,172 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
           if-no-files-found: warn
+
+  # M0 DoD 2: install the .dmg on a real Mac and confirm the app comes up.
+  #
+  # What this job can and cannot close is worth being precise about, because a
+  # green tick here does not mean DoD 2 is satisfied.
+  #
+  # It CAN show: the built .dmg mounts, the bundle copies to /Applications and
+  # runs there, the app survives its first ten seconds instead of crashing on
+  # startup, and roughly how long it takes to become ready — on both Intel and
+  # Apple Silicon, which is more coverage than one physical Mac gives.
+  #
+  # It CANNOT show the Gatekeeper half. The unidentified-developer dialog is
+  # triggered by the com.apple.quarantine attribute, which a downloader sets
+  # and a locally built file never carries, and no runner can click through it
+  # anyway. Forcing the attribute on would only make the app refuse to launch.
+  # So the job reports what Gatekeeper thinks of the bundle and leaves the
+  # human confirmation to a person with a Mac.
+  macos-install-smoke:
+    name: macos install smoke (${{ matrix.name }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-intel
+            os: macos-15-intel
+          - name: macos-arm
+            os: macos-latest
+
+    steps:
+      - name: Download the built installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-${{ matrix.name }}
+          path: installer
+
+      - name: Mount the dmg and copy SermonAI.app to /Applications
+        run: |
+          set -euo pipefail
+          dmg=$(find installer -name '*.dmg' -type f | head -1)
+          if [ -z "$dmg" ]; then
+            echo "::error::no .dmg in the installer artifact"
+            exit 1
+          fi
+          echo "installing $dmg"
+
+          mountpoint=$(mktemp -d)
+          hdiutil attach "$dmg" -mountpoint "$mountpoint" -nobrowse -quiet
+          # -R because an .app is a directory tree, and the executable bit on
+          # Contents/MacOS/SermonAI has to survive the copy.
+          sudo cp -R "$mountpoint/SermonAI.app" /Applications/
+          hdiutil detach "$mountpoint" -quiet
+
+          test -x /Applications/SermonAI.app/Contents/MacOS/SermonAI
+          echo "installed to /Applications/SermonAI.app"
+
+      - name: Report what Gatekeeper makes of the bundle
+        # Informational only. Builds are unsigned until M11, so a rejection
+        # here is the expected answer and must not fail the job; what matters
+        # is that the reason on record is "unsigned" and nothing worse.
+        continue-on-error: true
+        run: |
+          echo "--- spctl assessment ---"
+          spctl --assess --type execute -vv /Applications/SermonAI.app 2>&1 || true
+          echo "--- code signature ---"
+          codesign -dvv /Applications/SermonAI.app 2>&1 || true
+          echo "--- quarantine attributes (none expected: not downloaded) ---"
+          xattr -l /Applications/SermonAI.app 2>&1 || true
+
+      - name: Launch, time the cold start, confirm it stays up
+        id: launch
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/sermonai.log"
+
+          # The binary is run directly rather than through `open` so its stdout
+          # can be captured; `open` detaches and the startup line would be lost.
+          # RUST_LOG is required — the filter is built from the environment and
+          # is empty by default, so nothing is logged without it.
+          # python3, not `date +%s%N`: BSD date has no %N and would print a
+          # literal "N", making every arithmetic result nonsense.
+          now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }
+
+          start=$(now_ms)
+          RUST_LOG=info /Applications/SermonAI.app/Contents/MacOS/SermonAI > "$log" 2>&1 &
+          pid=$!
+
+          ready_ms=""
+          for _ in $(seq 1 300); do
+            if grep -q "startup complete" "$log" 2>/dev/null; then
+              ready_ms=$(( $(now_ms) - start ))
+              break
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              echo "::error::SermonAI exited during startup"
+              cat "$log"
+              exit 1
+            fi
+            sleep 0.1
+          done
+
+          if [ -z "$ready_ms" ]; then
+            echo "::error::no startup-complete line within 30s"
+            cat "$log"
+            kill "$pid" 2>/dev/null || true
+            exit 1
+          fi
+
+          # Two numbers, because they answer different questions. The internal
+          # one is our own work; the wall-clock one includes process spawn and
+          # dynamic linking, which is what an operator actually waits through.
+          internal_ms=$(sed -n 's/.*elapsed_ms=\([0-9]*\).*/\1/p' "$log" | head -1)
+          echo "cold start: ${ready_ms} ms wall clock, ${internal_ms:-unknown} ms internal"
+          echo "ready_ms=$ready_ms" >> "$GITHUB_OUTPUT"
+          echo "internal_ms=${internal_ms:-unknown}" >> "$GITHUB_OUTPUT"
+
+          # DoD 2 asks that the app be up, not merely that it started. Ten
+          # seconds catches a panic that lands after the windows appear.
+          sleep 10
+          if ! kill -0 "$pid" 2>/dev/null; then
+            echo "::error::SermonAI died within 10 seconds of launching"
+            cat "$log"
+            exit 1
+          fi
+          echo "still running after 10 seconds"
+          echo "pid=$pid" >> "$GITHUB_OUTPUT"
+
+      - name: Screenshot the screen
+        # Best effort. screencapture needs Screen Recording permission under
+        # TCC, which a runner may not grant, and a headless session can return
+        # a blank image. A missing or empty screenshot is not a product defect,
+        # so it must not fail a job whose real assertions have already passed.
+        continue-on-error: true
+        run: |
+          shot="$RUNNER_TEMP/screen-${{ matrix.name }}.png"
+          screencapture -x "$shot" || echo "screencapture unavailable on this runner"
+          if [ -s "$shot" ]; then
+            echo "captured $(wc -c < "$shot") bytes"
+          else
+            echo "::warning::no screenshot captured; the launch assertions above still hold"
+          fi
+
+      - name: Cold start against the 1 second budget
+        # Separate from the launch step so the budget shows as its own result.
+        # A runner is slower and busier than a church laptop, so overshooting
+        # here is a warning and not a failure — PRD §9.1 targets an 8 GB
+        # 4-core machine, and the number a human measures is the one of record.
+        run: |
+          ms="${{ steps.launch.outputs.ready_ms }}"
+          if [ "$ms" -le 1000 ]; then
+            echo "cold start ${ms} ms, inside the 1000 ms budget (PRD 9.1)"
+          else
+            echo "::warning::cold start ${ms} ms, over the 1000 ms budget (PRD 9.1) on a CI runner"
+          fi
+
+      - name: Stop the app
+        if: always()
+        run: |
+          pkill -f '/Applications/SermonAI.app/Contents/MacOS/SermonAI' 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-install-smoke-${{ matrix.name }}
+          path: |
+            ${{ runner.temp }}/screen-*.png
+            ${{ runner.temp }}/sermonai.log
+          if-no-files-found: warn

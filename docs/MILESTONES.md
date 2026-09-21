@@ -32,7 +32,7 @@ Update this table first. It is the only place status is recorded.
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
 **Current milestone:** M0
-**Current blocker:** a Mac. Twelve of twelve deliverables and five of six Definition of Done lines are done; the last line is a fresh macOS install, which CI cannot perform.
+**Current blocker:** a Mac, for one clause of one line. Twelve of twelve deliverables and five of six Definition of Done lines are done. CI now installs and launches the `.dmg` on both Intel and Apple Silicon, so all that is left of DoD 2 is a human clicking through the Gatekeeper dialog — which no runner can do, because a locally built bundle never triggers it.
 
 The YouVersion migration (PR #1, merged 21 Sept) un-did deliverable 9 by raising the attribution bar: PRD v2.2 §15.2 forbids displaying a verse without a copyright string, and the API.Bible-built KJV and ASV packs had none. That is now resolved. **The base installer bundles KJV, WEB and ASV, as FR-59 always said.**
 
@@ -99,9 +99,9 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 
 **Definition of Done**
 - [x] Fresh Windows VM: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently. *(21 Sept: passed on a clean **Windows 11** VM — no Windows 10 ISO available. SmartScreen appeared and cleared as documented in `docs/INSTALL.md`, no admin prompt, app opened well inside 60 seconds. **One clause of this line is not actually covered:** Windows 11 ships WebView2 as part of the OS, so the installer never had to bootstrap it. The silent-bootstrap path — the thing this line exists to test — remains unexercised, and it is the path a Windows 10 church machine will take. Tracked in Parked against M11's release checklist.)*
-- [ ] Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`. *(Needs a Mac. CI builds the `.dmg` but never installs it.)*
+- [ ] Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`. *(21 Sept: **half of this is now automated.** The `macos-install-smoke` CI job mounts the built `.dmg` on both Intel and Apple Silicon runners, copies the bundle to `/Applications`, launches it, confirms it is still alive ten seconds later, times the cold start and uploads a screenshot and the startup log. **The Gatekeeper half cannot be automated and this line stays open until a person runs it.** The unidentified-developer dialog is triggered by the `com.apple.quarantine` attribute, which a downloader sets and a locally built file never carries — and no runner can click through it regardless. The job reports `spctl` and `codesign` output so the rejection on record is "unsigned" and nothing worse.)*
 - [x] Installer sizes printed in CI logs: both under 40 MB (unsigned builds). *(8 Sept: Windows msi 5.12 MB, macOS Intel 3.43 MB, macOS ARM 3.21 MB.)*
-- [x] App cold start under 1 second on Windows. *(21 Sept: **approximately 300 ms** from a real install on the Windows 11 VM, against a 1 second budget (PRD §9.1) — three times the headroom. macOS is untimed and stays with DoD 2, which needs a Mac.)*
+- [x] App cold start under 1 second on Windows. *(21 Sept: **approximately 300 ms** from a real install on the Windows 11 VM, against a 1 second budget (PRD §9.1) — three times the headroom. macOS is now measured on every build instead of by stopwatch: `run()` logs a `startup complete` line carrying the elapsed milliseconds once migrations, the pack manager, the Bible client and the windows are all up, and the smoke job reads it. A runner is slower than a church laptop, so an overshoot there is a warning rather than a failure — a human measurement stays the number of record.)*
 - [x] Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash. *(8 Sept: confirmed on hardware with three displays attached.)*
 - [x] Download a 30 MB test pack, kill the app at 50%, relaunch, download resumes and verifies. *(Covered by `tests/pack_download.rs` against a local range-capable server: the resume request carries `Range: bytes=N-` from the halfway mark and the installed file matches the catalog digest. Passing on all three CI targets. Not yet run against a real CDN bucket.)*
 
@@ -111,7 +111,7 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 
 | Outstanding | Why | Who |
 |---|---|---|
-| DoD 2 — fresh macOS 12 install | Needs a Mac; CI builds the `.dmg` but never installs it. Carries the macOS half of the cold-start timing with it | You |
+| DoD 2 — Gatekeeper confirmation on macOS | CI now installs and launches the `.dmg` on both architectures, but cannot click the unidentified-developer dialog, and a locally built bundle never triggers it. Needs one person, one Mac, one download | You |
 
 Deliverable 10's note still stands: the pack system has never run against a real CDN bucket, only a local stub. That is worth closing before M5 leans on it.
 
