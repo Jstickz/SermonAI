@@ -1,0 +1,37 @@
+{
+  "code": "ASV",
+  "name": "American Standard Version",
+  "short_name": "ASV",
+  "language": "eng",
+  "source": "ebible",
+  "yvp_version_id": null,
+  "attribution": "American Standard Version (1901). Public domain. Text from eBible.org.",
+  "verse_count": 31086,
+  "omitted_verses": [
+    "MAT.17.21",
+    "MAT.18.11",
+    "MAT.23.14",
+    "MRK.7.16",
+    "MRK.9.44",
+    "MRK.9.46",
+    "MRK.11.26",
+    "MRK.15.28",
+    "LUK.17.36",
+    "LUK.23.17",
+    "JHN.5.4",
+    "ACT.8.37",
+    "ACT.15.34",
+    "ACT.24.7",
+    "ACT.28.29",
+    "ROM.16.24"
+  ],
+  "sha256": "56893b11963e79913414f87dd800015143ab5055754c201eb144fd8bbfb1b22c",
+  "size_bytes": 1355053,
+  "source_detail": {
+    "api": "https://bible.helloao.org (Free Use Bible API)",
+    "text_source": "https://ebible.org/Scriptures/details.php?id=eng-asv",
+    "license_url": "https://ebible.org/Scriptures/details.php?id=eng-asv",
+    "omissions_note": "Verse nodes the source published with no text of their own. The 1901 revisers followed a Greek text that lacks these readings and moved them to the margin; ebible.org still counts the node, so the pack records them as omitted rather than missing.",
+    "why_not_youversion": "KJV is not licensed to our YouVersion app key and ASV returns no copyright string there. Both are public domain, so they are built from ebible.org, where YouVersion's terms do not apply."
+  }
+}
