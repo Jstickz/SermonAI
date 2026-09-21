@@ -7,9 +7,9 @@
 |---|---|
 | **Document Type** | Product Requirements Document (PRD) |
 | **Product Name** | SermonAI |
-| **Version** | 2.1 |
+| **Version** | 2.2 |
 | **Status** | Active. Development Reference |
-| **Last Updated** | 7 September 2026 |
+| **Last Updated** | 21 September 2026 |
 | **Companion file** | `docs/MILESTONES.md` (stage tracker) |
 | **Purpose** | Source of truth for AI-assisted development (Claude Code) |
 
@@ -382,13 +382,13 @@ SermonAI wins on four things:
 - **FR-12:** Apply a compiled regex to every transcript chunk for direct references.
 - **FR-13:** Recognize standard ("John 3:16"), spoken ("John chapter three verse sixteen"), and shorthand ("third chapter of John") forms.
 - **FR-14:** Send the rolling buffer to Claude API for paraphrase detection when no direct match has appeared for 10 seconds (online mode).
-- **FR-15:** Use an in-binary vector index of all 31,102 verse embeddings (int8, 256 dims, 7.71 MB, brute-force cosine search under 5 ms) for semantic detection **in offline mode and as the first semantic pass in online mode**. No external vector library.
+- **FR-15:** Use an in-binary vector index of all 31,102 verse embeddings (quantized, about 12 MB, brute-force cosine search under 5 ms) for semantic detection **in offline mode and as the first semantic pass in online mode**. No external vector library.
 - **FR-16:** Compute and display a confidence score for every detection.
 - **FR-17:** Queue multiple detections without dropping any.
 
 ### 8.4 Bible Text & Translations
 
-- **FR-18:** Integrate with API.Bible as the primary licensed scripture source.
+- **FR-18:** Integrate with **YouVersion Platform** as the primary licensed scripture source, using per-app authentication via the `X-YVP-App-Key` header. Passage IDs follow the USFM format (e.g. `JHN.3.16`). The app must display the required copyright attribution returned with each version, and must not self-host YouVersion fonts.
 - **FR-19:** Pre-cache all verses of any selected translation into local SQLite.
 - **FR-20:** Ship with at least 20 translations available out of the box.
 - **FR-21:** Allow download of additional translations from a curated catalog.
@@ -450,7 +450,7 @@ SermonAI wins on four things:
 
 ### 8.11 Installation & On-Demand Packs *(new in v2.1)*
 
-- **FR-59:** The base installer for each platform (`.msi`/`.exe` for Windows, `.dmg` for macOS — unsigned during development, signed and notarized before M11 public launch, see §9.5) shall be **under 40 MB** and shall include: the application, KJV, WEB and ASV translations, the quantized verse embedding index, and the default theme. It shall install without administrator rights and without a setup wizard beyond audio device and display selection.
+- **FR-59:** The base installer for each platform (signed `.msi`/`.exe` for Windows, signed and notarized `.dmg` for macOS) shall be **under 40 MB** and shall include: the application, KJV, WEB and ASV translations, the quantized verse embedding index, and the default theme. It shall install without administrator rights and without a setup wizard beyond audio device and display selection.
 - **FR-60:** The app shall offer **on-demand packs** from a Settings → Packs screen, each with a clear size label, progress bar, pause/resume, and integrity check: **Offline Speech Pack** (whisper.cpp base model, about 75 MB), **Translation Packs** (one per translation, 4 to 6 MB compressed), **Offline Intelligence Pack** (quantized local summary model, 1 GB or more, clearly marked optional), and **Theme Packs**.
 - **FR-61:** All packs shall be resumable across app restarts and network drops, and shall be verified by checksum before activation.
 - **FR-62:** Updates shall be delivered as **delta patches** via the Tauri updater, so routine releases are a few MB and never require re-downloading packs.
@@ -494,12 +494,11 @@ SermonAI wins on four things:
 - Linux: community best effort.
 - Outputs: HDMI, NDI 5.x, OBS 28+ Browser Source.
 - Windows and macOS are equals: no feature ships on one platform without the other, and CI blocks a release if either platform build fails.
-- **Unsigned builds during development. Code signing (Apple Developer ID with notarization; Windows Authenticode) added before M11 public launch.**
 
 ### 9.6 Maintainability
 
 - Single Tauri project: `src/` for the React frontend, `src-tauri/` for the Rust backend.
-- CI/CD builds, tests, and releases for both platforms from one pipeline. Signing and notarization are added before M11 (§9.5).
+- CI/CD builds, tests, signs, notarizes, and releases for both platforms from one pipeline.
 - Opt-in crash telemetry only; no transcript content ever leaves the machine in telemetry.
 - Auto-update via the Tauri updater with delta patches.
 
@@ -524,14 +523,14 @@ SermonAI wins on four things:
 
 ### 10.1 Overview
 
-SermonAI is a single-machine desktop application built with **Tauri 2**. One compiled Rust binary hosts the backend (audio, STT, detection, storage, summary generation, export, remote server) and opens three webview windows for the React frontend (operator, projector, alternate). Frontend and backend communicate through Tauri commands and events in-process; there is no sidecar, no loopback HTTP hop for the operator UI, and no separate runtime to bundle. Outbound network traffic is limited to Deepgram, API.Bible, and Anthropic, and only in online mode.
+SermonAI is a single-machine desktop application built with **Tauri 2**. One compiled Rust binary hosts the backend (audio, STT, detection, storage, summary generation, export, remote server) and opens three webview windows for the React frontend (operator, projector, alternate). Frontend and backend communicate through Tauri commands and events in-process; there is no sidecar, no loopback HTTP hop for the operator UI, and no separate runtime to bundle. Outbound network traffic is limited to Deepgram, the YouVersion Platform (`api.youversion.com` and `cdn.youversion.com`), and Anthropic, and only in online mode.
 
 ### 10.2 The Seven Layers (revised for v2.1)
 
 1. **Audio Input** — `cpal` crate (WASAPI on Windows, CoreAudio on macOS). 250ms PCM chunks at 16kHz mono. Loopback devices enumerated where the OS exposes them.
 2. **Speech-to-Text** — Deepgram Nova-3 over `tokio-tungstenite` WebSocket online; `whisper-rs` (whisper.cpp) offline on both platforms when the Offline Speech Pack is installed.
 3. **Scripture Detection** — three stages in order: regex (under 5ms), in-binary vector search over quantized verse embeddings (under 5ms), Claude API paraphrase detection (online only, 1 to 2s).
-4. **Bible Text** — `rusqlite` cache seeded from bundled packs, API.Bible downloads, and user imports.
+4. **Bible Text** — `rusqlite` cache seeded from bundled packs, YouVersion Platform downloads (per-verse HTML plus attribution metadata), and user imports.
 5. **Staging & Output** — staging slot on operator UI; outputs to projector webview, alternate webview, NDI, OBS overlay. Nothing reaches an output without passing through staging (unless auto-live is on).
 6. **Phone Remote** — an `axum` server inside the binary serves a small React web app on the LAN only while remote is enabled; WebSocket keeps remote and operator UI in sync; pairing via short-lived token in a QR code.
 7. **Sermon Intelligence** — transcript store, summary pipeline (Claude online; template renderer offline; optional local model via `llama-cpp` bindings), PDF renderer, archive search (SQLite FTS5), Content Studio, series compiler.
@@ -576,7 +575,7 @@ End Service
 
 - Audio device disconnect: pause, alert, re-select without restart.
 - Deepgram drop: reconnect with backoff; switch to whisper.cpp after three failures if the Offline Speech Pack is installed, otherwise show a clear "transcription paused, no internet" banner and offer the pack download.
-- API.Bible failure: serve from cache; otherwise show reference with "verse unavailable".
+- YouVersion Platform failure: serve from cache; otherwise show reference with "verse unavailable" and refresh in the background when connectivity returns.
 - Claude unreachable: regex and vector search continue; summary uses the template renderer (or local model if installed) and upgrades later.
 - Pack download interrupted: resume from the last verified chunk on next launch; never activate a partial pack.
 - WebView2 missing on Windows: installer bootstraps it silently; app refuses to start with a helpful message if bootstrap fails.
@@ -616,7 +615,7 @@ sermonai/
 │   └── Cargo.toml
 ├── scripts/
 │   ├── build-verse-index.py      # one-time: embed 31,102 verses, quantize to int8, write index file
-│   ├── build-translation-pack.py # API.Bible → compressed pack + checksum
+│   ├── build-translation-pack.py # YouVersion Platform → sanitized text + attribution → compressed pack + checksum
 │   └── publish-packs.sh          # upload packs + manifest to the pack CDN
 ├── packs-manifest.json           # list of downloadable packs with sizes and checksums
 ├── docs/
@@ -642,7 +641,7 @@ sermonai/
 | Animation | Framer Motion | Verse transitions |
 | Backend calls | `@tauri-apps/api` commands + events | In-process, typed, no HTTP hop |
 | Remote app | React (mobile-first) | Same stack, served over LAN by the Rust server |
-| Build | Vite + Tauri CLI | Fast dev; installers for both platforms, unsigned until M11 |
+| Build | Vite + Tauri CLI | Fast dev, signed and notarized installers |
 
 ### 11.2 Backend (Rust, compiled into the Tauri binary)
 
@@ -657,7 +656,7 @@ sermonai/
 | Vector search | In-binary brute-force cosine over int8 verse embeddings | 31K × 384 dims, under 5 ms, ~12 MB, no external library |
 | Offline summary (default) | Template renderer in Rust | Useful PDF with no model at all |
 | Offline summary (optional) | `llama-cpp` Rust bindings | Reduced-detail AI summary from the optional Intelligence Pack |
-| Bible client | `reqwest` | API.Bible downloads, pack fetching |
+| Bible client | `reqwest` | YouVersion Platform REST API downloads, pack fetching, attribution refresh |
 | Bible import | Custom parsers (USFM, OSIS, JSON, CSV) | User-supplied translations |
 | Database | `rusqlite` (bundled SQLite, FTS5 enabled, WAL) | Zero-config, full-text search |
 | PDF | Hidden webview print-to-PDF for summaries; `typst` for the book compiler | Pixel-exact preview, professional typesetting for long documents |
@@ -671,15 +670,15 @@ sermonai/
 ### 11.3 External Services
 
 - **Deepgram** Nova-3 streaming STT.
-- **API.Bible** licensed scripture text.
+- **YouVersion Platform** licensed scripture text (over 1,000 versions including NIV, NKJV, NLT, AMP, MSG). REST API base `https://api.youversion.com/v1`, authenticated with the app-scoped `X-YVP-App-Key` header. Attribution metadata returned with every version and shown wherever the text is displayed.
 - **Anthropic Claude API** paraphrase detection and summary generation.
-- **OpenAI Embeddings** no longer used. Verse embeddings are built with the same bundled static encoder that answers runtime queries (§15.4).
+- **OpenAI Embeddings** one-time build job to embed all verses (never called from the app).
 - **Pack CDN** (object storage + CDN) hosting translation, speech, intelligence and theme packs with a signed manifest.
 
 ### 11.4 Tooling
 
 - GitHub, GitHub Actions CI/CD (matrix: windows-latest, macos-latest for both Intel and Apple Silicon), ESLint + Prettier, `cargo fmt` + `clippy`, Vitest + Playwright (frontend), `cargo test` (backend), `tauri-driver` for end-to-end, Sentry (opt-in).
-- Unsigned builds during development. Code signing (Apple Developer ID with notarization; Windows Authenticode) added before M11 public launch.
+- Code signing: Windows Authenticode certificate; Apple Developer ID with notarization.
 
 ---
 
@@ -961,27 +960,27 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 ### 15.1 Deepgram
 - `wss://api.deepgram.com/v1/listen`, model `nova-3`, 16kHz mono PCM, custom vocabulary, interim + final results. ~$0.006/min. 45,000 free minutes per year for development.
 
-### 15.2 API.Bible
-- `https://api.scripture.api.bible/v1`, `api-key` header. Bulk cache per translation. Public domain free; commercial translations ~$10/month each, paid by SermonAI and bundled into tiers.
+### 15.2 YouVersion Platform
+- Base URL `https://api.youversion.com/v1`. Every request carries the `X-YVP-App-Key: <APP_KEY>` header. The key is registered against the SermonAI application at `platform.youversion.com` and identifies the app to the license server.
+- Passage IDs use USFM book codes and dot-separated positions, e.g. `JHN.3.16`, `ROM.8.28`, `PSA.139.13-16`. The app converts spoken references ("Jeremiah twenty-nine eleven") to USFM at the detection layer before hitting the API.
+- Version IDs are integers (e.g. NIV, NKJV, NLT, AMP, MSG each have a numeric ID that the app resolves once at pack-install time and caches).
+- Endpoints the app uses: `GET /bibles` (list versions the app key can access), `GET /bibles/{version_id}` (metadata plus attribution text), `GET /bibles/{version_id}/passages/{passage_id}` (the passage HTML), and the search endpoints for user-typed lookups.
+- Fetched HTML is sanitized before being displayed on the projector. The SermonAI theme system replaces YouVersion's CSS with its own tokens for the projector output, but the source HTML must be preserved for the summary PDF where YouVersion attribution and formatting stand.
+- **Attribution requirement.** Every version returns a `copyright` string in its metadata. The projector's reference line shows the version's short label (e.g. "NIV"), and the summary PDF's scripture blocks carry the full copyright line beneath them. If a version returns no attribution, the app refuses to display that verse and shows a fallback message. This is a hard rule from YouVersion's terms.
+- **Font rule.** YouVersion's Untitled Serif typeface is served through the Fonts API and must be loaded live in online mode. SermonAI does not self-host it. On the projector the app uses its own Crimson Pro brand type per §3 of the branding doc, which is compatible with YouVersion's terms because it is not a redistribution of their font.
+- **Offline behaviour.** The app caches passage text locally in `rusqlite` per §14.2 so services can run without live API calls. The cache stores the attribution string alongside the text and refreshes it on the next online run, per YouVersion's requirement that attribution stays current.
+- **License scope.** Availability of a given version to a given app key is governed by YouVersion's per-version license agreements accepted through the platform portal. SermonAI accepts these once per version, at the point the church chooses to install that translation pack. The app blocks installation of a version whose license has not been accepted for the current app key.
 
 ### 15.3 Anthropic Claude
 - `https://api.anthropic.com/v1/messages`, `claude-sonnet-4-6`. Two uses: live paraphrase detection (short prompts) and summary generation (structured JSON output, one call per sermon plus retries). Estimated $1 to $6 per church per month.
 
-### 15.4 Verse Embedding Index (amended 9 September 2026)
-
-**One model builds the index and answers queries.** The original design embedded verses with OpenAI `text-embedding-3-small` and embedded spoken phrases at runtime with a different on-device encoder. That cannot work: vectors from two different models occupy different spaces, so a cosine score between them is meaningless. There is no OpenAI dependency, and `OPENAI_API_KEY` is not required.
-
-- **Model:** `minishlab/potion-base-8M`, a static (model2vec) encoder. Embedding is a token lookup plus a mean — no transformer, no ONNX runtime, no GPU — which is what keeps offline semantic detection inside the 40 MB installer.
-- **Dimensions:** 256, not the 384 originally assumed.
-- **Index:** all 31,102 KJV verses, L2-normalised then quantized to int8, **7.71 MB**. Because rows are unit length before quantizing, runtime search is a plain integer dot product.
-- **Encoder assets:** `encoder.bin` 7.32 MB (int8 token matrix, per-row scales) and `tokenizer.json` 0.65 MB.
-- **Validation:** the build script measures the quantized pipeline against float32 and refuses to write below 95% top-5 self-retrieval. Measured: top-1 99.3%, top-5 99.7%, encoder token cosine 0.9997 minimum.
-- **Known limit:** this stage is strong on verbatim quotation and weak on paraphrase (measured 3 of 8 on a modern-paraphrase set, because the index is KJV and preachers paraphrase in modern English). Paraphrase is what FR-14's Claude stage is for; the semantic stage is the offline fallback, and staging-first (ADR 0002) means the operator is always the final check. Indexing a modern translation measured better (4 of 8) and should be revisited when the WEB pack is rebuilt.
+### 15.4 OpenAI Embeddings (build-time only)
+- `text-embedding-3-small` over 31,102 verses, once, ~$2. Reduced to 384 dimensions and quantized to int8 by `build-verse-index.py`; the resulting ~12 MB index ships inside the binary. At runtime the app embeds the spoken phrase with a small on-device sentence encoder bundled in the same asset so semantic search is fully offline.
 
 ### 15.5 On-Demand Packs (offline)
 - **Offline Speech Pack:** whisper.cpp `base.en` (~75 MB) default; `small.en` (~250 MB) offered as "higher accuracy".
 - **Offline Intelligence Pack:** quantized 1 to 3B parameter local LLM (1 to 2 GB). Optional. Clearly labelled. Never required for a usable summary PDF.
-- **Translation Packs:** one per translation, 4 to 6 MB compressed, built from API.Bible under license.
+- **Translation Packs:** one per translation, 4 to 6 MB compressed, built from the YouVersion Platform under the version's accepted license. Each pack carries the version's attribution string in its manifest so the app can render it even after connectivity has dropped.
 - All packs served from the Pack CDN with a signed `packs-manifest.json` listing name, version, size, and SHA-256.
 
 ### 15.6 NDI
@@ -1082,8 +1081,8 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 **Exit:** Tauri project scaffolded, CI green with signed builds on Windows and macOS, vendor keys provisioned, verse index built and bundled, pack downloader working against a test manifest.
 
 - [ ] Tauri 2 project: React + TypeScript frontend, Rust backend, three windows opening on the correct monitors.
-- [ ] CI/CD matrix for Windows and macOS (Intel + Apple Silicon). Signing and notarization deferred to M11 (§9.5).
-- [ ] Deepgram, API.Bible, Anthropic keys.
+- [ ] CI/CD matrix for Windows and macOS (Intel + Apple Silicon) with signing and notarization.
+- [ ] Deepgram key, YouVersion Platform app key (registered via `platform.youversion.com`, added to CI as `YVP_APP_KEY`), Anthropic key.
 - [ ] `build-verse-index.py` run once; ~12 MB quantized index committed to `src-tauri/assets/`.
 - [ ] KJV, WEB, ASV bundled as assets; `build-translation-pack.py` producing packs for the CDN.
 - [ ] Pack downloader (resumable, checksummed) with Settings → Packs screen against a test manifest.
@@ -1097,7 +1096,7 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 - [ ] Audio capture and device selection (FR-01 to FR-06).
 - [ ] Deepgram streaming with live transcript (FR-07, FR-10, FR-11).
 - [ ] Regex + vector detection (FR-12, FR-13, FR-15, FR-16, FR-17).
-- [ ] API.Bible cache with 5 translations (FR-18, FR-19, FR-22).
+- [ ] YouVersion Platform cache with 5 translations, at least one of which is NIV or NLT so the attribution and license-acceptance flow are exercised end to end (FR-18, FR-19, FR-22).
 - [ ] Projector window, transitions, one theme (FR-23 to FR-25).
 - [ ] Detection cards, staging slot, Go Live, blank, command palette (FR-29 to FR-33, FR-50, FR-51).
 - [ ] Transcript persistence (FR-34).
@@ -1178,7 +1177,7 @@ Realistic with this PRD as the constant reference: Phase 0 and 1 in ten weeks, P
 | Risk | L / I | Mitigation |
 |---|---|---|
 | Deepgram price increase | M / H | Local STT fallback; evaluate AssemblyAI quarterly |
-| API.Bible licensing change | L / H | Multi-year agreements; importer gives churches an escape hatch |
+| YouVersion Platform licensing change for a specific version | L / M | Per-version acceptance is atomic; if a license is pulled, that pack stops offering new downloads while existing cached copies keep working. Church can also import a self-supplied translation as a fallback. |
 | STT accuracy on African English | M / H | Custom vocabulary; pilot in Nigeria and Kenya; model switch if needed |
 | HDMI capture card compatibility | M / M | Test top 5 cards; publish compatibility list |
 | LLM false-positive paraphrases | H / M | Staging-first output; confidence threshold; operator accept |
@@ -1320,6 +1319,7 @@ Against a free competitor and PewBeam at $14 / $30, the free tier must be truly 
 | 1.1 | May 2026 | Converted to markdown for development |
 | 2.0 | 7 Sept 2026 | Competitive refresh (TajiCast, PewBeam), 19 new requirements, automatic detailed summary PDF as core feature, re-sequenced roadmap, revised pricing |
 | 2.1 | 7 Sept 2026 | Stack changed to Tauri 2 + Rust for Windows/macOS parity and lightweight install; new §8.11 (FR-59 to FR-63) and §9.7 installation footprint; on-demand packs; `MILESTONES.md` introduced |
+| 2.2 | 21 Sept 2026 | Primary Bible source changed from API.Bible to YouVersion Platform. FR-18 rewritten, §15.2 replaced, external-services list, tech stack, failure modes, M0 keys, M1 cache milestone and the licensing-risk row all updated to match. Attribution requirement, USFM passage IDs, and per-version license acceptance flow are now first-class in the spec. |
 
 ---
 

@@ -16,6 +16,10 @@ use super::manifest::{PackEntry, PackKind};
 #[serde(rename_all = "snake_case")]
 pub enum PackStatus {
     Available,
+    /// In the catalog, but YouVersion has not approved this app key for it.
+    /// The operator accepts the terms in the portal before it can download
+    /// (PRD v2.2 §15.2).
+    LicenseRequired,
     Downloading,
     Paused,
     Verifying,

@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 use rusqlite::Connection;
 
+use crate::bible::youversion::YouVersionClient;
 use crate::packs::PackManager;
 use crate::windows::OutputAssignments;
 
@@ -23,14 +24,18 @@ pub struct AppState {
     /// remounted panel must be able to ask what is actually on screen rather
     /// than guess.
     pub outputs: Mutex<OutputAssignments>,
+    /// Online scripture. Disabled when YVP_APP_KEY is absent; the cache still
+    /// serves, so a missing key costs new lookups rather than the service.
+    pub bible: YouVersionClient,
 }
 
 impl AppState {
-    pub fn new(db: Connection, packs: PackManager) -> Self {
+    pub fn new(db: Connection, packs: PackManager, bible: YouVersionClient) -> Self {
         Self {
             db: Mutex::new(db),
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
+            bible,
         }
     }
 }

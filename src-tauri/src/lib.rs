@@ -40,7 +40,11 @@ pub fn run() {
             let manifest_url = format!("{}/packs-manifest.json", cdn.trim_end_matches('/'));
             let packs = packs::PackManager::new(&data_dir, manifest_url);
 
-            app.manage(state::AppState::new(conn, packs));
+            // Online Bible access. from_env logs once and disables itself if
+            // YVP_APP_KEY is missing rather than failing startup.
+            let bible = bible::youversion::YouVersionClient::from_env();
+
+            app.manage(state::AppState::new(conn, packs, bible));
 
             // The projector and alternate windows are created from Rust so we can
             // place them on the operator's chosen monitors (PRD §10.3).
@@ -58,6 +62,9 @@ pub fn run() {
             commands::packs::download_pack,
             commands::packs::pause_pack_download,
             commands::packs::remove_pack,
+            commands::bible::open_license_portal,
+            commands::bible::refresh_bible_licenses,
+            commands::bible::is_bible_online,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SermonAI");

@@ -12,5 +12,6 @@
 //!   packs.rs        list/download/pause/remove packs (M0)
 //!   remote.rs       enable/disable remote, pairing, revoke devices (M7)
 
+pub mod bible;
 pub mod display;
 pub mod packs;

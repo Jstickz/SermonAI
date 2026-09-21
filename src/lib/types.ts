@@ -108,7 +108,26 @@ export interface SermonSummary {
 
 export type PackKind = "speech" | "translation" | "intelligence" | "theme";
 
-export type PackStatus = "available" | "downloading" | "paused" | "verifying" | "installed" | "failed";
+export type PackStatus =
+  | "available"
+  /** In the catalog, but YouVersion has not approved our app key for it. */
+  | "license_required"
+  | "downloading"
+  | "paused"
+  | "verifying"
+  | "installed"
+  | "failed";
+
+/** A Bible version as YouVersion Platform reports it. */
+export interface BibleVersion {
+  id: number;
+  name: string;
+  shortName: string;
+  language: string;
+  /** Copyright string. Must be shown wherever the text is shown. */
+  attribution: string;
+  licenseStatus: "pending" | "approved" | "revoked";
+}
 
 export interface Pack {
   id: string;

@@ -1,6 +1,6 @@
 # SermonAI — Milestones
 
-> **Companion to `PRD.md` v2.1.** This file answers one question at any moment: *what stage am I at, and what does "done" look like for this stage?*
+> **Companion to `PRD.md` v2.2.** This file answers one question at any moment: *what stage am I at, and what does "done" look like for this stage?*
 > Update the status table and tick checkboxes in the same PR that ships the work. Claude Code should read this file at the start of every session and state the current milestone before doing anything.
 
 **Project restart:** Monday 7 September 2026
@@ -420,6 +420,9 @@ Ideas that came up early but belong to a later milestone. Write the idea and the
 | Display assignments are **not persisted across restarts** — the backend holds them in memory only. A church re-picks its projector on every launch. Persist to the `settings` table and re-apply on startup as part of the onboarding wizard. | M8 (onboarding, PRD §12.1) | 8 Sept 2026 |
 | **WEB translation pack withdrawn.** API.Bible returned it missing 122 verses (Jeremiah 29:11, Daniel 4, Ezra 7) because indented paragraph styles carry no verse identity when verse numbers are suppressed. The parser is fixed and `check_complete` now catches it, but API.Bible's monthly quota is exhausted so the pack cannot be rebuilt. FR-59 names KJV, WEB and ASV; we currently bundle KJV and ASV only. | M0 (deliverable 9) | 9 Sept 2026 |
 | **API.Bible quota will not cover M6.** One Bible is ~1,250 chapter requests, and the free tier's monthly cap was exhausted by four rebuild passes. Twenty translations means ~25,000 requests. Either upgrade the plan, or source public-domain texts from ebible.org (no key, no quota) and reserve API.Bible for licensed translations only. | M6 (translations) | 9 Sept 2026 |
+| **Attribution in the summary PDF.** YouVersion requires the copyright string wherever scripture is shown. The PDF renderer does not exist yet, so when it is built each scripture block must carry the attribution in a muted line beneath it, and a verse with no stored attribution must be skipped with a logged warning rather than rendered bare. | M4 (summary PDF) | 21 Sept 2026 |
+| **Route the regex stage through the USFM converter.** `bible::reference::parse` exists and the vector stage already emits USFM. The regex stage is not built yet; when it is, its reference strings go through the converter before reaching the Bible client. | M2 (detection) | 21 Sept 2026 |
+| **Projector version short name.** The projector renders the reference only. Whether it should also show the version short name is a branding call (§15.2 keeps the projector minimal); attribution itself belongs on the PDF, not on the congregation's screen. | M3 (projector) | 21 Sept 2026 |
 | Wordmark/lockup art in `assets/logo-assets/` is not yet used anywhere in the UI — the operator top bar renders "SermonAI" as text, not the lockup. | M8 (design pass) | 7 Sept 2026 |
 
 ---

@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AudioDevice,
+  BibleVersion,
   Detection,
   MonitorInfo,
   OutputAssignments,
@@ -38,6 +39,27 @@ export const display = {
     invoke<OutputAssignments>("set_alternate_monitor", { monitorName }),
 };
 
+export const bible = {
+  /** True when a YouVersion app key is configured. */
+  isOnline: () => invoke<boolean>("is_bible_online"),
+  /** Opens the YouVersion portal so the operator can accept licence terms. */
+  openLicensePortal: () => invoke<void>("open_license_portal"),
+  /** Re-reads which versions this app key may use, after a portal visit. */
+  refreshLicenses: () => invoke<BibleVersion[]>("refresh_bible_licenses"),
+
+  /**
+   * Look a passage up by USFM ID, e.g. "JHN.3.16" or "PSA.139.13-16".
+   *
+   * Passages are addressed by USFM now rather than by free-text reference:
+   * the detection stages convert what the preacher said before it gets here
+   * (PRD v2.2 §15.2). Cache first, YouVersion only on a miss. (M2)
+   */
+  lookup: (passageId: string, versionId: number) =>
+    invoke<Verse>("lookup_passage", { passageId, versionId }),
+  search: (query: string, versionId: number) =>
+    invoke<Verse[]>("search_verses", { query, versionId }),
+};
+
 export const service = {
   start: (meta: { preacher: string; title?: string; seriesId?: number; translation: string }) =>
     invoke<number>("start_service", { meta }),
@@ -51,11 +73,6 @@ export const output = {
   setBlanked: (blanked: boolean) => invoke<void>("set_blanked", { blanked }),
   step: (delta: number) => invoke<void>("step_verse", { delta }),
   get: () => invoke<OutputState>("get_output_state"),
-};
-
-export const bible = {
-  lookup: (reference: string, translation: string) => invoke<Verse>("lookup_verse", { reference, translation }),
-  search: (query: string, translation: string) => invoke<Verse[]>("search_verses", { query, translation }),
 };
 
 export const library = {
