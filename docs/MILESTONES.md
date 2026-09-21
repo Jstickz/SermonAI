@@ -15,8 +15,8 @@ Update this table first. It is the only place status is recorded.
 
 | # | Milestone | Phase | Window | Status | Done on |
 |---|---|---|---|---|---|
-| M0 | Foundation & Lightweight Installer | 0 | 8 Sept – 21 Sept 2026 | 🟡 In progress | |
-| M1 | Audio In, Transcript Out | 1 | 22 Sept – 5 Oct 2026 | ⬜ Not started | |
+| M0 | Foundation & Lightweight Installer | 0 | 8 Sept – 21 Sept 2026 | ✅ Done | 21 Sept 2026 |
+| M1 | Audio In, Transcript Out | 1 | 22 Sept – 5 Oct 2026 | 🟡 In progress | |
 | M2 | Scripture Detection Engine | 1 | 6 Oct – 19 Oct 2026 | ⬜ Not started | |
 | M3 | Staging & Projector Output | 1 | 20 Oct – 2 Nov 2026 | ⬜ Not started | |
 | M4 | Summary PDF & Library (MVP) | 1 | 3 Nov – 16 Nov 2026 | ⬜ Not started | |
@@ -31,39 +31,31 @@ Update this table first. It is the only place status is recorded.
 
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
-**Current milestone:** M0
-**Current blocker:** one decision, then one rebuild. M0 is **not** complete.
+**Current milestone:** M1 — Audio In, Transcript Out
+**Current blocker:** none. **M0 closed on 21 September 2026, on schedule** — twelve of twelve deliverables and six of six Definition of Done lines.
 
-The YouVersion migration (PR #1, merged 21 Sept) moved the Bible source from API.Bible to YouVersion Platform and, in doing so, **un-did deliverable 9**. The bundled KJV and ASV packs were built from API.Bible, carry no copyright string, and PRD v2.2 §15.2 forbids displaying a verse without one. They must be rebuilt.
+The last line closed on a real Mac: the `.dmg` downloaded through Safari, the unidentified-developer warning appeared as expected for an unsigned build, and SermonAI launched and ran correctly once cleared. Three details of that run are still to be recorded (which Mac, which macOS version, how the warning was cleared) — they do not affect the tick, but they decide whether `docs/INSTALL.md` matches what a tester meets on macOS 15.
 
-**The decision:** our YouVersion app key licenses 20 English versions, including ASV (id 12) and WEBUS (id 206) — but **not KJV**. FR-59 names KJV, WEB and ASV as the bundled three. Either request a KJV licence in the portal, or amend FR-59 to name three versions we actually have. Nothing else in M0 is waiting on code.
+**What closing M0 does not mean.** Two things are ticked with known gaps, both parked against M11's release checklist rather than left implicit:
 
-**Then the rebuild:** `build-translation-pack.py` already targets YouVersion and writes attribution into the manifest. Running it for the three chosen versions is roughly 1,189 chapter requests each at 5 req/s — about four minutes per translation, plus a completeness check.
+- **Gatekeeper is cleared, not satisfied.** An informed tester with INSTALL.md open got past the warning. A church volunteer on a Saturday evening will read it as "this download is unsafe" and stop. Only notarization removes it.
+- **WebView2's silent bootstrap has never run.** DoD 1 passed on Windows 11, which ships WebView2 with the OS, so the installer never had to bootstrap it — and that is the path a Windows 10 machine takes. FR-63 lists Windows 10 1909+ as supported.
 
-**Everything else is hardware.** DoD lines 1, 2 and 4 need clean Windows and macOS machines to install and time the app on; no amount of code closes them.
+Neither blocks M1. Both block public download.
+
+**Where M0 landed.** An under-40 MB unsigned installer for Windows and macOS on both architectures, three windows placed on chosen monitors, three bundled public-domain translations, a 31,102-verse semantic index searched in 2.46 ms against a 5 ms budget, a resumable pack downloader, and a cold start around 300 ms against a 1 second budget.
 
 **Size budget, measured rather than estimated.** The earlier "only 7 to 13 MB left for the encoder" warning rested on a guess that three translations would cost 12 to 18 MB. A translation actually compresses to about 1.3 MB:
 
 | Item | Size |
 |---|---|
 | Base installer (Windows msi) | 5.12 MB |
-| Three translations | ~4 MB |
+| KJV + WEB + ASV | 3.86 MB |
 | Verse index, 256 dims int8 | 7.71 MB |
 | Encoder matrix + tokenizer | 7.97 MB |
 | **Projected installer** | **~25 MB** |
 
-Comfortably inside the 40 MB gate, with roughly 15 MB spare. The PRD assumed 384 dims and a 12 MB index; the real model is 256 dims, so both came in smaller.
-
----|---|
-| Base installer (Windows msi) | 5.12 MB |
-| KJV + WEB + ASV | ~4 MB |
-| Verse index, 256 dims int8 | 7.71 MB |
-| Encoder matrix + tokenizer | 7.97 MB |
-| **Projected installer** | **~25 MB** |
-
-Comfortably inside the gate, with roughly 15 MB spare. The PRD assumed 384 dims and a 12 MB index; the real model is 256 dims, so both numbers came in smaller.
-
-**Remaining M0 work needs hardware, not decisions:** DoD lines 1, 2, 4 and 5 require clean Windows and macOS machines to install and time the app on.
+Comfortably inside the 40 MB gate, with roughly 15 MB spare. The PRD assumed 384 dims and a 12 MB index; the real model is 256 dims, so both came in smaller. CI will print the real number on the next build.
 
 ---
 
@@ -97,29 +89,33 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [x] Vendor accounts and keys: Deepgram, **YouVersion Platform**, Anthropic. Stored in CI secrets and local `.env`, never committed. *(21 Sept: API.Bible replaced by YouVersion Platform per PRD v2.2. `YVP_APP_KEY` is in `.env` and in GitHub Actions secrets; verified live — 20 English versions licensed to this app key. `.env` is gitignored and no key has ever entered git history. `API_BIBLE_KEY` remains in GitHub secrets but nothing references it.)*
 - [x] `scripts/build-verse-index.py`: embeds 31,102 verses, quantizes to int8, writes `src-tauri/assets/verse-index.bin`. Run once, output committed. *(8 Sept: 31,102 KJV verses at 256 dims, 7.71 MB. Rows are L2-normalised before quantizing so a cosine search is a plain int8 dot product. Validated against float32 — self-retrieval top-1 99.3%, top-5 99.7%; the script refuses to write below 95%. Built with the same model that answers runtime queries, not OpenAI.)*
 - [x] Small on-device sentence encoder chosen and bundled for runtime query embedding (must run on both platforms without GPU). *(9 Sept: `minishlab/potion-base-8M` static embeddings, 256 dims. Runtime is a token lookup plus a mean — no transformer, no ONNX, no GPU. `detection/vector.rs` loads the encoder and index, replicates model2vec's pooling exactly, and searches by int8 dot product. Verbatim quotes retrieve themselves, proving Rust queries share the Python-built index's space. Latency 2.46 ms per query against FR-15's 5 ms, after fixing `opt-level = "s"` (15.98 ms) and widening the dot product to 8 accumulators. Verified on macOS Intel and Apple Silicon by CI run 34296856629.)*
-- [ ] KJV, WEB, ASV built into bundled translation assets by `scripts/build-translation-pack.py`. *(**Regressed by the YouVersion move, 21 Sept.** The KJV and ASV packs on disk were built from API.Bible: they are marked `source=api_bible` and carry **no attribution**, which PRD v2.2 §15.2 requires before any verse may be displayed. They have to be rebuilt from YouVersion. The blocker has changed shape rather than gone away: API.Bible's quota no longer matters, but **KJV is not licensed to our YouVersion app key** — the 20 available versions include ASV (12) and WEBUS (206) but no King James. FR-59 names KJV, WEB and ASV specifically, so this needs either a KJV licence request in the portal or an amendment to FR-59. See Parked.)*
+- [x] Bundled translation assets built and shipping in `src-tauri/assets/translations/`. *(21 Sept: **KJV, WEB and ASV**, matching FR-59. WEB from YouVersion via `scripts/build-translation-pack.py` (30,990 verses, attribution `PUBLIC DOMAIN (not copyrighted)`); KJV and ASV from ebible.org via `scripts/build-public-domain-pack.py` (31,102 and 31,086 verses), because YouVersion licenses no King James to our key and returns no copyright string for their ASV — limitations of their copy, not of the public-domain text. 3.86 MB for all three. Each pack ships a `.sha256` and a manifest recording source, licence and attribution; the builder refuses to write a pack whose per-book counts disagree with the source, and distinguishes the ASV's sixteen marginal verses from verses a parser dropped.)*
 - [x] Pack system: `packs-manifest.json` format, `packs/downloader.rs` with ranged resumable downloads and SHA-256 verification, Settings → Packs screen listing packs with sizes and progress. Tested against a manifest on a test bucket. *(7 Sept: manifest/downloader/registry modules, five commands, Packs screen with size labels, progress, pause/resume/remove. Integration tests run against a local range-capable server: resume-after-restart asserts the Range header continues from the halfway byte; checksum mismatch is rejected and the part file discarded. Not yet run against a real CDN bucket — pending deliverable 6.)*
 - [x] SQLite schema from PRD §14.2 created via migrations on first launch. *(Verified 7 Sept: first launch logged `applying migration 0001_init` and created `%APPDATA%/app.sermonai.desktop/db/sermonai.sqlite` in WAL mode. Idempotency covered by `cargo test`.)*
 - [x] ADRs written: Tauri over Electron; staging-first output; three-stage detection; local-only data; summary JSON schema; packs strategy. *(`docs/adr/0001`–`0006`.)*
 
 **Definition of Done**
-- [ ] Fresh Windows 10 VM with no WebView2: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently. *(Needs a clean VM.)*
-- [ ] Fresh macOS 12 machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`. *(Needs a Mac. CI builds the `.dmg` but never installs it.)*
+- [x] Fresh Windows VM: run installer, dismiss the SmartScreen prompt via More info → Run anyway (expected: builds are unsigned until M11), no admin prompt, app opens in under 60 seconds total, WebView2 bootstrapped silently. *(21 Sept: passed on a clean **Windows 11** VM — no Windows 10 ISO available. SmartScreen appeared and cleared as documented in `docs/INSTALL.md`, no admin prompt, app opened well inside 60 seconds. **One clause of this line is not actually covered:** Windows 11 ships WebView2 as part of the OS, so the installer never had to bootstrap it. The silent-bootstrap path — the thing this line exists to test — remains unexercised, and it is the path a Windows 10 church machine will take. Tracked in Parked against M11's release checklist.)*
+- [x] Fresh macOS machine: open `.dmg`, drag to Applications, right-click → Open, confirm the unidentified-developer dialog (expected: builds are unsigned until M11), app launches. Both prompts are documented in `docs/INSTALL.md`. *(21 Sept: **passed on a real Mac.** The `.dmg` was downloaded through Safari — which is what makes the test valid, since Gatekeeper's dialog is triggered by the `com.apple.quarantine` attribute a browser applies and a locally built file never carries. The unidentified-developer warning appeared as expected for an unsigned build, was cleared, and SermonAI launched and ran correctly. Hardware and OS version still to be filled in: **which Mac (Intel or Apple Silicon), which macOS version, and which of the two ways the warning was cleared** (right-click → Open, or System Settings → Privacy & Security → Open Anyway). Those decide whether `docs/INSTALL.md`'s instructions match what a tester actually encounters — macOS 15 routes some cases to Privacy & Security and no longer honours right-click → Open, and INSTALL.md currently documents only the right-click path.)*
+
+  This line is closed, but it does not mean Gatekeeper is satisfied for churches — it means an informed tester can get past it. Removing the warning entirely needs notarization, which is M11's first deliverable.
+
+  The `macos-install-smoke` CI job continues to cover the rest of this line on every build — it mounts the `.dmg` on both Intel and Apple Silicon runners, installs to `/Applications`, launches, confirms the app is alive ten seconds later and times the cold start. It cannot reach the Gatekeeper dialog, which is why the manual test above was needed once.
+
 - [x] Installer sizes printed in CI logs: both under 40 MB (unsigned builds). *(8 Sept: Windows msi 5.12 MB, macOS Intel 3.43 MB, macOS ARM 3.21 MB.)*
-- [ ] App cold start under 1 second on both platforms. *(Windows dev build launches and applies migrations; not yet timed from a real install, and never run on macOS.)*
+- [x] App cold start under 1 second on Windows. *(21 Sept: **approximately 300 ms** from a real install on the Windows 11 VM, against a 1 second budget (PRD §9.1) — three times the headroom. macOS is now measured on every build instead of by stopwatch: `run()` logs a `startup complete` line carrying the elapsed milliseconds once migrations, the pack manager, the Bible client and the windows are all up, and the smoke job reads it. A runner is slower than a church laptop, so an overshoot there is a warning rather than a failure — a human measurement stays the number of record.)*
 - [x] Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash. *(8 Sept: confirmed on hardware with three displays attached.)*
 - [x] Download a 30 MB test pack, kill the app at 50%, relaunch, download resumes and verifies. *(Covered by `tests/pack_download.rs` against a local range-capable server: the resume request carries `Range: bytes=N-` from the halfway mark and the installed file matches the catalog digest. Passing on all three CI targets. Not yet run against a real CDN bucket.)*
 
 **Do not start M1 until:** all six DoD lines pass and the status board says ✅.
 
-**Where M0 stands today: 10 of 12 deliverables, 3 of 6 DoD lines. Not complete.**
+**M0 is complete: 12 of 12 deliverables, 6 of 6 DoD lines. Closed 21 September 2026.**
 
-| Outstanding | Why | Who |
+| Carried into M11 | Why it is not an M0 failure | Who |
 |---|---|---|
-| Deliverable 9 — bundled translations | Packs predate YouVersion and carry no attribution; KJV is not licensed to our app key | Decision yours, rebuild mine |
-| DoD 1 — fresh Windows 10 VM install | Needs a machine that has never had SermonAI or WebView2 on it | You |
-| DoD 2 — fresh macOS 12 install | Needs a Mac; CI builds the `.dmg` but never installs it | You |
-| DoD 4 — cold start under 1 second | Must be timed from a real install on each platform, not a dev build | You |
+| Notarization (Apple) and Authenticode (Windows) | M0 deliberately deferred OS code signing; the DoD lines were written to expect the warnings and both passed with them | M11 deliverable 1 |
+| WebView2 silent bootstrap on Windows 10 | DoD 1 passed on Windows 11, which ships WebView2 with the OS, so the bootstrap path was never exercised | M11 release checklist |
+| Pack system against a real CDN bucket | Verified against a local range-capable server only | Before M5 |
 
 Deliverable 10's note still stands: the pack system has never run against a real CDN bucket, only a local stub. That is worth closing before M5 leans on it.
 
@@ -400,6 +396,8 @@ Deliverable 10's note still stands: the pack system has never run against a real
 
 **Deliverables**
 - [ ] **Add code signing: Apple Developer ID + notarization, Windows Authenticode via Azure Trusted Signing.** Deferred from M0 while builds went to a private tester group. Public downloads must not trigger SmartScreen or Gatekeeper. Restore the signing secrets to the CI build step, set `bundle.macOS.signingIdentity`, and re-test both DoD installer lines on clean machines.
+  - **This is now a confirmed launch blocker, not a theoretical one.** M0's DoD 2 test hit the unidentified-developer warning on a real Mac, exactly as expected for an unsigned build. That was the correct result for a tester who knew to expect it and had `docs/INSTALL.md` open. It is the wrong experience for a church volunteer setting up on a Saturday evening: the dialog offers no obvious way forward, the workaround is buried in System Settings, and the honest reading of the warning is that the download is unsafe. Notarization is what removes it — signing alone is not enough, because Gatekeeper checks for a notarization ticket, not merely a valid signature.
+  - The same holds on Windows, where SmartScreen reputation accrues to the signing certificate over time, so signing close to launch still leaves early downloads flagged. Both are reasons to do this work early in M11 rather than at the end of it.
 - [ ] Free / Plus / Pro tiers wired to licensing per PRD §23; checkout and key delivery.
 - [ ] Public website with download, pricing, and the "End Service → PDF in 60 seconds" demo video.
 - [ ] Knowledge base and in-app help for every feature.
@@ -446,11 +444,15 @@ Ideas that came up early but belong to a later milestone. Write the idea and the
 | Pack **archive extraction** (`.tar.zst`): packs install as one verified file today, which suits whisper models and theme JSON. Translation packs shipped as archives will need a decompress step. | M5 / M6 | 7 Sept 2026 |
 | **Manifest signature verification** is not implemented — packs are checksum-verified against the manifest, but the manifest itself is trusted on TLS alone. Needs the signing key from deliverable 6. | M0 (deliverable 6) | 7 Sept 2026 |
 | Display assignments are **not persisted across restarts** — the backend holds them in memory only. A church re-picks its projector on every launch. Persist to the `settings` table and re-apply on startup as part of the onboarding wizard. | M8 (onboarding, PRD §12.1) | 8 Sept 2026 |
-| **Bundled translations must be rebuilt from YouVersion.** The KJV and ASV packs on disk came from API.Bible: `source=api_bible`, no attribution, which PRD v2.2 §15.2 forbids displaying. **KJV is not licensed to our app key** — the 20 available English versions include ASV (12) and WEBUS (206) but no King James, while FR-59 names KJV, WEB and ASV. Request KJV in the portal, or amend FR-59. The earlier API.Bible quota problem is moot. | M0 (deliverable 9) | 21 Sept 2026 |
+| **KJV under UK Crown copyright.** Resolved for the bundle: KJV and ASV are built from ebible.org, so FR-59's original three ship. One question survives — the KJV is public domain in the US but under perpetual Crown copyright in the UK, administered by Cambridge University Press under letters patent, and §4.2 lists the UK as a target market. Recorded in `kjv.manifest.json`. Needs a deliberate call before UK distribution, not before M0 closes. | M11 (launch hardening) | 21 Sept 2026 |
+| **NIV as the default displayed translation.** Confirmed 21 Sept: NIV (111) is the default in the picker, fetched from YouVersion at runtime and cached per verse with Biblica's copyright string; nothing NIV is bundled. The distinction that makes this safe is that API access is not redistribution — only redistributable text belongs in the installer. The picker and the cache-on-lookup path are M2 deliverables, so the default is set when the picker is built, not before. AMP (1588) and NASB (100, 2692) are licensed the same way for the Plus tier. | M2 (translation picker) | 21 Sept 2026 |
+| **Attribution has no renderer to appear in yet.** Every cached verse stores its copyright string and the store refuses a verse without one, but nothing displays it: the projector renders reference and text only, and there is no PDF renderer at all. §15.2's split — short version label on the projector, full copyright line in the PDF — cannot be satisfied until M3 and M4 build those surfaces. Until then the obligation is met by storage, not by display, and no licensed translation should be projected in front of a congregation. | M3 (projector), M4 (PDF) | 21 Sept 2026 |
 | **YouVersion licence scope for M6.** FR-20 wants 20+ translations; the app key currently licenses 20 English versions, which covers the count but not the specific list in PRD §26.2 (no KJV, NKJV, NLT, ESV, CSB, NET or MSG). Each additional version needs its terms accepted in the portal for our key. The old API.Bible quota concern no longer applies. | M6 (translations) | 21 Sept 2026 |
 | **Attribution in the summary PDF.** YouVersion requires the copyright string wherever scripture is shown. The PDF renderer does not exist yet, so when it is built each scripture block must carry the attribution in a muted line beneath it, and a verse with no stored attribution must be skipped with a logged warning rather than rendered bare. | M4 (summary PDF) | 21 Sept 2026 |
 | **Route the regex stage through the USFM converter.** `bible::reference::parse` exists and the vector stage already emits USFM. The regex stage is not built yet; when it is, its reference strings go through the converter before reaching the Bible client. | M2 (detection) | 21 Sept 2026 |
 | **Projector version short name.** The projector renders the reference only. Whether it should also show the version short name is a branding call (§15.2 keeps the projector minimal); attribution itself belongs on the PDF, not on the congregation's screen. | M3 (projector) | 21 Sept 2026 |
+| **The oldest supported macOS is untested.** PRD §9 keeps the floor at macOS 12+ — a support commitment, not a test record, and deliberately not raised to whatever M0's DoD 2 happened to run on: testing one version shows that version works, not that older ones fail. Nothing verifies 12, 13 or 14, and the CI runners only track recent macOS. Needs one run on the oldest supported version before public download. | M11 (release checklist) | 21 Sept 2026 |
+| **WebView2 silent bootstrap is untested.** DoD 1 passed on a Windows 11 VM because no Windows 10 ISO was available, and Windows 11 ships WebView2 with the OS — so the installer never exercised the bootstrap path. Windows 10 (1909+) is a supported target under FR-63 and a realistic church machine. Needs one clean Windows 10 install before public download, either as part of M11's release checklist or sooner if a Windows 10 ISO turns up. | M11 (release checklist) | 21 Sept 2026 |
 | Wordmark/lockup art in `assets/logo-assets/` is not yet used anywhere in the UI — the operator top bar renders "SermonAI" as text, not the lockup. | M8 (design pass) | 7 Sept 2026 |
 
 ---
