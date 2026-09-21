@@ -1,6 +1,6 @@
 # SermonAI — Milestones
 
-> **Companion to `PRD.md` v2.1.** This file answers one question at any moment: *what stage am I at, and what does "done" look like for this stage?*
+> **Companion to `PRD.md` v2.2.** This file answers one question at any moment: *what stage am I at, and what does "done" look like for this stage?*
 > Update the status table and tick checkboxes in the same PR that ships the work. Claude Code should read this file at the start of every session and state the current milestone before doing anything.
 
 **Project restart:** Monday 7 September 2026

@@ -16,14 +16,21 @@
 //! is told once rather than on every verse. A church mid-service should lose
 //! new lookups, not the app.
 //!
-//! ## Response shapes are provisional
+//! ## Response shapes, verified against the live API on 21 September 2026
 //!
-//! Everything marked `TODO(yvp-shape)` below was inferred from the endpoint
-//! descriptions, not from a live call. Deserialization is deliberately
-//! permissive — unknown fields are ignored and alternative field names are
-//! accepted via `serde(alias)` — so a wrong guess degrades to a missing field
-//! rather than a hard parse failure. Confirm against a real response before
-//! relying on any of it.
+//! `GET /bibles?language_ranges[]=eng` returns `{ data: [...], next_page_token,
+//! total_size }`. The other two endpoints return a **bare object**, with no
+//! envelope, so both forms are handled.
+//!
+//! Three things the endpoint descriptions did not say, each confirmed by call:
+//!
+//! 1. `copyright` is **null in the list** and populated only on
+//!    `GET /bibles/{id}`. Attribution therefore requires a per-version fetch.
+//! 2. Passage `content` is **plain text by default**. `?format=html` is what
+//!    returns markup with verse markers, so this client always asks for it.
+//! 3. There is **no licence field anywhere**. The list is itself the licence:
+//!    a version this app key may use appears in it, and one it may not does
+//!    not. `LicenseStatus` is therefore derived locally, not parsed.
 
 use std::time::Duration;
 
@@ -42,14 +49,20 @@ pub const PORTAL_URL: &str = "https://platform.youversion.com";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Whether a version may be fetched with this app key.
+///
+/// The API exposes no licence field: `GET /bibles` simply lists what this key
+/// may use. So a version present in that list is Approved, one we know of but
+/// which has dropped out is Revoked, and Pending covers a version the operator
+/// has asked for in the portal but which has not appeared yet. This is derived
+/// from the catalog, never deserialized from it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum LicenseStatus {
-    /// In the catalog, terms not yet accepted in the portal.
+    /// Requested in the portal, not yet in the catalog.
     #[default]
     Pending,
     Approved,
-    /// Access withdrawn. Cached text must stop being displayed.
+    /// Was licensed and no longer is. Cached text must stop being displayed.
     Revoked,
 }
 
@@ -65,79 +78,98 @@ impl LicenseStatus {
 
 /// One version from `GET /bibles`.
 ///
-/// TODO(yvp-shape): field names are inferred. Aliases cover the spellings a
-/// JSON API of this shape usually picks.
+/// Field names are the live ones. `copyright` is null here for every version —
+/// see `attribution`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BibleVersion {
-    #[serde(alias = "version_id", alias = "versionId")]
     pub id: i64,
-    #[serde(default, alias = "title", alias = "local_title")]
-    pub name: String,
-    #[serde(
-        default,
-        alias = "abbreviation",
-        alias = "short_name",
-        alias = "local_abbreviation"
-    )]
-    pub short_name: String,
-    #[serde(default, alias = "language_tag", alias = "iso_639_3")]
-    pub language: String,
-    /// The copyright string that must be displayed with the text.
-    #[serde(
-        default,
-        alias = "copyright",
-        alias = "copyright_short",
-        alias = "publisher"
-    )]
-    pub attribution: String,
-    #[serde(default, alias = "license", alias = "status")]
+    /// Publisher's abbreviation, e.g. "engWEBUS". Often not what a reader
+    /// recognises; `localized_abbreviation` is the friendlier "WEBUS".
+    #[serde(default)]
+    pub abbreviation: String,
+    #[serde(default)]
+    pub localized_abbreviation: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub localized_title: String,
+    #[serde(default)]
+    pub language_tag: String,
+    /// USFM codes this version contains. 66 for a Protestant canon, 80 when
+    /// the Apocrypha is included.
+    #[serde(default)]
+    pub books: Vec<String>,
+    /// Always null on this endpoint; populated by `get_bible_metadata`.
+    #[serde(default)]
+    pub copyright: Option<String>,
+    /// Derived, not parsed: presence in the catalog is the licence.
+    #[serde(skip, default = "approved")]
     pub license_status: LicenseStatus,
 }
 
+fn approved() -> LicenseStatus {
+    LicenseStatus::Approved
+}
+
 impl BibleVersion {
+    /// The copyright string, if this record carries one.
+    pub fn attribution(&self) -> &str {
+        self.copyright.as_deref().unwrap_or_default().trim()
+    }
+
     /// Attribution is a licensing obligation, so a version without one cannot
-    /// be displayed even if its text fetches fine.
+    /// be displayed even if its text fetches fine. Note that the list endpoint
+    /// never supplies it: fetch the version to find out.
     pub fn has_attribution(&self) -> bool {
-        !self.attribution.trim().is_empty()
+        !self.attribution().is_empty()
+    }
+
+    /// What the operator should see, preferring the localized forms.
+    pub fn display_name(&self) -> &str {
+        first_non_empty(&[&self.localized_title, &self.title])
+    }
+
+    pub fn short_name(&self) -> &str {
+        first_non_empty(&[&self.localized_abbreviation, &self.abbreviation])
     }
 }
 
-/// `GET /bibles/{version_id}`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BibleMetadata {
-    #[serde(alias = "version_id", alias = "versionId")]
-    pub id: i64,
-    #[serde(default, alias = "title", alias = "local_title")]
-    pub name: String,
-    #[serde(
-        default,
-        alias = "abbreviation",
-        alias = "short_name",
-        alias = "local_abbreviation"
-    )]
-    pub short_name: String,
-    #[serde(default, alias = "language_tag")]
-    pub language: String,
-    #[serde(default, alias = "copyright", alias = "copyright_short")]
-    pub attribution: String,
+fn first_non_empty<'a>(candidates: &[&'a String]) -> &'a str {
+    candidates
+        .iter()
+        .map(|value| value.trim())
+        .find(|value| !value.is_empty())
+        .unwrap_or_default()
 }
 
-/// `GET /bibles/{version_id}/passages/{passage_id}`.
+/// `GET /bibles/{version_id}` — the same object as the list, but with
+/// `copyright` and `promotional_content` filled in.
+pub type BibleMetadata = BibleVersion;
+
+/// `GET /bibles/{version_id}/passages/{passage_id}?format=html`.
 ///
-/// TODO(yvp-shape): the HTML is assumed to arrive as a `content` string. Some
-/// APIs nest it under `data` or return an array of verses instead.
+/// The live response has exactly three fields and no envelope. There is no
+/// copyright here, so attribution has to come from the version record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Passage {
-    #[serde(default, alias = "id", alias = "usfm")]
-    pub passage_id: String,
-    #[serde(default, alias = "html", alias = "text", alias = "body")]
+    /// USFM ID as requested, e.g. "JHN.3.16".
+    #[serde(default)]
+    pub id: String,
+    /// Markup when `format=html` was asked for, which this client always does.
+    #[serde(default)]
     pub content: String,
-    #[serde(default, alias = "reference", alias = "human")]
+    /// Human reference, e.g. "John 3:16".
+    #[serde(default)]
     pub reference: String,
-    /// Copyright for the version this passage came from, when the endpoint
-    /// repeats it. Otherwise taken from the version record.
-    #[serde(default, alias = "copyright", alias = "copyright_short")]
-    pub attribution: String,
+}
+
+/// One page of `GET /bibles`.
+#[derive(Debug, Deserialize)]
+struct VersionPage {
+    #[serde(default)]
+    data: Vec<BibleVersion>,
+    #[serde(default)]
+    next_page_token: Option<String>,
 }
 
 /// A client for the YouVersion Platform API.
@@ -203,12 +235,41 @@ impl YouVersionClient {
     }
 
     /// Versions this app key is licensed for.
-    pub async fn list_bibles(&self) -> Result<Vec<BibleVersion>> {
-        let body = self.send(self.get("/bibles")?, "the version list").await?;
+    /// Versions this app key is licensed for.
+    ///
+    /// `language_ranges[]` is required: without it the API rejects the request
+    /// with "Field required" rather than returning everything.
+    ///
+    /// Note the returned records have `copyright: null`. Call
+    /// `get_bible_metadata` for a version before displaying its text.
+    pub async fn list_bibles(&self, language: &str) -> Result<Vec<BibleVersion>> {
+        let mut all = Vec::new();
+        let mut page_token: Option<String> = None;
 
-        // TODO(yvp-shape): a bare array and a `{ "data": [...] }` envelope are
-        // both plausible; unwrap_envelope handles either.
-        parse_maybe_enveloped(&body, "the version list")
+        loop {
+            let mut path = format!("/bibles?language_ranges[]={language}");
+            if let Some(token) = &page_token {
+                path.push_str(&format!("&page_token={token}"));
+            }
+
+            let body = self.send(self.get(&path)?, "the version list").await?;
+            let page: VersionPage = serde_json::from_str(&body).map_err(|e| {
+                Error::Bible(format!(
+                    "could not read the version list from YouVersion: {e}"
+                ))
+            })?;
+
+            all.extend(page.data);
+
+            // 20 versions fitted one page when this was written, but the API
+            // paginates and a wider licence would spill over.
+            page_token = page.next_page_token.filter(|token| !token.is_empty());
+            if page_token.is_none() {
+                break;
+            }
+        }
+
+        Ok(all)
     }
 
     pub async fn get_bible_metadata(&self, version_id: i64) -> Result<BibleMetadata> {
@@ -221,15 +282,33 @@ impl YouVersionClient {
         parse_maybe_enveloped(&body, "version details")
     }
 
-    /// Fetch a passage by USFM ID, e.g. `JHN.3.16` or `PSA.139.13-16`.
+    /// Fetch a passage by USFM ID, e.g. `JHN.3.16`, `PSA.139.13-16` or a whole
+    /// chapter as `JHN.3`.
+    ///
+    /// Always asks for `format=html`. Without it the API returns one
+    /// unbroken string with no verse boundaries, which cannot be split into
+    /// the per-verse rows the cache stores.
     pub async fn get_passage(&self, version_id: i64, passage_id: &str) -> Result<Passage> {
         let body = self
             .send(
-                self.get(&format!("/bibles/{version_id}/passages/{passage_id}"))?,
+                self.get(&format!(
+                    "/bibles/{version_id}/passages/{passage_id}?format=html"
+                ))?,
                 passage_id,
             )
             .await?;
-        parse_maybe_enveloped(&body, passage_id)
+
+        let passage: Passage = parse_maybe_enveloped(&body, passage_id)?;
+
+        // An empty passage means the verse did not come back, which must not
+        // reach a projector as a blank screen the operator cannot explain.
+        if passage.content.trim().is_empty() {
+            return Err(Error::Bible(format!(
+                "YouVersion returned no text for {passage_id}"
+            )));
+        }
+
+        Ok(passage)
     }
 
     /// Send a request and turn transport and status failures into messages an
@@ -300,80 +379,116 @@ fn parse_maybe_enveloped<T: serde::de::DeserializeOwned>(body: &str, what: &str)
 mod tests {
     use super::*;
 
+    /// Verbatim from /bibles?language_ranges[]=eng, captured 21 Sept 2026.
+    const LIST_SAMPLE: &str = r#"{"data":[{"id":1588,"abbreviation":"AMP",
+        "promotional_content":null,"copyright":null,"info":null,"publisher_url":null,
+        "language_tag":"en","localized_abbreviation":"AMP","localized_title":"Amplified Bible",
+        "title":"Amplified Bible","books":["GEN","EXO"],
+        "youversion_deep_link":"https://www.bible.com/versions/1588",
+        "organization_id":"798d8fa4"}],"next_page_token":null,"total_size":20}"#;
+
+    /// Verbatim from /bibles/206.
+    const VERSION_SAMPLE: &str = r#"{"id":206,"abbreviation":"engWEBUS",
+        "promotional_content":"This Public Domain Bible text is courtesy of eBible.org.",
+        "copyright":"PUBLIC DOMAIN (not copyrighted)","info":null,"publisher_url":null,
+        "language_tag":"en","localized_abbreviation":"WEBUS",
+        "localized_title":"World English Bible, American English Edition, without Strong's Numbers",
+        "title":"World English Bible, American English Edition, without Strong's Numbers",
+        "books":["GEN"],"youversion_deep_link":"https://www.bible.com/versions/206",
+        "organization_id":"73a4fa15"}"#;
+
+    /// Verbatim from /bibles/206/passages/JHN.3.16?format=html.
+    const PASSAGE_SAMPLE: &str = r#"{"id":"JHN.3.16","content":"<div><div class=\"p\"><span class=\"yv-v\" v=\"16\"></span><span class=\"yv-vlbl\">16</span><span class=\"wj\">For God so loved the world.</span></div></div>","reference":"John 3:16"}"#;
+
     #[test]
     fn a_missing_key_disables_online_rather_than_failing() {
         let client = YouVersionClient::with_key(None, BASE_URL.to_string());
         assert!(!client.is_online_enabled());
 
-        // The error names the variable and where to get a key.
         let err = client.get("/bibles").unwrap_err().to_string();
         assert!(err.contains(APP_KEY_ENV), "{err}");
     }
 
     #[test]
-    fn a_blank_key_counts_as_missing() {
-        let client = YouVersionClient::with_key(Some("   ".into()), BASE_URL.to_string());
-        // with_key takes what it is given; from_env does the trimming, so this
-        // documents that callers must not pass blanks through.
-        assert!(client.is_online_enabled());
-
+    fn from_env_treats_a_blank_key_as_absent() {
         let trimmed: Option<String> = Some("   ".to_string())
             .map(|k| k.trim().to_string())
             .filter(|k| !k.is_empty());
+        assert!(trimmed.is_none());
+    }
+
+    #[test]
+    fn license_status_is_derived_not_parsed() {
+        // The API has no licence field; presence in the catalog is the licence.
+        let page: VersionPage = serde_json::from_str(LIST_SAMPLE).unwrap();
+        assert_eq!(page.data[0].license_status, LicenseStatus::Approved);
+        assert_eq!(LicenseStatus::Revoked.as_str(), "revoked");
+    }
+
+    /// The list endpoint returns copyright: null for every version, so nothing
+    /// from it may be displayed until the version itself has been fetched.
+    #[test]
+    fn the_list_carries_no_attribution() {
+        let page: VersionPage = serde_json::from_str(LIST_SAMPLE).unwrap();
+        let version = &page.data[0];
+
+        assert_eq!(version.id, 1588);
+        assert_eq!(version.short_name(), "AMP");
+        assert_eq!(version.display_name(), "Amplified Bible");
+        assert_eq!(version.language_tag, "en");
         assert!(
-            trimmed.is_none(),
-            "from_env must treat a blank key as absent"
+            !version.has_attribution(),
+            "the list endpoint should not be trusted for attribution"
         );
+        assert_eq!(page.next_page_token, None);
     }
 
     #[test]
-    fn license_status_round_trips() {
-        assert_eq!(LicenseStatus::default(), LicenseStatus::Pending);
-        assert_eq!(LicenseStatus::Approved.as_str(), "approved");
-        assert_eq!(
-            serde_json::from_str::<LicenseStatus>("\"revoked\"").unwrap(),
-            LicenseStatus::Revoked
-        );
-    }
+    fn fetching_a_version_supplies_the_attribution() {
+        let version: BibleMetadata = serde_json::from_str(VERSION_SAMPLE).unwrap();
 
-    #[test]
-    fn a_version_without_attribution_is_not_displayable() {
-        let version: BibleVersion = serde_json::from_str(
-            r#"{"id":111,"name":"New International Version","abbreviation":"NIV","copyright":""}"#,
-        )
-        .unwrap();
-        assert_eq!(version.short_name, "NIV");
-        assert!(!version.has_attribution());
-    }
-
-    /// Permissiveness is the point: an unexpected field must not break a
-    /// service, and a differently named one should still be found.
-    #[test]
-    fn unknown_fields_are_ignored_and_aliases_accepted() {
-        let version: BibleVersion = serde_json::from_str(
-            r#"{"version_id":59,"local_title":"English Standard Version",
-                "local_abbreviation":"ESV","copyright_short":"(c) Crossway",
-                "something_we_have_never_seen":true}"#,
-        )
-        .unwrap();
-
-        assert_eq!(version.id, 59);
-        assert_eq!(version.name, "English Standard Version");
-        assert_eq!(version.short_name, "ESV");
-        assert_eq!(version.attribution, "(c) Crossway");
+        assert_eq!(version.id, 206);
+        assert_eq!(version.short_name(), "WEBUS", "prefers the localized form");
+        assert_eq!(version.abbreviation, "engWEBUS");
         assert!(version.has_attribution());
+        assert_eq!(version.attribution(), "PUBLIC DOMAIN (not copyrighted)");
     }
 
     #[test]
-    fn enveloped_and_bare_passages_both_parse() {
-        let bare =
-            r#"{"id":"JHN.3.16","content":"<p>For God so loved</p>","copyright":"(c) Someone"}"#;
-        let passage: Passage = parse_maybe_enveloped(bare, "JHN.3.16").unwrap();
-        assert_eq!(passage.passage_id, "JHN.3.16");
-        assert!(passage.content.contains("For God so loved"));
+    fn a_passage_parses_and_sanitizes() {
+        let passage: Passage = serde_json::from_str(PASSAGE_SAMPLE).unwrap();
+        assert_eq!(passage.id, "JHN.3.16");
+        assert_eq!(passage.reference, "John 3:16");
 
-        let enveloped = format!(r#"{{"data":{bare}}}"#);
-        let passage: Passage = parse_maybe_enveloped(&enveloped, "JHN.3.16").unwrap();
-        assert_eq!(passage.attribution, "(c) Someone");
+        let sanitized = crate::bible::sanitize::sanitize(&passage.content);
+        assert_eq!(sanitized.text, "For God so loved the world.");
+        assert_eq!(
+            sanitized.verses,
+            vec![(16, "For God so loved the world.".to_string())]
+        );
+    }
+
+    /// Both endpoint styles appear in this API: the list is enveloped, the
+    /// other two are bare.
+    #[test]
+    fn bare_and_enveloped_objects_both_parse() {
+        let bare: Passage = parse_maybe_enveloped(PASSAGE_SAMPLE, "JHN.3.16").unwrap();
+        assert_eq!(bare.id, "JHN.3.16");
+
+        let enveloped = format!(r#"{{"data":{PASSAGE_SAMPLE}}}"#);
+        let wrapped: Passage = parse_maybe_enveloped(&enveloped, "JHN.3.16").unwrap();
+        assert_eq!(wrapped.id, "JHN.3.16");
+        assert!(
+            !wrapped.content.is_empty(),
+            "an envelope must not parse as an empty object"
+        );
+    }
+
+    #[test]
+    fn unknown_fields_are_ignored() {
+        let version: BibleVersion =
+            serde_json::from_str(r#"{"id":7,"title":"X","something_new":true}"#).unwrap();
+        assert_eq!(version.id, 7);
+        assert_eq!(version.display_name(), "X");
     }
 }

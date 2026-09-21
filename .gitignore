@@ -37,3 +37,7 @@ coverage/
 # Python bytecode from the build scripts
 __pycache__/
 *.pyc
+
+# Raw YouVersion API responses captured while pinning down serde structs.
+# They can contain licensed scripture text and version metadata.
+yvp_*.json

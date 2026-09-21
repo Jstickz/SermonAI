@@ -37,12 +37,15 @@ async fn bibles(State(state): State<Arc<Seen>>, headers: HeaderMap) -> (StatusCo
     record(&state, &headers);
     (
         StatusCode::OK,
+        // Shaped like the live response: enveloped, copyright null in the list.
         r#"{"data":[
-             {"id":111,"title":"New International Version","abbreviation":"NIV",
-              "language_tag":"eng","copyright":"The Holy Bible, NIV (c) Biblica","status":"approved"},
-             {"id":59,"title":"English Standard Version","abbreviation":"ESV",
-              "language_tag":"eng","copyright":"(c) Crossway","status":"pending"}
-           ]}"#
+             {"id":111,"abbreviation":"NIV11","localized_abbreviation":"NIV",
+              "title":"New International Version","localized_title":"New International Version",
+              "language_tag":"en","copyright":null,"books":["GEN","JHN"]},
+             {"id":206,"abbreviation":"engWEBUS","localized_abbreviation":"WEBUS",
+              "title":"World English Bible","localized_title":"World English Bible",
+              "language_tag":"en","copyright":null,"books":["GEN","JHN"]}
+           ],"next_page_token":null,"total_size":2}"#
             .to_string(),
     )
 }
@@ -56,7 +59,8 @@ async fn passage(
     (
         StatusCode::OK,
         format!(
-            r#"{{"data":{{"id":"{passage_id}","content":"<p><span class=\"verse v16\" data-usfm=\"JHN.3.16\">For God so loved the world.</span></p>","reference":"John 3:16","copyright":"(c) Biblica"}}}}"#
+            // Bare object with three fields, as the live API returns.
+            r#"{{"id":"{passage_id}","content":"<div><div class=\"p\"><span class=\"yv-v\" v=\"16\"></span><span class=\"yv-vlbl\">16</span>For God so loved the world.</div></div>","reference":"John 3:16"}}"#
         ),
     )
 }
@@ -95,7 +99,7 @@ async fn every_request_carries_the_app_key_header() {
     let (addr, seen) = spawn_stub().await;
     let client = client_for(addr);
 
-    client.list_bibles().await.expect("list");
+    client.list_bibles("eng").await.expect("list");
     client.get_passage(111, "JHN.3.16").await.expect("passage");
 
     let keys = seen.app_keys.lock().unwrap();
@@ -112,24 +116,28 @@ async fn every_request_carries_the_app_key_header() {
 #[tokio::test]
 async fn versions_parse_with_their_attribution_and_licence_state() {
     let (addr, _) = spawn_stub().await;
-    let versions = client_for(addr).list_bibles().await.expect("list");
+    let versions = client_for(addr).list_bibles("eng").await.expect("list");
 
     assert_eq!(versions.len(), 2);
 
     let niv = &versions[0];
     assert_eq!(niv.id, 111);
-    assert_eq!(niv.short_name, "NIV");
-    assert_eq!(niv.language, "eng");
-    assert!(
-        niv.has_attribution(),
-        "attribution is a licensing obligation"
+    assert_eq!(
+        niv.short_name(),
+        "NIV",
+        "prefers the localized abbreviation"
     );
-    assert!(niv.attribution.contains("Biblica"));
+    assert_eq!(niv.language_tag, "en");
 
-    // A version in the catalog is not necessarily licensed to this app key.
+    // The live list returns copyright: null, so attribution must come from a
+    // per-version fetch before any of this text is displayed.
+    assert!(!niv.has_attribution());
+
+    // Presence in the catalog IS the licence: the API exposes no licence
+    // field, and /bibles lists only what this app key may use.
     assert_eq!(
         versions[1].license_status,
-        sermonai_lib::bible::youversion::LicenseStatus::Pending
+        sermonai_lib::bible::youversion::LicenseStatus::Approved
     );
 }
 
@@ -141,9 +149,9 @@ async fn a_passage_comes_back_with_content_and_attribution() {
         .await
         .expect("passage");
 
-    assert_eq!(passage.passage_id, "JHN.3.16");
+    assert_eq!(passage.id, "JHN.3.16");
+    assert_eq!(passage.reference, "John 3:16");
     assert!(passage.content.contains("For God so loved"));
-    assert!(!passage.attribution.is_empty());
 
     // The HTML is sanitized before it reaches a screen.
     let sanitized = sermonai_lib::bible::sanitize::sanitize(&passage.content);
@@ -181,7 +189,7 @@ async fn without_a_key_the_client_is_disabled_but_usable() {
     let client = YouVersionClient::with_key(None, "http://127.0.0.1:1".to_string());
     assert!(!client.is_online_enabled());
 
-    let err = client.list_bibles().await.unwrap_err().to_string();
+    let err = client.list_bibles("eng").await.unwrap_err().to_string();
     assert!(err.contains(APP_KEY_ENV), "should name the variable: {err}");
 }
 
@@ -205,15 +213,17 @@ async fn live_api_returns_content_and_attribution() {
     assert!(client.is_online_enabled());
 
     let versions = client
-        .list_bibles()
+        .list_bibles("eng")
         .await
         .expect("listing versions should succeed with a valid app key");
     assert!(!versions.is_empty(), "no versions licensed to this app key");
 
-    let licensed = versions
-        .iter()
-        .find(|v| v.has_attribution())
-        .unwrap_or(&versions[0]);
+    // Attribution lives on the version record, never on the list.
+    let listed = &versions[0];
+    let licensed = client
+        .get_bible_metadata(listed.id)
+        .await
+        .expect("version metadata should fetch");
 
     let passage = client
         .get_passage(licensed.id, "JHN.3.16")
@@ -226,21 +236,29 @@ async fn live_api_returns_content_and_attribution() {
         licensed.id
     );
 
-    let attribution = if passage.attribution.trim().is_empty() {
-        licensed.attribution.clone()
-    } else {
-        passage.attribution.clone()
-    };
     assert!(
-        !attribution.trim().is_empty(),
+        licensed.has_attribution(),
         "no copyright string for version {} — the text cannot legally be displayed",
         licensed.id
     );
 
-    // Print the real shapes so the TODO(yvp-shape) guesses can be checked.
-    eprintln!(
-        "live version: id={} short={} attribution={attribution:?}",
-        licensed.id, licensed.short_name
+    // The markup must survive sanitization into displayable verses.
+    let sanitized = sermonai_lib::bible::sanitize::sanitize(&passage.content);
+    assert!(
+        !sanitized.text.trim().is_empty(),
+        "sanitizing produced no text"
     );
-    eprintln!("live passage first 200 chars: {:.200}", passage.content);
+    assert!(
+        sanitized.verses.iter().any(|(n, _)| *n == 16),
+        "verse 16 was not found in {:?}",
+        sanitized.verses
+    );
+
+    eprintln!(
+        "live: id={} short={} attribution={:?}",
+        licensed.id,
+        licensed.short_name(),
+        licensed.attribution()
+    );
+    eprintln!("live text: {:.120}", sanitized.text);
 }

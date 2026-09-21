@@ -9,6 +9,19 @@
 //! it does not recognise is dropped rather than passed through — text destined
 //! for a projector in front of a congregation should never carry markup we did
 //! not understand.
+//!
+//! The markup below is what YouVersion actually returns for
+//! `?format=html`, confirmed against live responses on 21 Sept 2026:
+//!
+//! ```html
+//! <div><div class="p">
+//!   <span class="yv-v" v="16"></span>      <!-- verse marker, empty -->
+//!   <span class="yv-vlbl">16</span>        <!-- printed number, not scripture -->
+//!   <span class="wj">For God so loved…</span>
+//! </div></div>
+//! ```
+//!
+//! Poetry uses `q1`/`q2` divs and a `d` div carries the psalm ascription.
 
 /// Verse text ready to display, plus the verse boundaries found in the markup.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -23,8 +36,13 @@ pub struct SanitizedPassage {
 /// and editorial notes. Their entire subtree is dropped.
 const DROPPED_TAGS: [&str; 6] = ["note", "sup", "script", "style", "h1", "h2"];
 
-/// Class names YouVersion and most Bible APIs use for non-scripture spans.
-const DROPPED_CLASSES: [&str; 5] = ["note", "footnote", "crossref", "heading", "label"];
+/// Class names for spans that are not scripture.
+///
+/// `yv-vlbl` is the printed verse number. It must go: the projector shows the
+/// reference separately, and leaving it in prefixes every verse with a digit.
+const DROPPED_CLASSES: [&str; 6] = [
+    "note", "footnote", "crossref", "heading", "label", "yv-vlbl",
+];
 
 /// Sanitize passage HTML into plain text plus verse markers.
 pub fn sanitize(html: &str) -> SanitizedPassage {
@@ -157,38 +175,36 @@ fn push_break(text: &mut String) {
 
 /// Pull a verse number out of a verse marker.
 ///
-/// Bible APIs mark verses with either a `data-verse`/`data-usfm` attribute or
-/// a `verse vN` class, so both are recognised.
+/// YouVersion marks a verse with `<span class="yv-v" v="16">`, so the number
+/// lives in a bare `v` attribute rather than in the class or a data attribute.
+/// `data-verse` and `data-usfm` are also accepted because the build script's
+/// Python sanitizer and older captures use them, and the two implementations
+/// must stay interchangeable.
 fn verse_number(tag: &str) -> Option<u16> {
     let lower = tag.to_lowercase();
-    if !lower.contains("verse") {
+
+    // Only verse markers carry a number. Without this guard a stray attribute
+    // elsewhere could be read as a verse boundary and split the text.
+    if !lower.contains("yv-v") && !lower.contains("verse") && !lower.contains("data-usfm") {
         return None;
     }
 
-    for key in [
-        "data-verse=\"",
-        "data-verse='",
-        "data-number=\"",
-        "data-number='",
-    ] {
-        if let Some(rest) = lower.split(key).nth(1) {
-            if let Some(value) = rest.split(['"', '\'']).next() {
-                if let Ok(number) = value.trim().parse::<u16>() {
-                    return Some(number);
-                }
-            }
+    // v="16" — YouVersion's form.
+    if let Some(number) = attribute_value(&lower, "v").and_then(|v| v.parse().ok()) {
+        return Some(number);
+    }
+
+    for key in ["data-verse", "data-number"] {
+        if let Some(number) = attribute_value(&lower, key).and_then(|v| v.parse().ok()) {
+            return Some(number);
         }
     }
 
     // data-usfm="JHN.3.16" — the verse is the last segment.
-    for key in ["data-usfm=\"", "data-usfm='"] {
-        if let Some(rest) = lower.split(key).nth(1) {
-            if let Some(value) = rest.split(['"', '\'']).next() {
-                if let Some(last) = value.rsplit('.').next() {
-                    if let Ok(number) = last.trim().parse::<u16>() {
-                        return Some(number);
-                    }
-                }
+    if let Some(usfm) = attribute_value(&lower, "data-usfm") {
+        if let Some(last) = usfm.rsplit('.').next() {
+            if let Ok(number) = last.parse::<u16>() {
+                return Some(number);
             }
         }
     }
@@ -204,6 +220,32 @@ fn verse_number(tag: &str) -> Option<u16> {
         }
     }
 
+    None
+}
+
+/// Value of `name="..."` in a tag, matching the attribute name exactly so that
+/// `v` does not also match `yv-v` or `data-verse`.
+fn attribute_value(lower_tag: &str, name: &str) -> Option<String> {
+    for quote in ['"', '\''] {
+        let needle = format!("{name}={quote}");
+        let mut from = 0usize;
+        while let Some(found) = lower_tag[from..].find(&needle) {
+            let at = from + found;
+            let preceded_by_name_char = at > 0
+                && lower_tag[..at]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+
+            if !preceded_by_name_char {
+                let rest = &lower_tag[at + needle.len()..];
+                if let Some(end) = rest.find(quote) {
+                    return Some(rest[..end].trim().to_string());
+                }
+            }
+            from = at + needle.len();
+        }
+    }
     None
 }
 
@@ -328,6 +370,62 @@ mod tests {
             let _ = sanitize(html);
         }
         assert_eq!(sanitize("no markup at all").text, "no markup at all");
+    }
+
+    /// Verbatim markup from YouVersion, captured 21 Sept 2026 from
+    /// /bibles/206/passages/JHN.3.16?format=html.
+    #[test]
+    fn real_youversion_verse_markup() {
+        let html = concat!(
+            r#"<div><div class="p"><span class="yv-v" v="16"></span>"#,
+            r#"<span class="yv-vlbl">16</span>"#,
+            r#"<span class="wj">For God so loved the world, that he gave his only born</span> "#,
+            r#"<span class="wj">Son, that whoever believes in him should not perish, but have eternal life. </span>"#,
+            r#"</div></div>"#
+        );
+
+        let out = sanitize(html);
+
+        assert_eq!(
+            out.text,
+            "For God so loved the world, that he gave his only born Son, that whoever believes in him should not perish, but have eternal life."
+        );
+        // The printed verse number must not survive into the verse text.
+        assert!(
+            !out.text.starts_with("16"),
+            "verse label leaked: {:?}",
+            out.text
+        );
+        assert_eq!(out.verses.len(), 1);
+        assert_eq!(out.verses[0].0, 16);
+        assert!(out.verses[0].1.starts_with("For God so loved"));
+    }
+
+    /// A whole chapter of poetry, captured from /bibles/206/passages/PSA.23.
+    /// Psalm 23 has six verses; the q1/q2 divs are line breaks within them.
+    #[test]
+    fn real_youversion_chapter_markup() {
+        let html = concat!(
+            r#"<div><div class="d">A Psalm by David.</div>"#,
+            r#"<div class="q1"><span class="yv-v" v="1"></span><span class="yv-vlbl">1</span>Yahweh is my shepherd;</div>"#,
+            r#"<div class="q2">I shall lack nothing.</div>"#,
+            r#"<div class="q1"><span class="yv-v" v="2"></span><span class="yv-vlbl">2</span>He makes me lie down in green pastures.</div>"#,
+            r#"<div class="q2">He leads me beside still waters.</div>"#,
+            r#"<div class="q1"><span class="yv-v" v="3"></span><span class="yv-vlbl">3</span>He restores my soul.</div></div>"#
+        );
+
+        let out = sanitize(html);
+        let numbers: Vec<u16> = out.verses.iter().map(|(n, _)| *n).collect();
+        assert_eq!(numbers, vec![1, 2, 3]);
+
+        // A verse split across poetry lines keeps both lines.
+        let verse_one = &out.verses[0].1;
+        assert!(verse_one.contains("Yahweh is my shepherd"), "{verse_one:?}");
+        assert!(verse_one.contains("I shall lack nothing"), "{verse_one:?}");
+
+        // The ascription precedes verse 1 and belongs to no verse.
+        assert!(out.text.contains("A Psalm by David."));
+        assert!(!verse_one.contains("A Psalm by David"), "{verse_one:?}");
     }
 
     #[test]

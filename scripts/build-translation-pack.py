@@ -18,9 +18,15 @@ pack without one is never written.
 
 Response shapes
 ---------------
-Marked TODO(yvp-shape) below. They were inferred from the endpoint
-descriptions, not a live call, and parsing is written to tolerate alternative
-field names. Verify against a real response before trusting a pack.
+Verified against the live API on 21 September 2026:
+
+* ``/bibles?language_ranges[]=eng`` is enveloped in ``data`` and paginated,
+  and ``copyright`` is null for every version there.
+* ``/bibles/{id}`` is a bare object and is the only place ``copyright`` is
+  populated.
+* ``/bibles/{id}/passages/{id}`` is a bare object of id/content/reference.
+  Without ``?format=html`` the content is one unbroken string with no verse
+  boundaries, so this script always asks for HTML.
 """
 
 from __future__ import annotations
@@ -147,7 +153,11 @@ class Client:
         sys.exit(f"YouVersion kept failing for {path}: {last}")
 
     def chapter(self, version_id: int, book: str, chapter: int) -> dict:
-        """Fetch one chapter, reusing a cached copy when present."""
+        """Fetch one chapter as HTML, reusing a cached copy when present.
+
+        format=html is not optional: the plain response has no verse markers,
+        so a chapter cannot be split into the per-verse rows a pack stores.
+        """
         cache_file = CACHE_DIR / str(version_id) / f"{book}.{chapter}.json"
         if cache_file.exists():
             try:
@@ -155,7 +165,7 @@ class Client:
             except json.JSONDecodeError:
                 cache_file.unlink()
 
-        data = self.get(f"/bibles/{version_id}/passages/{book}.{chapter}")
+        data = self.get(f"/bibles/{version_id}/passages/{book}.{chapter}?format=html")
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         cache_file.write_text(json.dumps(data), encoding="utf-8")
         return data
@@ -180,16 +190,15 @@ def field(record: dict, *names: str, default: str = "") -> str:
     return default
 
 
-# TODO(yvp-shape): verse markers are assumed to look like
-# <span class="verse v16" data-usfm="JHN.3.16">. The Rust sanitizer accepts
-# data-verse and class="... vN" too; keep these two in step.
-VERSE_SPAN = re.compile(
-    r'<span[^>]*?(?:data-usfm="[^"]*?\.(?P<usfm>\d+)"|data-verse="(?P<dv>\d+)"|class="[^"]*?\bv(?P<cls>\d+)\b[^"]*?")[^>]*>',
-    re.IGNORECASE,
-)
+# YouVersion marks a verse with <span class="yv-v" v="16"></span> and prints
+# the number separately in <span class="yv-vlbl">16</span>. Keep this in step
+# with src-tauri/src/bible/sanitize.rs, which parses the same markup.
+VERSE_SPAN = re.compile(r'<span[^>]*class="yv-v"[^>]*\sv="(?P<num>\d+)"[^>]*>', re.IGNORECASE)
 TAG = re.compile(r"<[^>]+>")
+# The printed verse label, footnotes and cross references are not scripture.
 DROPPED_BLOCK = re.compile(
-    r"<(note|sup|script|style)\b.*?</\1>|<span[^>]*class=\"[^\"]*(note|footnote|crossref|label)[^\"]*\"[^>]*>.*?</span>",
+    r'<span[^>]*class="(?:yv-vlbl|note|footnote|crossref|label)"[^>]*>.*?</span>'
+    r"|<(note|sup|script|style)\b.*?</\1>",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -207,7 +216,7 @@ def sanitize(markup: str) -> list[tuple[int, str]]:
     matches = list(VERSE_SPAN.finditer(cleaned))
 
     for index, match in enumerate(matches):
-        number = match.group("usfm") or match.group("dv") or match.group("cls")
+        number = match.group("num")
         if number is None:
             continue
 
@@ -263,10 +272,10 @@ def build(version_id: int, out_name: str | None) -> None:
     client = Client(app_key())
 
     meta = client.get(f"/bibles/{version_id}")
-    name = field(meta, "name", "title", "local_title", default=f"Version {version_id}")
-    short = field(meta, "short_name", "abbreviation", "local_abbreviation", default=str(version_id))
-    language = field(meta, "language", "language_tag", default="und")
-    attribution = field(meta, "attribution", "copyright", "copyright_short")
+    name = field(meta, "localized_title", "title", default=f"Version {version_id}")
+    short = field(meta, "localized_abbreviation", "abbreviation", default=str(version_id))
+    language = field(meta, "language_tag", default="und")
+    attribution = field(meta, "copyright")
 
     # Attribution is a licensing obligation, so there is no pack without one.
     if not attribution:
@@ -279,11 +288,20 @@ def build(version_id: int, out_name: str | None) -> None:
     print(f"Building {code} — {name} ({language}), version {version_id}")
     print(f"  attribution: {attribution[:80]}")
 
+    # The version lists the books it contains, which may include the
+    # Apocrypha (80 for WEBUS). Packs carry the 66-book Protestant canon only.
+    available = {b for b in meta.get("books", []) if b in CHAPTERS} or set(CHAPTERS)
+    skipped = sorted(set(meta.get("books", [])) - set(CHAPTERS))
+    if skipped:
+        print(f"  skipping {len(skipped)} non-canonical books: {', '.join(skipped[:6])}...")
+
     verses: list[dict] = []
     for book, chapter_count in CHAPTERS.items():
+        if book not in available:
+            sys.exit(f"version {version_id} does not contain {book}; it cannot make a complete pack.")
         for chapter in range(1, chapter_count + 1):
             payload = client.chapter(version_id, book, chapter)
-            markup = field(payload, "content", "html", "text", "body")
+            markup = field(payload, "content")
             for number, text in sanitize(markup):
                 verses.append({"b": book, "c": chapter, "v": number, "t": text})
         print(f"    {book}: {len(verses)} verses so far", end="\r", flush=True)

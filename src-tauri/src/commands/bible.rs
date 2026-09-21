@@ -31,7 +31,9 @@ pub async fn refresh_bible_licenses(state: State<'_, AppState>) -> Result<Vec<Bi
         ));
     }
 
-    state.bible.list_bibles().await
+    // English only for now; PRD §26.2's catalog is English, and M6 widens it
+    // when local-language translations arrive.
+    state.bible.list_bibles("eng").await
 }
 
 /// Whether online lookups are possible at all. The Packs screen uses this to
