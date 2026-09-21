@@ -127,7 +127,12 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
-          if-no-files-found: warn
+          # error, not warn: a build that produces no installer has failed at
+          # the one thing this job exists for, and the macos-install-smoke job
+          # downstream would fail on the missing artifact anyway — better to
+          # say so here than to let a green build hand back nothing.
+          if-no-files-found: error
+          retention-days: 30
 
   # M0 DoD 2: install the .dmg on a real Mac and confirm the app comes up.
   #
