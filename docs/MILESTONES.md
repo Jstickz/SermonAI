@@ -32,12 +32,29 @@ Update this table first. It is the only place status is recorded.
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
 **Current milestone:** M0
-**Current blocker:** none. CI is green on all three targets (run 34241507233, 8 Sept): Windows, macOS Intel and macOS Apple Silicon all build, lint, test and bundle inside the 40 MB gate. The encoder decision that was blocking deliverables 7, 8 and 9 is settled — static embeddings bundled in the base installer, one model for both the index and runtime queries.
+**Current blocker:** one decision, then one rebuild. M0 is **not** complete.
 
-**Size budget, measured rather than estimated.** The earlier "only 7 to 13 MB left for the encoder" warning was based on a guess that three translations would cost 12 to 18 MB. KJV actually compresses to **1.29 MB**, so all three land near 4 MB:
+The YouVersion migration (PR #1, merged 21 Sept) moved the Bible source from API.Bible to YouVersion Platform and, in doing so, **un-did deliverable 9**. The bundled KJV and ASV packs were built from API.Bible, carry no copyright string, and PRD v2.2 §15.2 forbids displaying a verse without one. They must be rebuilt.
+
+**The decision:** our YouVersion app key licenses 20 English versions, including ASV (id 12) and WEBUS (id 206) — but **not KJV**. FR-59 names KJV, WEB and ASV as the bundled three. Either request a KJV licence in the portal, or amend FR-59 to name three versions we actually have. Nothing else in M0 is waiting on code.
+
+**Then the rebuild:** `build-translation-pack.py` already targets YouVersion and writes attribution into the manifest. Running it for the three chosen versions is roughly 1,189 chapter requests each at 5 req/s — about four minutes per translation, plus a completeness check.
+
+**Everything else is hardware.** DoD lines 1, 2 and 4 need clean Windows and macOS machines to install and time the app on; no amount of code closes them.
+
+**Size budget, measured rather than estimated.** The earlier "only 7 to 13 MB left for the encoder" warning rested on a guess that three translations would cost 12 to 18 MB. A translation actually compresses to about 1.3 MB:
 
 | Item | Size |
 |---|---|
+| Base installer (Windows msi) | 5.12 MB |
+| Three translations | ~4 MB |
+| Verse index, 256 dims int8 | 7.71 MB |
+| Encoder matrix + tokenizer | 7.97 MB |
+| **Projected installer** | **~25 MB** |
+
+Comfortably inside the 40 MB gate, with roughly 15 MB spare. The PRD assumed 384 dims and a 12 MB index; the real model is 256 dims, so both came in smaller.
+
+---|---|
 | Base installer (Windows msi) | 5.12 MB |
 | KJV + WEB + ASV | ~4 MB |
 | Verse index, 256 dims int8 | 7.71 MB |
@@ -77,10 +94,10 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [x] Three windows (operator, projector, alternate) created from Rust and placed on chosen monitors using the monitor API. Projector window is frameless and fullscreen. *(8 Sept: confirmed on hardware — projector went fullscreen and frameless on the chosen second screen, button showed "Projecting", and unplugging it did not crash the app. A bug found during that test is fixed: assignments now live in Rust state, not React, so switching tabs no longer loses track of which screen is live, and a disconnected display shows a warning instead of still reading as projecting.)*
 - [x] GitHub Actions matrix: `windows-latest`, `macos-15-intel` (Intel), `macos-latest` (Apple Silicon). Builds, runs `cargo test` and `vitest`, produces unsigned `.msi` / `.exe` / `.dmg`. *(8 Sept: all three jobs green on run 34241507233. First successful Rust compile, `cargo test` and bundle on macOS. OS code signing and notarization moved to M11; the Tauri updater key signs update bundles.)*
 - [x] CI gate: build fails if any installer exceeds 40 MB. *(8 Sept: enforced per job. Measured sizes — msi 5.12 MB, nsis 4.16 MB, dmg x64 3.43 MB, dmg aarch64 3.21 MB.)*
-- [x] Vendor accounts and keys: Deepgram, API.Bible, Anthropic. Stored in CI secrets and local `.env`, never committed. *(8 Sept: all three in local `.env` and in GitHub Actions secrets alongside `TAURI_SIGNING_PRIVATE_KEY`. API.Bible key verified live — HTTP 200, 38 English Bibles. `.env` is gitignored and no key has ever entered git history, confirmed by scanning all commits.)*
+- [x] Vendor accounts and keys: Deepgram, **YouVersion Platform**, Anthropic. Stored in CI secrets and local `.env`, never committed. *(21 Sept: API.Bible replaced by YouVersion Platform per PRD v2.2. `YVP_APP_KEY` is in `.env` and in GitHub Actions secrets; verified live — 20 English versions licensed to this app key. `.env` is gitignored and no key has ever entered git history. `API_BIBLE_KEY` remains in GitHub secrets but nothing references it.)*
 - [x] `scripts/build-verse-index.py`: embeds 31,102 verses, quantizes to int8, writes `src-tauri/assets/verse-index.bin`. Run once, output committed. *(8 Sept: 31,102 KJV verses at 256 dims, 7.71 MB. Rows are L2-normalised before quantizing so a cosine search is a plain int8 dot product. Validated against float32 — self-retrieval top-1 99.3%, top-5 99.7%; the script refuses to write below 95%. Built with the same model that answers runtime queries, not OpenAI.)*
 - [x] Small on-device sentence encoder chosen and bundled for runtime query embedding (must run on both platforms without GPU). *(9 Sept: `minishlab/potion-base-8M` static embeddings, 256 dims. Runtime is a token lookup plus a mean — no transformer, no ONNX, no GPU. `detection/vector.rs` loads the encoder and index, replicates model2vec's pooling exactly, and searches by int8 dot product. Verbatim quotes retrieve themselves, proving Rust queries share the Python-built index's space. Latency 2.46 ms per query against FR-15's 5 ms, after fixing `opt-level = "s"` (15.98 ms) and widening the dot product to 8 accumulators. Verified on macOS Intel and Apple Silicon by CI run 34296856629.)*
-- [ ] KJV, WEB, ASV built into bundled translation assets by `scripts/build-translation-pack.py`. *(9 Sept: **KJV and ASV done and verified complete** — 31,102 and 31,077 verses, every canary verse present, no thin chapters. **WEB withdrawn**: API.Bible returned it missing 122 verses including Jeremiah 29:11, because indented paragraph styles carry no verse identity when verse numbers are suppressed. The parser is fixed and `check_complete` now catches per-chapter holes, but API.Bible's monthly quota is exhausted so WEB cannot be rebuilt yet. See Parked.)*
+- [ ] KJV, WEB, ASV built into bundled translation assets by `scripts/build-translation-pack.py`. *(**Regressed by the YouVersion move, 21 Sept.** The KJV and ASV packs on disk were built from API.Bible: they are marked `source=api_bible` and carry **no attribution**, which PRD v2.2 §15.2 requires before any verse may be displayed. They have to be rebuilt from YouVersion. The blocker has changed shape rather than gone away: API.Bible's quota no longer matters, but **KJV is not licensed to our YouVersion app key** — the 20 available versions include ASV (12) and WEBUS (206) but no King James. FR-59 names KJV, WEB and ASV specifically, so this needs either a KJV licence request in the portal or an amendment to FR-59. See Parked.)*
 - [x] Pack system: `packs-manifest.json` format, `packs/downloader.rs` with ranged resumable downloads and SHA-256 verification, Settings → Packs screen listing packs with sizes and progress. Tested against a manifest on a test bucket. *(7 Sept: manifest/downloader/registry modules, five commands, Packs screen with size labels, progress, pause/resume/remove. Integration tests run against a local range-capable server: resume-after-restart asserts the Range header continues from the halfway byte; checksum mismatch is rejected and the part file discarded. Not yet run against a real CDN bucket — pending deliverable 6.)*
 - [x] SQLite schema from PRD §14.2 created via migrations on first launch. *(Verified 7 Sept: first launch logged `applying migration 0001_init` and created `%APPDATA%/app.sermonai.desktop/db/sermonai.sqlite` in WAL mode. Idempotency covered by `cargo test`.)*
 - [x] ADRs written: Tauri over Electron; staging-first output; three-stage detection; local-only data; summary JSON schema; packs strategy. *(`docs/adr/0001`–`0006`.)*
@@ -93,7 +110,18 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [x] Plug in a second monitor: projector window appears on it fullscreen; unplug: app does not crash. *(8 Sept: confirmed on hardware with three displays attached.)*
 - [x] Download a 30 MB test pack, kill the app at 50%, relaunch, download resumes and verifies. *(Covered by `tests/pack_download.rs` against a local range-capable server: the resume request carries `Range: bytes=N-` from the halfway mark and the installed file matches the catalog digest. Passing on all three CI targets. Not yet run against a real CDN bucket.)*
 
-**Do not start M1 until:** all six DoD lines pass and the status board says ✅. **3 of 6 pass today**; the three open lines all need clean machines rather than more code.
+**Do not start M1 until:** all six DoD lines pass and the status board says ✅.
+
+**Where M0 stands today: 10 of 12 deliverables, 3 of 6 DoD lines. Not complete.**
+
+| Outstanding | Why | Who |
+|---|---|---|
+| Deliverable 9 — bundled translations | Packs predate YouVersion and carry no attribution; KJV is not licensed to our app key | Decision yours, rebuild mine |
+| DoD 1 — fresh Windows 10 VM install | Needs a machine that has never had SermonAI or WebView2 on it | You |
+| DoD 2 — fresh macOS 12 install | Needs a Mac; CI builds the `.dmg` but never installs it | You |
+| DoD 4 — cold start under 1 second | Must be timed from a real install on each platform, not a dev build | You |
+
+Deliverable 10's note still stands: the pack system has never run against a real CDN bucket, only a local stub. That is worth closing before M5 leans on it.
 
 ---
 
@@ -138,7 +166,7 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 - [ ] Vector stage: query embedding via the bundled encoder, brute-force cosine over the int8 index, top-5 in under 5 ms (FR-15).
 - [ ] Claude paraphrase stage on the 60-second buffer, fired only after 10 seconds with no regex hit, online only (FR-14).
 - [ ] Detection pipeline in `detection/pipeline.rs` running stages in order with confidence scoring (FR-16) and a queue that never drops (FR-17).
-- [ ] Bible cache in `rusqlite` seeded from bundled KJV/WEB/ASV; API.Bible client caching two more translations on demand (FR-18, FR-19, FR-22).
+- [ ] Bible cache in `rusqlite` seeded from the bundled translations; YouVersion client caching further versions on demand, storing attribution with the text (FR-18, FR-19, FR-22). *(Client, USFM converter and sanitizer already exist from the v2.2 migration.)*
 - [ ] Detection Card UI: reference, verse text, translation, confidence, source badge (regex / vector / AI), Accept / Reject / Edit (PRD §13.3).
 - [ ] Translation picker with per-service default (FR-32, PRD §13.4).
 - [ ] Every detection and operator decision written to `detected_scriptures`.
@@ -245,7 +273,7 @@ Milestones are sequential. If you are tempted to pull work forward from a later 
 
 **Deliverables**
 - [ ] Translation packs for all 20 in PRD §26.2 built, checksummed, published to the Pack CDN with the signed manifest (FR-20, FR-21).
-- [ ] Commercial license agreements in place with API.Bible for the paid translations; tier gating recorded in `settings`.
+- [ ] Licence terms accepted in the YouVersion portal for each paid translation, against our app key; tier gating recorded in `settings`.
 - [ ] Translation importer wizard: USFM, OSIS, JSON, CSV; validation report; adds to picker and detection index (FR-47, PRD §13.15).
 - [ ] Imported translations flagged "church-supplied" in the UI (PRD §17).
 - [ ] Integrity check of all installed translations on startup (FR-22).
@@ -418,8 +446,8 @@ Ideas that came up early but belong to a later milestone. Write the idea and the
 | Pack **archive extraction** (`.tar.zst`): packs install as one verified file today, which suits whisper models and theme JSON. Translation packs shipped as archives will need a decompress step. | M5 / M6 | 7 Sept 2026 |
 | **Manifest signature verification** is not implemented — packs are checksum-verified against the manifest, but the manifest itself is trusted on TLS alone. Needs the signing key from deliverable 6. | M0 (deliverable 6) | 7 Sept 2026 |
 | Display assignments are **not persisted across restarts** — the backend holds them in memory only. A church re-picks its projector on every launch. Persist to the `settings` table and re-apply on startup as part of the onboarding wizard. | M8 (onboarding, PRD §12.1) | 8 Sept 2026 |
-| **WEB translation pack withdrawn.** API.Bible returned it missing 122 verses (Jeremiah 29:11, Daniel 4, Ezra 7) because indented paragraph styles carry no verse identity when verse numbers are suppressed. The parser is fixed and `check_complete` now catches it, but API.Bible's monthly quota is exhausted so the pack cannot be rebuilt. FR-59 names KJV, WEB and ASV; we currently bundle KJV and ASV only. | M0 (deliverable 9) | 9 Sept 2026 |
-| **API.Bible quota will not cover M6.** One Bible is ~1,250 chapter requests, and the free tier's monthly cap was exhausted by four rebuild passes. Twenty translations means ~25,000 requests. Either upgrade the plan, or source public-domain texts from ebible.org (no key, no quota) and reserve API.Bible for licensed translations only. | M6 (translations) | 9 Sept 2026 |
+| **Bundled translations must be rebuilt from YouVersion.** The KJV and ASV packs on disk came from API.Bible: `source=api_bible`, no attribution, which PRD v2.2 §15.2 forbids displaying. **KJV is not licensed to our app key** — the 20 available English versions include ASV (12) and WEBUS (206) but no King James, while FR-59 names KJV, WEB and ASV. Request KJV in the portal, or amend FR-59. The earlier API.Bible quota problem is moot. | M0 (deliverable 9) | 21 Sept 2026 |
+| **YouVersion licence scope for M6.** FR-20 wants 20+ translations; the app key currently licenses 20 English versions, which covers the count but not the specific list in PRD §26.2 (no KJV, NKJV, NLT, ESV, CSB, NET or MSG). Each additional version needs its terms accepted in the portal for our key. The old API.Bible quota concern no longer applies. | M6 (translations) | 21 Sept 2026 |
 | **Attribution in the summary PDF.** YouVersion requires the copyright string wherever scripture is shown. The PDF renderer does not exist yet, so when it is built each scripture block must carry the attribution in a muted line beneath it, and a verse with no stored attribution must be skipped with a logged warning rather than rendered bare. | M4 (summary PDF) | 21 Sept 2026 |
 | **Route the regex stage through the USFM converter.** `bible::reference::parse` exists and the vector stage already emits USFM. The regex stage is not built yet; when it is, its reference strings go through the converter before reaching the Bible client. | M2 (detection) | 21 Sept 2026 |
 | **Projector version short name.** The projector renders the reference only. Whether it should also show the version short name is a branding call (§15.2 keeps the projector minimal); attribution itself belongs on the PDF, not on the congregation's screen. | M3 (projector) | 21 Sept 2026 |
