@@ -497,6 +497,8 @@ SermonAI wins on four things:
 
 - **Windows 10 (1909+) and Windows 11.**
 - **macOS 12+ (Intel and Apple Silicon).** First-class, not best-effort.
+  - **The 12+ floor is a support commitment, not a record of what has been tested, and it stays at 12 deliberately.** M0's DoD 2 verified one macOS version on one Mac. That shows the version tested works; it says nothing about whether 12, 13 or 14 fail. Raising the floor to the version that happened to be on hand would drop Monterey, Ventura and Sonoma machines on no evidence at all, and churches run older hardware than developers do. The floor moves when something is found to break below it, not when something is found to work above it.
+  - CI covers both architectures on every build (`macos-install-smoke`), but only on the runner images GitHub provides, which track recent macOS. The oldest supported version is therefore untested by anything, and closing that belongs to M11's release checklist.
 - Linux: community best effort.
 - Outputs: HDMI, NDI 5.x, OBS 28+ Browser Source.
 - Windows and macOS are equals: no feature ships on one platform without the other, and CI blocks a release if either platform build fails.
