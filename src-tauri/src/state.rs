@@ -9,7 +9,7 @@ use crate::audio::capture::CaptureHandle;
 use crate::bible::youversion::YouVersionClient;
 use crate::credentials::Credentials;
 use crate::packs::PackManager;
-use crate::stt::deepgram::DeepgramSession;
+use crate::stt::reconnect::ResilientStream;
 use crate::stt::transcript::SessionTranscript;
 use crate::windows::OutputAssignments;
 
@@ -41,7 +41,7 @@ pub struct AppState {
     /// The live transcription stream, when capture was started with
     /// transcription on. Owned rather than shared: stopping consumes it to
     /// send `CloseStream` and collect the final results.
-    pub transcript: Mutex<Option<DeepgramSession>>,
+    pub transcript: Mutex<Option<ResilientStream>>,
     /// Everything transcribed since capture started.
     ///
     /// Here rather than in the operator window because every tab unmounts when

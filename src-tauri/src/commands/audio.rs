@@ -6,7 +6,8 @@ use crate::audio::capture::{self, CaptureHandle, CaptureState};
 use crate::audio::devices::{self, AudioDevice};
 use crate::error::{Error, Result};
 use crate::state::AppState;
-use crate::stt::deepgram::{DeepgramSession, TranscriptEvent};
+use crate::stt::deepgram::TranscriptEvent;
+use crate::stt::reconnect::ResilientStream;
 use crate::stt::transcript::TranscriptSnapshot;
 use crate::stt::vocabulary;
 
@@ -83,8 +84,9 @@ pub async fn start_capture(
         let event_app = app.clone();
         // The handle, not the State guard: the closure outlives this call.
         let store_app = app.clone();
+        let status_app = app.clone();
         Some(
-            DeepgramSession::connect(
+            ResilientStream::connect(
                 &state.credentials,
                 vocabulary::keyterms(),
                 Box::new(move |event| {
@@ -109,6 +111,11 @@ pub async fn start_capture(
 
                     let _ = event_app.emit("transcript:segment", &event);
                 }),
+                Box::new(move |status| {
+                    // The operator needs to know the difference between a
+                    // transcript that has stopped and one that is catching up.
+                    let _ = status_app.emit("stt:status", &status);
+                }),
             )
             .await?,
         )
@@ -118,7 +125,9 @@ pub async fn start_capture(
 
     // Only the feed goes to the audio thread; the session stays here so stop
     // can consume it.
-    let feed = session.as_ref().map(DeepgramSession::feed);
+    // Cloned senders rather than the stream itself: the stream is consumed on
+    // stop to close the socket and collect the final results.
+    let feed = session.as_ref().map(|s| s.feed());
 
     let level_app = app.clone();
     let error_app = app;

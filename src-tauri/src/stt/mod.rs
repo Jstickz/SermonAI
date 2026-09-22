@@ -11,6 +11,7 @@
 //! custom vocabulary on every stream (FR-09).
 
 pub mod deepgram;
+pub mod reconnect;
 pub mod transcript;
 pub mod vocabulary;
 

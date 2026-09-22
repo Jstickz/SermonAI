@@ -287,10 +287,29 @@ impl DeepgramSession {
     pub async fn connect(
         credentials: &Credentials,
         vocabulary: Vec<String>,
+        on_event: EventSink,
+    ) -> Result<Self> {
+        Self::connect_with(
+            &credentials.access(Service::Deepgram)?,
+            vocabulary,
+            on_event,
+        )
+        .await
+    }
+
+    /// Open a stream from an already-resolved credential.
+    ///
+    /// Separate from [`connect`](Self::connect) so a reconnect can reopen the
+    /// socket without holding a reference to the whole credential provider
+    /// across a task boundary. A vendor key does not change mid-service; when
+    /// the gateway lands and tokens can expire, this is where a refresh goes.
+    pub async fn connect_with(
+        access: &Access,
+        vocabulary: Vec<String>,
         mut on_event: EventSink,
     ) -> Result<Self> {
-        let key = match credentials.access(Service::Deepgram)? {
-            Access::DirectKey(secret) => secret,
+        let key = match access {
+            Access::DirectKey(secret) => secret.clone(),
             // Managed mode proxies the socket through the gateway, which does
             // not exist yet (Phase 3/4 of the strategy doc).
             Access::Gateway { .. } => {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { audio, on } from "@/lib/ipc";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { FONT_SIZES, useTranscriptViewStore } from "@/stores/transcriptViewStore";
-import type { CaptureState } from "@/lib/types";
+import type { CaptureState, SttStatus } from "@/lib/types";
 
 /** Mirrors `PARAGRAPH_GAP_SECS` in `src-tauri/src/stt/transcript.rs`. A
  *  preacher pauses for breath in well under a second and for effect in two or
@@ -38,6 +38,12 @@ export function LiveTranscript() {
   /** End of the newest utterance, for deciding where the next one belongs. */
   const lastEnd = useRef<number | null>(null);
   const [interim, setInterim] = useState("");
+  /** Null while connected: a banner only exists when something is wrong. */
+  const [stt, setStt] = useState<SttStatus | null>(null);
+  /** Total speech dropped because an outage outlasted the buffer. Accumulated
+   *  rather than shown per chunk, since a 90-second outage would otherwise
+   *  emit a banner a hundred and twenty times. */
+  const [droppedSeconds, setDroppedSeconds] = useState(0);
   const [capture, setCapture] = useState<CaptureState>("stopped");
   const [device, setDevice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -110,9 +116,22 @@ export function LiveTranscript() {
       })
       .catch(() => undefined);
 
+    let unlistenStatus: (() => void) | undefined;
+    void on("stt:status", (status) => {
+      if (status.kind === "audio_dropped") {
+        setDroppedSeconds((previous) => previous + status.seconds);
+        return;
+      }
+      setStt(status.kind === "connected" ? null : status);
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlistenStatus = fn;
+    });
+
     return () => {
       cancelled = true;
       unlisten?.();
+      unlistenStatus?.();
     };
   }, []);
 
@@ -173,6 +192,8 @@ export function LiveTranscript() {
         if (!device) throw new Error("No audio input available. Choose one in Settings.");
         setParagraphs([]);
         setInterim("");
+        setStt(null);
+        setDroppedSeconds(0);
         lastEnd.current = null;
         setCapture(await audio.start(device, true));
       } else {
@@ -255,6 +276,26 @@ export function LiveTranscript() {
 
       {error && (
         <p className="rounded-md bg-status-danger-bg px-3 py-2 text-status-danger">{error}</p>
+      )}
+
+      {/* Branding §9.3: name the thing that failed, then say what happens
+          next. "Reconnecting…" alone leaves the operator's real question —
+          am I losing the sermon — unanswered. */}
+      {stt?.kind === "reconnecting" && (
+        <p className="rounded-md bg-status-warning-bg px-3 py-2 text-[13px] text-status-warning">
+          Deepgram is unreachable. Retrying in {Math.round(stt.retryInMs / 1000)}s (attempt{" "}
+          {stt.attempt}).{" "}
+          {stt.bufferedSeconds > 0
+            ? `Still recording — ${Math.round(stt.bufferedSeconds)}s of speech held and will be transcribed when it returns.`
+            : "Still recording. Nothing spoken is being lost."}
+        </p>
+      )}
+
+      {droppedSeconds > 0 && (
+        <p className="rounded-md bg-status-danger-bg px-3 py-2 text-[13px] text-status-danger">
+          The outage outlasted the buffer: about {Math.round(droppedSeconds)}s of speech was not
+          transcribed. The transcript has a gap.
+        </p>
       )}
 
       <div

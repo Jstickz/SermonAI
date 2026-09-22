@@ -50,6 +50,19 @@ export interface TranscriptSegment {
   isFinal: boolean;
 }
 
+/**
+ * The state of the transcription connection. Mirrors `SttStatus` in
+ * `src-tauri/src/stt/reconnect.rs`.
+ *
+ * `reconnecting` carries enough to count down rather than just spin, and the
+ * seconds held so far, because the operator's real question during an outage
+ * is not "is it retrying" but "am I losing the sermon".
+ */
+export type SttStatus =
+  | { kind: "connected" }
+  | { kind: "reconnecting"; attempt: number; retryInMs: number; bufferedSeconds: number }
+  | { kind: "audio_dropped"; seconds: number };
+
 /** Everything transcribed so far (FR-10). Mirrors `TranscriptSnapshot` in
  *  `src-tauri/src/stt/transcript.rs`. */
 export interface TranscriptSnapshot {

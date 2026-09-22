@@ -17,6 +17,7 @@ import type {
   PackStatus,
   Sermon,
   TranscriptEvent,
+  SttStatus,
   TranscriptSnapshot,
   Verse,
 } from "./types";
@@ -124,6 +125,7 @@ interface EventMap {
   /** Peak since the last frame, in dBFS: 0 is full scale, -60 the floor. */
   "transcript:level": { peakDbfs: number };
   "audio:error": { message: string };
+  "stt:status": SttStatus;
   "detection:new": Detection;
   "output:changed": OutputState;
   "summary:progress": { sermonId: number; step: string; percent: number };
