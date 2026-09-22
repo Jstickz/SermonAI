@@ -22,6 +22,8 @@
 //! [`push_final`](SessionTranscript::push_final), which is the single point
 //! every settled word passes through.
 
+use std::time::Instant;
+
 use serde::{Deserialize, Serialize};
 
 use super::deepgram::Word;
@@ -71,12 +73,34 @@ pub struct TranscriptSnapshot {
     pub word_count: usize,
 }
 
+/// End-to-end lag, for M1's Definition of Done.
+///
+/// Measured per settled utterance as *now minus when those words were spoken*:
+/// the wall clock since capture began, less the audio timestamp of the last
+/// word. That covers the whole path — capture, conversion, the socket,
+/// Deepgram's own processing and the event reaching us — rather than timing
+/// one hop and calling it latency.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatencySummary {
+    pub samples: usize,
+    pub p50_ms: u64,
+    pub p95_ms: u64,
+    /// The number M1's DoD budgets at 700 ms.
+    pub p99_ms: u64,
+    pub max_ms: u64,
+}
+
 /// Everything transcribed since capture started.
 #[derive(Debug, Default)]
 pub struct SessionTranscript {
     finals: Vec<FinalSegment>,
     interim: String,
     word_count: usize,
+    /// When capture began, for measuring lag. `None` until the first start.
+    started: Option<Instant>,
+    /// Lag per settled utterance, in seconds.
+    lags: Vec<f64>,
 }
 
 impl SessionTranscript {
@@ -95,6 +119,17 @@ impl SessionTranscript {
 
         let start = words.first().map_or(0.0, |w| w.start);
         let end = words.last().map_or(start, |w| w.end);
+
+        // Lag is recorded before the segment is stored, while `end` is the
+        // newest thing we know about.
+        if let Some(started) = self.started {
+            let lag = started.elapsed().as_secs_f64() - end;
+            // A negative lag means the clock and the audio timeline disagree,
+            // which happened once already when a reconnect double-counted the
+            // offset. Recording it would hide that; dropping it would too, so
+            // it is clamped at zero and the max will show the disagreement.
+            self.lags.push(lag.max(0.0));
+        }
 
         self.word_count += text.split_whitespace().count();
         self.finals.push(FinalSegment {
@@ -122,8 +157,41 @@ impl SessionTranscript {
     }
 
     /// Start a new service. Everything already transcribed is discarded.
+    ///
+    /// The clock starts here rather than at the first word, so the wait before
+    /// anyone speaks is not counted as lag.
     pub fn reset(&mut self) {
-        *self = Self::default();
+        *self = Self {
+            started: Some(Instant::now()),
+            ..Self::default()
+        };
+    }
+
+    /// Lag percentiles so far, or `None` before anything has settled.
+    ///
+    /// Nearest-rank percentiles on the sorted samples: with a few hundred
+    /// utterances in a service, interpolating between neighbours would be
+    /// false precision.
+    pub fn latency(&self) -> Option<LatencySummary> {
+        if self.lags.is_empty() {
+            return None;
+        }
+
+        let mut sorted = self.lags.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+        let at = |q: f64| -> u64 {
+            let rank = ((sorted.len() as f64 * q).ceil() as usize).clamp(1, sorted.len());
+            (sorted[rank - 1] * 1000.0).round().max(0.0) as u64
+        };
+
+        Some(LatencySummary {
+            samples: sorted.len(),
+            p50_ms: at(0.50),
+            p95_ms: at(0.95),
+            p99_ms: at(0.99),
+            max_ms: (sorted[sorted.len() - 1] * 1000.0).round().max(0.0) as u64,
+        })
     }
 
     /// Group settled utterances into paragraphs by the pauses between them.
@@ -261,6 +329,29 @@ mod tests {
 
         assert!(transcript.is_empty());
         assert_eq!(transcript.snapshot().word_count, 0);
+    }
+
+    #[test]
+    fn latency_percentiles_use_nearest_rank() {
+        let mut transcript = SessionTranscript::new();
+        transcript.reset();
+        // Injected directly: measuring real lag would mean sleeping through it.
+        transcript.lags = (1..=100).map(|ms| ms as f64 / 1000.0).collect();
+
+        let summary = transcript.latency().expect("samples exist");
+        assert_eq!(summary.samples, 100);
+        assert_eq!(summary.p50_ms, 50);
+        assert_eq!(summary.p95_ms, 95);
+        assert_eq!(summary.p99_ms, 99);
+        assert_eq!(summary.max_ms, 100);
+    }
+
+    #[test]
+    fn latency_is_none_before_anything_settles() {
+        // A summary of nothing would read as a measurement of zero.
+        let mut transcript = SessionTranscript::new();
+        transcript.reset();
+        assert!(transcript.latency().is_none());
     }
 
     #[test]
