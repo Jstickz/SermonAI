@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AudioSettings } from "./components/AudioSettings";
 import { DisplaySettings } from "./components/DisplaySettings";
 import { PackSettings } from "./components/PackSettings";
 
@@ -35,6 +36,7 @@ export function OperatorApp() {
 
       {tab === "Settings" ? (
         <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-5">
+          <AudioSettings />
           <DisplaySettings />
           <PackSettings />
         </main>
