@@ -15,6 +15,7 @@ export function AudioSettings() {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
+  const [monitoring, setMonitoring] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -52,20 +53,62 @@ export function AudioSettings() {
     }
   }
 
+  /**
+   * Open the selected input and drive the top-bar meter, so the operator can
+   * see the signal arriving rather than trust the list (FR-04).
+   */
+  async function toggleMonitor() {
+    try {
+      if (monitoring) {
+        await audio.stopLevelMonitor();
+        setMonitoring(false);
+      } else if (selected) {
+        await audio.startLevelMonitor(selected);
+        setMonitoring(true);
+      }
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+      setMonitoring(false);
+    }
+  }
+
+  // Releasing the device on unmount: the operator switching tabs should not
+  // leave a microphone open with a meter nobody is looking at.
+  useEffect(() => {
+    return () => {
+      void audio.stopLevelMonitor();
+    };
+  }, []);
+
   const selectedGone = selected !== null && !devices.some((d) => d.name === selected);
 
   return (
     <section className="card">
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
           <h2 className="text-[22px] font-semibold">Audio input</h2>
           <p className="mt-1 text-xs text-content-muted">
             Choose what SermonAI listens to: a microphone, a sound desk feed, or the system audio.
           </p>
+          {monitoring && (
+            <p className="mt-1 text-xs text-content-secondary">
+              Testing — speak or play audio and watch the meter in the top bar.
+            </p>
+          )}
         </div>
-        <button className="btn-secondary" onClick={() => void refresh()}>
-          Rescan
-        </button>
+        <div className="flex gap-2">
+          <button
+            className={monitoring ? "btn-primary" : "btn-secondary"}
+            disabled={selected === null || selectedGone}
+            onClick={() => void toggleMonitor()}
+          >
+            {monitoring ? "Stop test" : "Test input"}
+          </button>
+          <button className="btn-secondary" onClick={() => void refresh()}>
+            Rescan
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -83,27 +126,29 @@ export function AudioSettings() {
           No audio inputs detected. Connect a microphone or interface, then Rescan.
         </p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
           {devices.map((device) => {
             const isSelected = selected === device.name;
             return (
               <button
                 key={`${device.kind}:${device.name}`}
                 onClick={() => void choose(device)}
-                className={`rounded-md border-2 bg-bg-sunken p-4 text-left transition-colors duration-base ease-brand-out ${
+                className={`flex flex-col rounded-md border-2 bg-bg-sunken p-4 text-left transition-colors duration-base ease-brand-out ${
                   isSelected ? "border-accent-500" : "border-line-default hover:border-line-strong"
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-medium">{device.name}</span>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 break-words text-[13px] font-medium leading-snug">
+                    {device.name}
+                  </span>
                   <span className="chip">{kindLabel(device.kind)}</span>
                 </div>
-                <p className="mono mt-1 text-[11px] text-content-muted">
+                <p className="mono mt-1 break-words text-[11px] text-content-muted">
                   {device.warning
                     ? device.warning
                     : `${device.defaultSampleRate.toLocaleString()} Hz · ${channelLabel(device.channels)}`}
                 </p>
-                <p className="mt-3 text-[12px]">
+                <p className="mt-auto pt-3 text-[12px]">
                   {checking === device.name
                     ? "Checking input…"
                     : isSelected && checked === device.name

@@ -72,6 +72,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::audio::list_audio_devices,
             commands::audio::check_audio_device,
+            commands::audio::start_level_monitor,
+            commands::audio::stop_level_monitor,
             commands::display::list_monitors,
             commands::display::set_projector_monitor,
             commands::display::set_alternate_monitor,

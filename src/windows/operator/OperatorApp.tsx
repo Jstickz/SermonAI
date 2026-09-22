@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { AudioSettings } from "./components/AudioSettings";
-import { DisplaySettings } from "./components/DisplaySettings";
-import { PackSettings } from "./components/PackSettings";
+import { LevelMeter } from "./components/LevelMeter";
+import { SettingsScreen } from "./components/SettingsScreen";
 
 // M0 shell only. The panels below are filled in per milestone:
 // transcript M1, detection cards M2, staging M3, library M4, packs M0/M5.
@@ -34,11 +33,24 @@ export function OperatorApp() {
         <span className="chip">Not in service</span>
       </header>
 
+      {/* Status strip (wireframe.html §live-header). The recording state and
+          service health that belong here arrive with the service lifecycle in
+          M1 and the STT and detection stages in M1/M2; the input meter is
+          real now, so the strip carries it and says what is not yet wired. */}
+      <div className="live-header">
+        <span className="shrink-0 text-content-muted">Not recording</span>
+        <div className="status-cluster">
+          <span>Deepgram — M1</span>
+          <span>Scripture cache — M2</span>
+          <span>Claude — M4</span>
+        </div>
+        <div className="flex-1" />
+        <LevelMeter />
+      </div>
+
       {tab === "Settings" ? (
-        <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-5">
-          <AudioSettings />
-          <DisplaySettings />
-          <PackSettings />
+        <main className="min-h-0 flex-1 overflow-auto p-5">
+          <SettingsScreen />
         </main>
       ) : (
         /* Two columns: transcript 55%, cards + staging + preview 45% (PRD §16.2). */

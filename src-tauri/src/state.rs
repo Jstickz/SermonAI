@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 use rusqlite::Connection;
 
+use crate::audio::capture::CaptureHandle;
 use crate::bible::youversion::YouVersionClient;
 use crate::packs::PackManager;
 use crate::windows::OutputAssignments;
@@ -27,6 +28,10 @@ pub struct AppState {
     /// Online scripture. Disabled when YVP_APP_KEY is absent; the cache still
     /// serves, so a missing key costs new lookups rather than the service.
     pub bible: YouVersionClient,
+    /// The running capture, if any. Holding it here is what keeps it alive:
+    /// dropping the handle stops the device and joins its thread, so replacing
+    /// this releases the old input before the new one is opened.
+    pub capture: Mutex<Option<CaptureHandle>>,
 }
 
 impl AppState {
@@ -36,6 +41,7 @@ impl AppState {
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
             bible,
+            capture: Mutex::new(None),
         }
     }
 }

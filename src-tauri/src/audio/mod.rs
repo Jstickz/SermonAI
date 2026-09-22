@@ -12,6 +12,7 @@
 pub mod capture;
 pub mod convert;
 pub mod devices;
+pub mod meter;
 
 /// Capture format. Deepgram and whisper.cpp both take 16 kHz mono PCM, so
 /// nothing downstream resamples.

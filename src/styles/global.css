@@ -79,7 +79,71 @@
     @apply placeholder:text-content-muted focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-900;
   }
 
+  /* shrink-0 and whitespace-nowrap because a chip is a label, not prose: it
+     is short by definition, so breaking "System audio" across two lines to
+     save a few pixels reads as a layout fault rather than a wrap. The text
+     beside it yields instead. */
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-pill bg-bg-pill px-2.5 py-1 text-xs font-medium text-content-secondary;
+    @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill bg-bg-pill px-2.5 py-1 text-xs font-medium text-content-secondary;
+  }
+
+  /* Settings: 240px nav beside content, per wireframe.html §settings-layout.
+     Collapses to one column under 1100px, as the wireframe's media query does. */
+  .settings-layout {
+    @apply grid gap-6;
+    grid-template-columns: 240px 1fr;
+  }
+
+  @media (max-width: 1100px) {
+    .settings-layout {
+      grid-template-columns: 1fr;
+    }
+    .settings-nav {
+      @apply static;
+    }
+  }
+
+  .settings-nav {
+    @apply sticky top-[88px] flex h-fit flex-col gap-0.5 rounded-xl bg-bg-surface p-3;
+  }
+
+  .settings-nav button {
+    @apply flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-left text-[13px] text-content-secondary;
+    @apply transition-colors duration-base ease-brand-out hover:bg-bg-hover hover:text-content-primary;
+  }
+
+  .settings-nav button.on {
+    @apply bg-bg-raised text-content-primary;
+  }
+
+  .settings-content {
+    @apply flex flex-col gap-5;
+  }
+
+  .settings-section-title {
+    @apply mb-2 text-xl font-semibold;
+  }
+
+  /* Label and hint on the left, control on the right. */
+  .settings-row {
+    @apply flex items-center justify-between gap-5 border-b border-line-subtle py-4 last:border-b-0;
+  }
+
+  .settings-row .label {
+    @apply text-[13px] font-medium;
+  }
+
+  .settings-row .hint {
+    @apply mt-0.5 text-xs text-content-muted;
+  }
+
+  /* The status strip under the top bar: recording state, service health and
+     the input meter (wireframe.html §live-header). */
+  .live-header {
+    @apply flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line-subtle bg-bg-sunken px-5 py-3 text-[13px];
+  }
+
+  .status-cluster {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-content-muted;
   }
 }

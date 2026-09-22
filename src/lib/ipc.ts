@@ -29,6 +29,11 @@ export const audio = {
    *  before capture starts, so a stale choice is caught while there is still
    *  time to pick another rather than at the moment recording should begin. */
   checkDevice: (name: string) => invoke<void>("check_audio_device", { name }),
+  /** Open a device and drive the top-bar level meter (FR-04). Starting again
+   *  replaces any running capture, so two inputs are never open at once. */
+  startLevelMonitor: (deviceName: string) =>
+    invoke<void>("start_level_monitor", { deviceName }),
+  stopLevelMonitor: () => invoke<void>("stop_level_monitor"),
   start: () => invoke<void>("start_capture"),
   stop: () => invoke<void>("stop_capture"),
 };
@@ -99,7 +104,9 @@ export const packs = {
 
 interface EventMap {
   "transcript:segment": TranscriptSegment;
+  /** Peak since the last frame, in dBFS: 0 is full scale, -60 the floor. */
   "transcript:level": { peakDbfs: number };
+  "audio:error": { message: string };
   "detection:new": Detection;
   "output:changed": OutputState;
   "summary:progress": { sermonId: number; step: string; percent: number };

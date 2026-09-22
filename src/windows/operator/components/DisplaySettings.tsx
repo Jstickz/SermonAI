@@ -75,8 +75,8 @@ export function DisplaySettings() {
 
   return (
     <section className="card">
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
           <h2 className="text-[22px] font-semibold">Displays</h2>
           <p className="mt-1 text-xs text-content-muted">
             Choose which screen the congregation sees and which the stage sees.
@@ -107,7 +107,7 @@ export function DisplaySettings() {
           No displays detected. Connect a projector or second screen, then Rescan.
         </p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
           {monitors.map((monitor) => {
             const role = roleOf(monitor);
             return (
@@ -117,15 +117,17 @@ export function DisplaySettings() {
                   role ? "border-accent-500" : "border-line-default"
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-medium">{monitor.name}</span>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 break-words text-[13px] font-medium leading-snug">
+                    {monitor.name}
+                  </span>
                   {monitor.isPrimary && <span className="chip">Primary</span>}
                 </div>
                 <p className="mono mt-1 text-[11px] text-content-muted">
                   {monitor.width} × {monitor.height} @ {monitor.scaleFactor}x
                 </p>
 
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     className={role === "projector" ? "btn-primary !px-4 !py-2" : "btn-secondary !px-4 !py-2"}
                     onClick={() => void assign(monitor, "projector")}

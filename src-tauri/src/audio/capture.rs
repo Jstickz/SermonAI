@@ -17,10 +17,16 @@
 //! and converted on the way in. Assuming `f32` would work on the development
 //! machine and produce silence or noise on somebody's desk.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
+use std::time::Duration;
+
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
 
 use super::convert::CaptureConverter;
+use super::devices;
+use super::meter::LevelMeter;
 use crate::error::{Error, Result};
 
 /// Where finished chunks go: 4,000 samples of 16 kHz mono PCM, 250 ms each.
@@ -35,6 +41,13 @@ pub type ChunkSink = Box<dyn FnMut(Vec<i16>) + Send + 'static>;
 /// running, and the app has to say the device is gone and offer another
 /// (PRD §10.6).
 pub type ErrorSink = Box<dyn Fn(Error) + Send + 'static>;
+
+/// Where meter frames go: a level in dBFS, about thirty times a second.
+///
+/// Fed from the raw device buffers rather than the finished chunks, because
+/// chunks arrive four times a second and the PRD asks for thirty — see
+/// [`meter`](super::meter).
+pub type LevelSink = Box<dyn FnMut(f32) + Send + 'static>;
 
 /// A running capture. Dropping it stops the device.
 ///
@@ -74,6 +87,7 @@ pub fn open(
     device: &cpal::Device,
     is_output_endpoint: bool,
     mut sink: ChunkSink,
+    mut on_level: LevelSink,
     on_error: ErrorSink,
 ) -> Result<CaptureStream> {
     let supported = if is_output_endpoint {
@@ -97,13 +111,23 @@ pub fn open(
     // Conversion failure on the audio thread is reported once and then the
     // stream is left running: resampling is stateful, and a single bad buffer
     // is better lost than treated as the end of the service.
-    let mut deliver = move |samples: &[f32]| match converter.push(samples) {
-        Ok(chunks) => {
-            for chunk in chunks {
-                sink(chunk);
-            }
+    let mut meter = LevelMeter::new();
+
+    let mut deliver = move |samples: &[f32]| {
+        // Metered before conversion, so the level reflects what the device
+        // sent rather than what survived downmixing and resampling.
+        if let Some(level) = meter.push(samples) {
+            on_level(level);
         }
-        Err(err) => tracing::error!(%err, "dropping an audio buffer"),
+
+        match converter.push(samples) {
+            Ok(chunks) => {
+                for chunk in chunks {
+                    sink(chunk);
+                }
+            }
+            Err(err) => tracing::error!(%err, "dropping an audio buffer"),
+        }
     };
 
     let error_callback = move |err: cpal::StreamError| {
@@ -141,6 +165,92 @@ pub fn open(
         source_rate,
         source_channels,
     })
+}
+
+/// How often the capture thread wakes to check whether it has been stopped.
+///
+/// 50 ms is imperceptible to an operator pressing Stop and costs nothing; the
+/// thread is otherwise asleep while the OS drives the audio callback.
+const STOP_POLL: Duration = Duration::from_millis(50);
+
+/// A capture running on its own thread.
+///
+/// The thread exists because `cpal::Stream` is not `Send` on every platform:
+/// it cannot be created in a command and parked in shared state, so it is
+/// created, played and dropped entirely on one thread that outlives neither.
+/// Dropping the handle stops capture and waits for that thread to finish, so
+/// the device is released before the next `start` opens it again.
+pub struct CaptureHandle {
+    stop: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for CaptureHandle {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(thread) = self.thread.take() {
+            // A panicked capture thread is logged, not propagated: unwinding
+            // out of a Drop during teardown would abort the process, and
+            // losing the meter is not worth ending a service over.
+            if thread.join().is_err() {
+                tracing::error!("the capture thread panicked");
+            }
+        }
+    }
+}
+
+/// Start capturing from a device by name, on a thread of its own.
+///
+/// Returns once the device is open and running, so a failure to open surfaces
+/// as an error the operator sees immediately rather than as a meter that never
+/// moves.
+pub fn spawn(
+    device_name: String,
+    sink: ChunkSink,
+    on_level: LevelSink,
+    on_error: ErrorSink,
+) -> Result<CaptureHandle> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let thread_stop = Arc::clone(&stop);
+    let (ready_tx, ready_rx) = mpsc::channel::<Result<()>>();
+
+    let thread = std::thread::Builder::new()
+        .name("sermonai-capture".to_string())
+        .spawn(move || {
+            let opened = devices::find_device(&device_name)
+                .and_then(|(device, is_output)| open(&device, is_output, sink, on_level, on_error));
+
+            let stream = match opened.and_then(|stream| stream.play().map(|()| stream)) {
+                Ok(stream) => stream,
+                Err(err) => {
+                    let _ = ready_tx.send(Err(err));
+                    return;
+                }
+            };
+
+            let _ = ready_tx.send(Ok(()));
+
+            while !thread_stop.load(Ordering::Relaxed) {
+                std::thread::sleep(STOP_POLL);
+            }
+
+            // Dropped here, on the thread that created it.
+            drop(stream);
+        })
+        .map_err(|e| Error::Audio(format!("could not start the capture thread: {e}")))?;
+
+    match ready_rx.recv() {
+        Ok(Ok(())) => Ok(CaptureHandle {
+            stop,
+            thread: Some(thread),
+        }),
+        Ok(Err(err)) => Err(err),
+        // The thread ended without reporting, which means it panicked before
+        // it could. Naming it beats a channel error the operator cannot read.
+        Err(_) => Err(Error::Audio(
+            "Capture stopped unexpectedly. Choose another input in Settings.".to_string(),
+        )),
+    }
 }
 
 fn build<T>(

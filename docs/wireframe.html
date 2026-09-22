@@ -237,8 +237,12 @@
     display: inline-flex; gap: 2px; align-items: flex-end; height: 20px;
   }
   .meter .bar { width: 3px; background: var(--border-default); border-radius: 2px; }
+  /* Three tiers, read like a sound desk: green healthy, amber getting hot
+     (from -12 dBFS), red close enough to full scale to clip (from -3 dBFS).
+     Amended 22 Sept 2026 — the meter previously had two. */
   .meter .bar.on { background: var(--success); }
   .meter .bar.hot { background: var(--warning); }
+  .meter .bar.loud { background: var(--danger); }
 
   /* detection cards */
   .stack-header { display: flex; align-items: center; justify-content: space-between; padding: 0 4px; }
@@ -498,6 +502,9 @@
   }
   .device-visual .large-meter { flex: 1; display: flex; gap: 3px; align-items: flex-end; height: 40px; }
   .device-visual .large-meter .bar { width: 6px; background: var(--bg-pill); border-radius: 2px; }
+  .device-visual .large-meter .bar.on { background: var(--success); }
+  .device-visual .large-meter .bar.hot { background: var(--warning); }
+  .device-visual .large-meter .bar.loud { background: var(--danger); }
 
   /* monitor picker */
   .monitors { display: flex; gap: 16px; }
@@ -1020,7 +1027,7 @@
       </div>
       <div class="spacer"></div>
       <div class="meter">
-        <div class="bar on" style="height: 30%"></div><div class="bar on" style="height: 50%"></div><div class="bar on" style="height: 70%"></div><div class="bar on" style="height: 90%"></div><div class="bar hot" style="height: 100%"></div><div class="bar on" style="height: 80%"></div><div class="bar" style="height: 40%"></div><div class="bar" style="height: 20%"></div>
+        <div class="bar on" style="height: 30%"></div><div class="bar on" style="height: 50%"></div><div class="bar on" style="height: 70%"></div><div class="bar hot" style="height: 90%"></div><div class="bar loud" style="height: 100%"></div><div class="bar hot" style="height: 80%"></div><div class="bar on" style="height: 40%"></div><div class="bar" style="height: 20%"></div>
       </div>
       <div class="mono" style="color: var(--text-muted); font-size: 11px;">-6 dBFS</div>
     </div>

@@ -85,8 +85,8 @@ export function PackSettings() {
             <li key={pack.id} className="rounded-md bg-bg-sunken p-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[14px] font-semibold">{pack.name}</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="break-words text-[14px] font-semibold">{pack.name}</span>
                     <span className="chip">{formatBytes(pack.sizeBytes)}</span>
                     {pack.optional && <span className="chip">Optional</span>}
                   </div>
