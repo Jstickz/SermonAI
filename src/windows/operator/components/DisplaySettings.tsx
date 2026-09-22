@@ -132,13 +132,13 @@ export function DisplaySettings() {
                     className={role === "projector" ? "btn-primary !px-4 !py-2" : "btn-secondary !px-4 !py-2"}
                     onClick={() => void assign(monitor, "projector")}
                   >
-                    {role === "projector" ? "Projecting" : "Use as projector"}
+                    {role === "projector" ? "Projecting" : "Use as Projector"}
                   </button>
                   <button
                     className={role === "alternate" ? "btn-primary !px-4 !py-2" : "btn-secondary !px-4 !py-2"}
                     onClick={() => void assign(monitor, "alternate")}
                   >
-                    {role === "alternate" ? "On stage" : "Use for stage"}
+                    {role === "alternate" ? "On Stage" : "Use for Stage"}
                   </button>
                 </div>
               </div>

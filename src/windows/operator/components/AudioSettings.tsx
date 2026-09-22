@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { audio } from "@/lib/ipc";
+import { useDeviceStore } from "@/stores/deviceStore";
 import type { AudioDevice, AudioDeviceKind, CaptureState } from "@/lib/types";
 
 /**
@@ -10,29 +11,30 @@ import type { AudioDevice, AudioDeviceKind, CaptureState } from "@/lib/types";
  * that lands with onboarding in M8, alongside display assignments.
  */
 export function AudioSettings() {
-  const [devices, setDevices] = useState<AudioDevice[]>([]);
+  // Cached in a store, so switching tabs does not re-enumerate every device
+  // and flash an empty picker on the way back.
+  const devices = useDeviceStore((s) => s.devices);
+  const loadedAt = useDeviceStore((s) => s.loadedAt);
+  const loading = useDeviceStore((s) => s.loading);
+  const listError = useDeviceStore((s) => s.error);
+  const ensureDevices = useDeviceStore((s) => s.ensure);
+  const refreshDevices = useDeviceStore((s) => s.refresh);
+
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
   const [capture, setCapture] = useState<CaptureState>("stopped");
 
-  const refresh = useCallback(async () => {
-    try {
-      const found = await audio.listDevices();
-      setDevices(found);
-      // First run: pre-select whatever the OS calls the default input, so a
-      // church with one microphone never has to touch this panel.
-      setSelected((current) => current ?? found.find((d) => d.isDefault)?.name ?? null);
-      setError(null);
-    } catch (e) {
-      setError(String(e));
-    }
-  }, []);
-
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void ensureDevices();
+  }, [ensureDevices]);
+
+  // Pre-select the OS default once a list exists, so a church with one
+  // microphone never has to open this panel.
+  useEffect(() => {
+    setSelected((current) => current ?? devices.find((d) => d.isDefault)?.name ?? null);
+  }, [devices]);
 
   async function choose(device: AudioDevice) {
     setSelected(device.name);
@@ -47,7 +49,7 @@ export function AudioSettings() {
       setError(null);
     } catch (e) {
       setError(String(e));
-      void refresh();
+      void refreshDevices();
     } finally {
       setChecking(null);
     }
@@ -114,7 +116,7 @@ export function AudioSettings() {
               disabled={selected === null || selectedGone}
               onClick={() => void run("start")}
             >
-              Start listening
+              Start Listening
             </button>
           ) : (
             <>
@@ -129,14 +131,20 @@ export function AudioSettings() {
               </button>
             </>
           )}
-          <button className="btn-secondary" onClick={() => void refresh()}>
-            Rescan
+          <button
+            className="btn-secondary"
+            disabled={loading}
+            onClick={() => void refreshDevices()}
+          >
+            {loading ? (loadedAt === null ? "Scanning…" : "Rescanning…") : "Rescan"}
           </button>
         </div>
       </div>
 
-      {error && (
-        <p className="mb-4 rounded-md bg-status-danger-bg px-3 py-2 text-status-danger">{error}</p>
+      {(error ?? listError) && (
+        <p className="mb-4 rounded-md bg-status-danger-bg px-3 py-2 text-status-danger">
+          {error ?? listError}
+        </p>
       )}
 
       {selectedGone && (
@@ -147,7 +155,9 @@ export function AudioSettings() {
 
       {devices.length === 0 ? (
         <p className="text-content-muted">
-          No audio inputs detected. Connect a microphone or interface, then Rescan.
+          {loadedAt === null
+            ? "Looking for audio inputs…"
+            : "No audio inputs detected. Connect a microphone or interface, then Rescan."}
         </p>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">

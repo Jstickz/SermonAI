@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /*
+   * `hidden` has to beat a component class that sets display.
+   *
+   * Tailwind's preflight hides [hidden] through :where(), which carries zero
+   * specificity, so any class that sets display wins against it — .op-shell
+   * is display:grid, and a hidden Live tab would have stayed on screen
+   * underneath whichever tab the operator had actually opened.
+   */
+  [hidden] {
+    display: none !important;
+  }
+}
+
 /*
  * Fonts are bundled as WOFF2 subsets, never linked from Google Fonts —
  * a runtime font fetch breaks offline mode (Branding §3.1).
@@ -55,6 +69,34 @@
     @apply transition-colors duration-base ease-brand-out hover:bg-bg-hover active:bg-bg-active;
   }
 
+  /*
+   * A disabled button has to look disabled. Branding §5.1 defines three tiers
+   * and their hover states but not this one, and without it "Start
+   * Transcribing" with no audio device looked identical to a live button and
+   * simply did nothing when pressed — which in a booth reads as the app
+   * having frozen.
+   *
+   * The hover overrides are the point: without them the background still
+   * lightens under the cursor, which is the strongest signal a control is
+   * available.
+   */
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-tertiary:disabled,
+  .btn-destructive:disabled,
+  .btn-icon:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  .btn-primary:disabled:hover {
+    @apply bg-bg-light-cta;
+  }
+
+  .btn-secondary:disabled:hover,
+  .btn-icon:disabled:hover {
+    @apply bg-bg-pill;
+  }
+
   .btn-tertiary {
     @apply text-content-primary underline-offset-4 hover:underline;
   }
@@ -83,6 +125,41 @@
      is short by definition, so breaking "System audio" across two lines to
      save a few pixels reads as a layout fault rather than a wrap. The text
      beside it yields instead. */
+  /*
+   * Switch (wireframe.html §.switch): 42×24 track, 18px knob, 3px inset.
+   *
+   * A <button role="switch"> rather than a styled <div>, which is what the
+   * wireframe draws. A div is not focusable, not reachable by keyboard and
+   * announces nothing to a screen reader; an operator running a service from
+   * the keyboard would simply be unable to reach it.
+   */
+  .switch {
+    @apply relative h-6 w-[42px] shrink-0 rounded-pill bg-bg-pill;
+    @apply transition-colors duration-base ease-brand-out;
+  }
+
+  .switch::after {
+    content: "";
+    @apply absolute left-[3px] top-[3px] h-[18px] w-[18px] rounded-pill bg-content-secondary;
+    @apply transition-all duration-base ease-brand-out;
+  }
+
+  .switch[aria-checked="true"] {
+    @apply bg-accent-500;
+  }
+
+  .switch[aria-checked="true"]::after {
+    @apply left-[21px] bg-content-primary;
+  }
+
+  .switch:focus-visible {
+    @apply outline-none ring-2 ring-accent-500 ring-offset-2 ring-offset-bg-surface;
+  }
+
+  .switch:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
   .chip {
     @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill bg-bg-pill px-2.5 py-1 text-xs font-medium text-content-secondary;
   }
@@ -145,5 +222,52 @@
 
   .status-cluster {
     @apply flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-content-muted;
+  }
+
+  /* Operator shell (wireframe.html §op-shell). The right column is a fixed
+     480px rather than a percentage: a detection card holds a verse, and its
+     readable width should not change because the window did. The left column
+     takes the remainder. Collapses to one column under 1100px, as the
+     wireframe's own media query does. */
+  .op-shell {
+    @apply grid gap-5 p-5;
+    grid-template-columns: 1fr 480px;
+  }
+
+  @media (max-width: 1100px) {
+    .op-shell {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .op-col {
+    @apply flex min-w-0 flex-col gap-4;
+  }
+
+  .transcript-panel {
+    @apply flex min-h-0 flex-1 flex-col gap-3 rounded-lg bg-bg-surface p-5;
+  }
+
+  .transcript-header {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .transcript-body {
+    @apply min-h-0 flex-1 overflow-y-auto px-1 py-2 text-[15px] text-content-secondary;
+    line-height: 1.8;
+  }
+
+  /* Provisional text: muted and italic, so an operator can tell at a glance
+     which words Deepgram may still revise. */
+  .transcript-body .interim {
+    @apply italic text-content-muted;
+  }
+
+  .stack-header {
+    @apply flex items-center justify-between px-1;
+  }
+
+  .stack-header h3 {
+    @apply text-sm font-semibold text-content-primary;
   }
 }

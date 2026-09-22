@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LevelMeter } from "./components/LevelMeter";
 import { LiveTranscript } from "./components/LiveTranscript";
 import { SettingsScreen } from "./components/SettingsScreen";
+import { TabPanel } from "./components/TabPanel";
 
 // M0 shell only. The panels below are filled in per milestone:
 // transcript M1, detection cards M2, staging M3, library M4, packs M0/M5.
@@ -49,25 +50,95 @@ export function OperatorApp() {
         <LevelMeter />
       </div>
 
-      {tab === "Settings" ? (
-        <main className="min-h-0 flex-1 overflow-auto p-5">
-          <SettingsScreen />
-        </main>
-      ) : (
-        /* Two columns: transcript 55%, cards + staging + preview 45% (PRD §16.2). */
-        <main className="grid min-h-0 flex-1 grid-cols-1 gap-5 p-5 xl:grid-cols-[55fr_45fr]">
+      {/* Every tab is a TabPanel: mounted on first visit and kept alive from
+          then on, so leaving and returning preserves scroll, search text,
+          filters and form input. See TabPanel for why that beats saving each
+          view's state by hand. */}
+      <TabPanel active={tab === "Live"} className="op-shell min-h-0 flex-1 overflow-auto">
+        {/* Operator shell (wireframe.html §op-shell): transcript and staging
+            on the left, the detection stack on the right. */}
+        <div className="op-col">
           <LiveTranscript />
 
-          <section className="flex min-h-0 flex-col gap-4">
-            <div className="card flex-1">
-              <h2 className="text-[13px] text-content-muted">Detections</h2>
+          {/* Staging is a left-column panel under the transcript, not a
+              right-column one — M3 (FR-50). */}
+          <section className="rounded-lg bg-bg-surface p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Staging</h3>
+              <span className="text-xs text-content-muted">M3</span>
             </div>
-            <div className="card">
-              <h2 className="text-[13px] text-content-muted">Staging</h2>
-            </div>
+            <p className="mt-2 text-[13px] text-content-muted">
+              Accepted verses wait here before they reach the projector.
+            </p>
           </section>
-        </main>
-      )}
+        </div>
+
+        <div className="op-col">
+          <div className="stack-header">
+            <h3>Detections</h3>
+            <span className="text-xs text-content-muted">M2</span>
+          </div>
+          <section className="flex-1 rounded-lg bg-bg-surface p-5">
+            <p className="text-[13px] text-content-muted">
+              Scripture detected in the transcript will appear here as cards.
+            </p>
+          </section>
+        </div>
+      </TabPanel>
+
+      <TabPanel active={tab === "Library"} className="min-h-0 flex-1 overflow-auto p-5">
+        <NotBuiltYet
+          title="Sermon Library"
+          milestone="M4"
+          detail="Past services, with their transcripts and summary PDFs."
+        />
+      </TabPanel>
+
+      <TabPanel active={tab === "Series"} className="min-h-0 flex-1 overflow-auto p-5">
+        <NotBuiltYet
+          title="Series"
+          milestone="M10"
+          detail="Group sermons into a series, and compile one into a book."
+        />
+      </TabPanel>
+
+      <TabPanel active={tab === "Studio"} className="min-h-0 flex-1 overflow-auto p-5">
+        <NotBuiltYet
+          title="Content Studio"
+          milestone="M9"
+          detail="Edit a summary and spin off social captions, guides and devotionals."
+        />
+      </TabPanel>
+
+      <TabPanel active={tab === "Settings"} className="min-h-0 flex-1 overflow-auto p-5">
+        <SettingsScreen />
+      </TabPanel>
     </div>
+  );
+}
+
+/** A tab whose screen belongs to a later milestone. Named rather than blank,
+ *  so the operator can see where something will live rather than wondering
+ *  whether it is missing or broken. */
+function NotBuiltYet({
+  title,
+  milestone,
+  detail,
+}: {
+  title: string;
+  milestone: string;
+  detail: string;
+}) {
+  return (
+    <section className="card">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[22px] font-semibold">{title}</h2>
+        <span className="chip">{milestone}</span>
+      </div>
+      <p className="mt-2 text-[13px] text-content-muted">{detail}</p>
+      <p className="mt-1 text-[13px] text-content-muted">
+        Not built yet. The tab is here so the shape of the app stays the same as it fills in.
+      </p>
+    </section>
   );
 }

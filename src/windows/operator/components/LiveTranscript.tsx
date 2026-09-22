@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { audio, on } from "@/lib/ipc";
+import { useDeviceStore } from "@/stores/deviceStore";
 import type { CaptureState } from "@/lib/types";
 
 /**
@@ -11,8 +12,14 @@ import type { CaptureState } from "@/lib/types";
  * chapter three" one result later in testing — so appending would print the
  * same growing half-sentence five times over.
  *
+ * The transcript itself is **not held here**. It lives in the Rust backend
+ * (`stt::transcript`), because this component unmounts whenever the operator
+ * switches tabs while capture keeps running. This hydrates from the backend on
+ * mount, so returning mid-sermon shows the whole service rather than an empty
+ * panel that reads as a crash.
+ *
  * Auto-scroll with manual override, word-by-word rendering and the font size
- * setting are M1 deliverable 9. This shows the stream working.
+ * setting are M1 deliverable 9.
  */
 export function LiveTranscript() {
   const [finals, setFinals] = useState<string[]>([]);
@@ -20,23 +27,36 @@ export function LiveTranscript() {
   const [capture, setCapture] = useState<CaptureState>("stopped");
   const [device, setDevice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  /**
+   * Where the switch is shown while the backend catches up.
+   *
+   * Starting opens a WebSocket to Deepgram before it returns, and stopping
+   * waits for Deepgram to drain the final results of the last utterance —
+   * together a good fraction of a second. Driving the switch straight from
+   * backend state meant it sat still through all of that, which on a switch
+   * reads as a dead control rather than a busy one. So it moves at once and
+   * snaps back if the operation fails.
+   */
+  const [pending, setPending] = useState<boolean | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
 
+    // Subscribed before hydrating, so an event arriving during the round trip
+    // is not missed. The hydrate below only overwrites when it has at least as
+    // much as is already on screen, which keeps such an event from being
+    // clobbered by a snapshot taken a moment earlier.
     void on("transcript:segment", (event) => {
       switch (event.kind) {
         case "interim":
           setInterim(event.text);
           break;
         case "final":
-          // The interim is cleared here, not left to the next one: between a
-          // final and the next interim there is nothing in progress, and
-          // leaving the old text would show a sentence that is already part
-          // of the settled transcript above it.
+          // The interim is cleared here rather than left to the next one:
+          // between a final and the next interim nothing is in progress, and
+          // the old text would duplicate what just settled above it.
           setFinals((previous) => [...previous, event.text]);
           setInterim("");
           break;
@@ -49,36 +69,54 @@ export function LiveTranscript() {
       else unlisten = fn;
     });
 
+    void audio
+      .transcript()
+      .then((snapshot) => {
+        if (cancelled) return;
+        setFinals((current) =>
+          snapshot.finals.length >= current.length ? snapshot.finals : current,
+        );
+        setInterim((current) => (current === "" ? snapshot.interim : current));
+      })
+      .catch(() => undefined);
+
     return () => {
       cancelled = true;
       unlisten?.();
     };
   }, []);
 
-  // Which device to use is chosen in Settings; this reads it rather than
-  // offering a second picker that could disagree with the first.
-  const loadDevice = useCallback(async () => {
-    try {
-      const devices = await audio.listDevices();
-      setDevice((current) => current ?? devices.find((d) => d.isDefault)?.name ?? devices[0]?.name ?? null);
-      setCapture(await audio.state());
-    } catch (e) {
-      setError(String(e));
-    }
-  }, []);
+  // The device is chosen in Settings; this reads the same cached list rather
+  // than offering a second picker that could disagree with the first.
+  const devices = useDeviceStore((s) => s.devices);
+  const ensureDevices = useDeviceStore((s) => s.ensure);
 
   useEffect(() => {
-    void loadDevice();
-  }, [loadDevice]);
+    void ensureDevices();
+  }, [ensureDevices]);
+
+  useEffect(() => {
+    setDevice((current) => current ?? devices.find((d) => d.isDefault)?.name ?? devices[0]?.name ?? null);
+  }, [devices]);
+
+  useEffect(() => {
+    void audio.state().then(setCapture).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [finals, interim]);
 
   async function toggle() {
-    setBusy(true);
+    // Ignored rather than disabled: greying the switch out mid-operation makes
+    // it look broken exactly when the operator is waiting on it.
+    if (pending !== null) return;
+
+    const next = capture === "stopped";
+    setPending(next);
+
     try {
-      if (capture === "stopped") {
+      if (next) {
         if (!device) throw new Error("No audio input available. Choose one in Settings.");
         setFinals([]);
         setInterim("");
@@ -89,37 +127,67 @@ export function LiveTranscript() {
       setError(null);
     } catch (e) {
       setError(String(e));
+      // The backend is the authority. Clearing the optimistic position lets
+      // the switch snap back to what actually happened, rather than showing a
+      // service that is not running.
       setCapture(await audio.state().catch(() => "stopped" as CaptureState));
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   }
 
-  const listening = capture !== "stopped";
+  const running = capture !== "stopped";
+  // The optimistic position wins while an operation is in flight.
+  const listening = pending ?? running;
+
+  const words = finals.join(" ").trim().split(/\s+/).filter(Boolean).length;
 
   return (
-    <section className="card flex min-h-0 flex-col">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+    <section className="transcript-panel">
+      <div className="transcript-header">
         <div className="min-w-0">
-          <h2 className="text-[14px] font-semibold">Live transcript</h2>
-          <p className="mt-0.5 text-xs text-content-muted">
-            {device ?? "No input selected"}
-          </p>
+          <div className="text-sm font-semibold">Live transcript</div>
+          {/* Preacher and translation join this line once service metadata
+              exists (M4) and the translation picker lands (M2). */}
+          <div className="mt-0.5 truncate text-xs text-content-muted">
+            {/* Moving the switch optimistically hides the wait; saying what
+                the wait is for explains it. Branding §9.3: a loading verb
+                always takes an object, never a bare "Loading…". */}
+            {pending === true
+              ? "Connecting to Deepgram…"
+              : pending === false
+                ? "Finishing the last sentence…"
+                : (device ?? "No input selected")}
+          </div>
         </div>
-        <button
-          className={listening ? "btn-secondary" : "btn-primary"}
-          disabled={busy || (!listening && device === null)}
-          onClick={() => void toggle()}
-        >
-          {listening ? "Stop transcribing" : "Start transcribing"}
-        </button>
+        {/* A switch rather than a button: transcription is a state that is on
+            or off, and the control should show which without the operator
+            having to read a verb and work out whether it describes what is
+            happening now or what pressing it would do. */}
+        <label className="flex shrink-0 cursor-pointer items-center gap-3">
+          {/* The label stays "Transcribe" whether it is on or off. A switch
+              conveys its own state through position and colour; swapping the
+              word to "Transcribing" would say it twice, and would make the
+              control's accessible name change under a screen reader every
+              time it was used. No aria-label here for the same reason — the
+              visible text is the name. */}
+          <span className="text-[13px] font-medium">Transcribe</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={listening}
+            className="switch"
+            disabled={pending === null && !running && device === null}
+            onClick={() => void toggle()}
+          />
+        </label>
       </div>
 
       {error && (
-        <p className="mb-3 rounded-md bg-status-danger-bg px-3 py-2 text-status-danger">{error}</p>
+        <p className="rounded-md bg-status-danger-bg px-3 py-2 text-status-danger">{error}</p>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto text-[15px] leading-relaxed">
+      <div className="transcript-body">
         {finals.length === 0 && !interim ? (
           <p className="text-content-muted">
             {listening
@@ -129,12 +197,25 @@ export function LiveTranscript() {
         ) : (
           <p>
             {finals.join(" ")}{" "}
-            {/* Muted so the operator can see at a glance which words are
-                still provisional and may change. */}
-            {interim && <span className="text-content-muted">{interim}</span>}
+            {interim && <span className="interim">{interim}</span>}
           </p>
         )}
         <div ref={endRef} />
+      </div>
+
+      <div className="flex items-center justify-between border-t border-line-subtle pt-3 text-xs text-content-muted">
+        <span className="flex items-center gap-2">
+          <span
+            className={`inline-block h-2 w-2 rounded-pill ${
+              listening ? "bg-status-success" : "bg-line-default"
+            }`}
+          />
+          {listening ? "Autoscrolling" : "Not recording"} · {words.toLocaleString()}{" "}
+          {words === 1 ? "word" : "words"}
+        </span>
+        {/* Persistence is M4 (FR-34); until then nothing is saved, and saying
+            so beats an empty space the operator reads as "saved". */}
+        <span className="mono">not saved yet · M4</span>
       </div>
     </section>
   );
