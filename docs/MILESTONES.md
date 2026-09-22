@@ -148,7 +148,12 @@ Deliverable 10's note still stands: the pack system has never run against a real
   - The shared converter is behind a mutex the audio callback takes. Normally a mistake — a blocked audio thread misses its deadline and drops audio — but safe here **by construction**: every lock but one is taken by the callback itself, and the exception is the final flush, which happens after the stream is paused and cpal has stopped calling back.
   - The thread now blocks on a command channel instead of waking every 50 ms to poll a flag.
   - `start_level_monitor` / `stop_level_monitor` are gone, folded into the transport rather than left as a second way to open a device.)*
-- [ ] Deepgram Nova-3 streaming over WebSocket with interim and final results (FR-07).
+- [x] Deepgram Nova-3 streaming over WebSocket with interim and final results (FR-07). *(22 Sept: `stt/deepgram.rs`. **Verified end-to-end against the live service**, streaming a 14.8 s synthesised sermon sample in 250 ms chunks: 12 interim results, 3 finals, transcript exact.
+  - **Interim results are revisions of one utterance, not drafts of separate ones**, and the live run showed exactly why that matters: `"...if you will to join"` became `"...to John chapter three"` one result later. A consumer that appended every interim would print the same half-sentence five times, growing; one that acted on interim text would have detected the wrong reference, or none. `TranscriptEvent` is therefore two variants rather than a struct with an `is_final` bool, and `is_actionable()` is the property M2's detection stages gate on.
+  - Audio is queued to the socket through a bounded channel with `try_send`, never `send`: the audio thread has an OS-enforced deadline and must not block. Ten seconds of backlog means the transcript is already useless, so the chunk is dropped and the operator warned rather than growing a buffer until the app runs out of memory.
+  - `KeepAlive` every 8 s, because Deepgram closes a stream after about ten seconds of silence — a paused capture would otherwise lose the socket during the pause rather than at the end of it.
+  - Stop sends `CloseStream` and drains, so the final results for the last utterance arrive instead of being cut off.
+  - The key comes from `credentials.access(Service::Deepgram)`; this file reads no environment variable.)*
 - [ ] Custom vocabulary: 66 Bible book names + archaic terms sent with the stream (FR-09).
 - [ ] Word-level transcript with timestamps emitted as Tauri events to the frontend (FR-10).
 - [ ] Rolling 60-second transcript buffer maintained in Rust (FR-11).
