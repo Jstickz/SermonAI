@@ -19,10 +19,45 @@ pub mod windows;
 
 use tauri::Manager;
 
+/// Load `.env` into the environment. **Development builds only.**
+///
+/// A developer's `.env` holds working vendor keys, so this has to be certain
+/// never to run in a shipped app. The whole function body is behind
+/// `debug_assertions`, which is off for `--release` and therefore off for every
+/// bundled installer: in a release build this compiles to nothing at all, not
+/// to a read that fails to find a file. That is the difference that matters —
+/// a release binary has no code path that reads a `.env`, so dropping one next
+/// to the executable on a church machine does nothing.
+///
+/// Three further things keep keys out of the installer, none of which this
+/// function is responsible for but all of which it depends on:
+/// `.env` is gitignored, the Tauri bundle ships only `assets/**/*` (PRD §10.7),
+/// and CI passes secrets as environment variables rather than writing a file.
+///
+/// How keys are meant to reach an installed app is PRD §17: provisioned
+/// through SermonAI licensing and held in the OS keychain, never handled by
+/// the church. None of that exists yet — see the Parked entry in
+/// `docs/MILESTONES.md`, which is a decision owed before M4.
+fn load_dev_env() {
+    #[cfg(debug_assertions)]
+    {
+        match dotenvy::dotenv() {
+            Ok(path) => eprintln!("loaded development environment from {}", path.display()),
+            // Absent is the normal case for anyone who has not set one up, and
+            // the app runs without it: the online features disable themselves
+            // and say so. Nothing to report.
+            Err(err) if err.not_found() => {}
+            Err(err) => eprintln!("could not read .env: {err}"),
+        }
+    }
+}
+
 pub fn run() {
     // Taken before anything else so the cold-start figure covers the whole of
     // our startup, not just the part after logging is up.
     let started = std::time::Instant::now();
+
+    load_dev_env();
 
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
