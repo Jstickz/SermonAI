@@ -54,7 +54,7 @@ export function OperatorApp() {
           then on, so leaving and returning preserves scroll, search text,
           filters and form input. See TabPanel for why that beats saving each
           view's state by hand. */}
-      <TabPanel active={tab === "Live"} className="op-shell min-h-0 flex-1 overflow-auto">
+      <TabPanel active={tab === "Live"} className="op-shell scroll-hidden min-h-0 flex-1 overflow-y-auto">
         {/* Operator shell (wireframe.html §op-shell): transcript and staging
             on the left, the detection stack on the right. */}
         <div className="op-col">
@@ -78,7 +78,7 @@ export function OperatorApp() {
             <h3>Detections</h3>
             <span className="text-xs text-content-muted">M2</span>
           </div>
-          <section className="flex-1 rounded-lg bg-bg-surface p-5">
+          <section className="scroll-hidden min-h-0 flex-1 overflow-y-auto rounded-lg bg-bg-surface p-5">
             <p className="text-[13px] text-content-muted">
               Scripture detected in the transcript will appear here as cards.
             </p>

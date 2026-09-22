@@ -42,6 +42,18 @@ pub struct FinalSegment {
     pub words: Vec<Word>,
 }
 
+/// How long a silence has to be before it reads as a new paragraph.
+///
+/// A preacher pauses for breath in well under a second and for effect in two
+/// or three. 2.5 s catches the second without breaking on the first, and it
+/// uses timing the transcript already has rather than guessing from sentence
+/// length — a long verse read aloud is one thought, and three short sentences
+/// in a row are usually one too.
+///
+/// Mirrored by `PARAGRAPH_GAP_SECONDS` in `LiveTranscript.tsx`, which applies
+/// the same rule to a final as it arrives rather than waiting for a snapshot.
+pub const PARAGRAPH_GAP_SECS: f64 = 2.5;
+
 /// What the panel needs to render, and nothing more.
 ///
 /// Words are deliberately excluded: a 45-minute sermon is several thousand of
@@ -50,6 +62,9 @@ pub struct FinalSegment {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptSnapshot {
+    /// Settled utterances grouped into paragraphs by the pauses between them.
+    /// A 45-minute sermon as one unbroken block is unreadable.
+    pub paragraphs: Vec<String>,
     pub finals: Vec<String>,
     /// The utterance in progress, which the next interim replaces.
     pub interim: String,
@@ -111,8 +126,30 @@ impl SessionTranscript {
         *self = Self::default();
     }
 
+    /// Group settled utterances into paragraphs by the pauses between them.
+    fn paragraphs(&self) -> Vec<String> {
+        let mut paragraphs: Vec<String> = Vec::new();
+        let mut previous_end: Option<f64> = None;
+
+        for segment in &self.finals {
+            let breaks = previous_end.is_some_and(|end| segment.start - end >= PARAGRAPH_GAP_SECS);
+
+            match paragraphs.last_mut() {
+                Some(current) if !breaks => {
+                    current.push(' ');
+                    current.push_str(&segment.text);
+                }
+                _ => paragraphs.push(segment.text.clone()),
+            }
+            previous_end = Some(segment.end);
+        }
+
+        paragraphs
+    }
+
     pub fn snapshot(&self) -> TranscriptSnapshot {
         TranscriptSnapshot {
+            paragraphs: self.paragraphs(),
             finals: self.finals.iter().map(|f| f.text.clone()).collect(),
             interim: self.interim.clone(),
             word_count: self.word_count,
@@ -224,6 +261,36 @@ mod tests {
 
         assert!(transcript.is_empty());
         assert_eq!(transcript.snapshot().word_count, 0);
+    }
+
+    #[test]
+    fn a_pause_starts_a_new_paragraph() {
+        let mut transcript = SessionTranscript::new();
+
+        // Two sentences in quick succession, then a three-second pause.
+        transcript.push_final("First thought.".to_string(), words(&[("First.", 0.0, 1.0)]));
+        transcript.push_final(
+            "Still the same.".to_string(),
+            words(&[("Still.", 1.4, 2.0)]),
+        );
+        transcript.push_final("New thought.".to_string(), words(&[("New.", 5.0, 6.0)]));
+
+        let paragraphs = transcript.snapshot().paragraphs;
+        assert_eq!(
+            paragraphs,
+            vec!["First thought. Still the same.", "New thought."]
+        );
+    }
+
+    #[test]
+    fn a_breath_does_not_start_a_new_paragraph() {
+        // Well under the threshold. Breaking here would give a paragraph per
+        // sentence, which is not what a sermon reads like.
+        let mut transcript = SessionTranscript::new();
+        transcript.push_final("One.".to_string(), words(&[("One.", 0.0, 1.0)]));
+        transcript.push_final("Two.".to_string(), words(&[("Two.", 1.6, 2.0)]));
+
+        assert_eq!(transcript.snapshot().paragraphs, vec!["One. Two."]);
     }
 
     #[test]

@@ -53,6 +53,9 @@ export interface TranscriptSegment {
 /** Everything transcribed so far (FR-10). Mirrors `TranscriptSnapshot` in
  *  `src-tauri/src/stt/transcript.rs`. */
 export interface TranscriptSnapshot {
+  /** Settled utterances grouped into paragraphs by the pauses between them.
+   *  A 45-minute sermon as one unbroken block is unreadable. */
+  paragraphs: string[];
   finals: string[];
   /** The utterance in progress; the next interim replaces it. */
   interim: string;
