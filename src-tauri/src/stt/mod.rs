@@ -11,6 +11,7 @@
 //! custom vocabulary on every stream (FR-09).
 
 pub mod deepgram;
+pub mod vocabulary;
 
 /// How long the rolling buffer holds transcript for the paraphrase stage.
 pub const ROLLING_BUFFER_SECS: u64 = 60;
