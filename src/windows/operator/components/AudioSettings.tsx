@@ -64,7 +64,7 @@ export function AudioSettings() {
     try {
       const next =
         action === "start" && selected
-          ? await audio.start(selected)
+          ? await audio.start(selected, false)
           : action === "stop"
             ? await audio.stop()
             : action === "pause"
@@ -102,7 +102,7 @@ export function AudioSettings() {
           {capture !== "stopped" && (
             <p className="mt-1 text-xs text-content-secondary">
               {capture === "running"
-                ? "Listening — speak or play audio and watch the meter above."
+                ? "Testing the input — speak and watch the meter above. Not transcribing."
                 : "Paused. The device is still held, so resuming is immediate."}
             </p>
           )}

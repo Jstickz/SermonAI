@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LevelMeter } from "./components/LevelMeter";
+import { LiveTranscript } from "./components/LiveTranscript";
 import { SettingsScreen } from "./components/SettingsScreen";
 
 // M0 shell only. The panels below are filled in per milestone:
@@ -55,12 +56,7 @@ export function OperatorApp() {
       ) : (
         /* Two columns: transcript 55%, cards + staging + preview 45% (PRD §16.2). */
         <main className="grid min-h-0 flex-1 grid-cols-1 gap-5 p-5 xl:grid-cols-[55fr_45fr]">
-          <section className="card flex min-h-0 flex-col">
-            <h2 className="text-[13px] text-content-muted">Live transcript</h2>
-            <p className="mt-auto text-content-muted">
-              Nothing preached here yet. Start a service to see the transcript.
-            </p>
-          </section>
+          <LiveTranscript />
 
           <section className="flex min-h-0 flex-col gap-4">
             <div className="card flex-1">

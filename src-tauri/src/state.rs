@@ -9,6 +9,7 @@ use crate::audio::capture::CaptureHandle;
 use crate::bible::youversion::YouVersionClient;
 use crate::credentials::Credentials;
 use crate::packs::PackManager;
+use crate::stt::deepgram::DeepgramSession;
 use crate::windows::OutputAssignments;
 
 /// Long-lived services shared by every command.
@@ -36,6 +37,10 @@ pub struct AppState {
     /// dropping the handle stops the device and joins its thread, so replacing
     /// this releases the old input before the new one is opened.
     pub capture: Mutex<Option<CaptureHandle>>,
+    /// The live transcription stream, when capture was started with
+    /// transcription on. Owned rather than shared: stopping consumes it to
+    /// send `CloseStream` and collect the final results.
+    pub transcript: Mutex<Option<DeepgramSession>>,
 }
 
 impl AppState {
@@ -52,6 +57,7 @@ impl AppState {
             bible,
             credentials,
             capture: Mutex::new(None),
+            transcript: Mutex::new(None),
         }
     }
 }

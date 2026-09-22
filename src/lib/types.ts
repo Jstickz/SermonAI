@@ -32,15 +32,51 @@ export interface Detection {
   detectedAtMs: number;
 }
 
+/**
+ * A persisted transcript row (PRD §14.2 `transcript_segments`, FR-34).
+ *
+ * Distinct from `TranscriptEvent`, which is what arrives from the
+ * transcription stream. This is what M4 writes to SQLite and the Library
+ * reads back: it has an id and millisecond offsets into the service, where an
+ * event has neither and is gone once handled.
+ */
 export interface TranscriptSegment {
   id: number;
   startTimeMs: number;
   endTimeMs: number;
   text: string;
   confidence: number | null;
-  /** Interim results are replaced when the final result arrives. */
+  /** Interim rows are replaced when the final arrives. */
   isFinal: boolean;
 }
+
+/** One word with where it falls in the service (FR-10).
+ *  Mirrors `Word` in `src-tauri/src/stt/deepgram.rs`. */
+export interface TranscriptWord {
+  /** Punctuated and capitalised where Deepgram supplies that form. */
+  word: string;
+  /** Seconds from the start of the stream. */
+  start: number;
+  end: number;
+  confidence: number;
+}
+
+/**
+ * What the transcription stream produced (FR-07, FR-10).
+ *
+ * Mirrors `TranscriptEvent` in `src-tauri/src/stt/deepgram.rs`, and is a
+ * tagged union rather than a flag for a reason worth repeating here:
+ * an `interim` **replaces** the previous interim, it does not follow it.
+ * Deepgram revises its guess as it hears more — in testing
+ * "...if you will to join" became "...to John chapter three" one result
+ * later. Appending each one prints the same growing half-sentence over and
+ * over, and acting on one can put a verse on the projector that the next
+ * result takes back.
+ */
+export type TranscriptEvent =
+  | { kind: "interim"; text: string; words: TranscriptWord[] }
+  | { kind: "final"; text: string; words: TranscriptWord[]; speechFinal: boolean }
+  | { kind: "closed"; reason: string | null };
 
 /** What the projector and alternate windows render. Nothing reaches an
  *  output without passing through staging first (PRD §10.2, FR-50). */

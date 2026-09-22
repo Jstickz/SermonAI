@@ -248,6 +248,30 @@ pub fn parse_message(payload: &str) -> Option<TranscriptEvent> {
     })
 }
 
+/// A cloneable handle for feeding audio in.
+///
+/// Separate from the session so the audio thread holds only this: the session
+/// itself is owned by `AppState` and consumed on stop, and an `Arc` around it
+/// would make that consuming `finish()` impossible.
+#[derive(Clone)]
+pub struct AudioFeed {
+    audio: mpsc::Sender<Vec<i16>>,
+}
+
+impl AudioFeed {
+    /// Queue a chunk. Never blocks.
+    ///
+    /// Called from the audio thread, which has a deadline the OS enforces, so a
+    /// full queue drops the chunk rather than waiting. Ten seconds of backlog
+    /// already means the transcript is useless; the operator needs to know the
+    /// connection is failing, not to have the audio held for them.
+    pub fn send(&self, chunk: Vec<i16>) {
+        if self.audio.try_send(chunk).is_err() {
+            tracing::warn!("the Deepgram connection is not keeping up; dropping audio");
+        }
+    }
+}
+
 /// A live transcription stream.
 pub struct DeepgramSession {
     audio: mpsc::Sender<Vec<i16>>,
@@ -371,16 +395,16 @@ impl DeepgramSession {
         })
     }
 
-    /// Queue a chunk. Never blocks.
-    ///
-    /// Called from the audio thread, which has a deadline the OS enforces, so a
-    /// full queue drops the chunk rather than waiting. Ten seconds of backlog
-    /// already means the transcript is useless; the operator needs to know the
-    /// connection is failing, not to have the audio held for them.
-    pub fn send(&self, chunk: Vec<i16>) {
-        if self.audio.try_send(chunk).is_err() {
-            tracing::warn!("the Deepgram connection is not keeping up; dropping audio");
+    /// A handle the audio thread can hold.
+    pub fn feed(&self) -> AudioFeed {
+        AudioFeed {
+            audio: self.audio.clone(),
         }
+    }
+
+    /// Queue a chunk directly. Never blocks.
+    pub fn send(&self, chunk: Vec<i16>) {
+        self.feed().send(chunk);
     }
 
     /// Close the stream and wait for the final results.

@@ -16,7 +16,7 @@ import type {
   PackProgress,
   PackStatus,
   Sermon,
-  TranscriptSegment,
+  TranscriptEvent,
   Verse,
 } from "./types";
 
@@ -33,7 +33,11 @@ export const audio = {
 
   /* Transport (FR-06). Starting again replaces any running capture, so two
      inputs are never open at once. */
-  start: (deviceName: string) => invoke<CaptureState>("start_capture", { deviceName }),
+  /** `transcribe` is explicit: a level check costs nothing, but streaming to
+   *  Deepgram is billed by the minute, so a device test must not quietly open
+   *  a paid connection. */
+  start: (deviceName: string, transcribe: boolean) =>
+    invoke<CaptureState>("start_capture", { deviceName, transcribe }),
   /** Releases the device, and delivers the final partial chunk rather than
    *  dropping up to 250 ms of the end of a service. */
   stop: () => invoke<CaptureState>("stop_capture"),
@@ -110,7 +114,7 @@ export const packs = {
 /* ---------- events (Rust → frontend) ---------- */
 
 interface EventMap {
-  "transcript:segment": TranscriptSegment;
+  "transcript:segment": TranscriptEvent;
   /** Peak since the last frame, in dBFS: 0 is full scale, -60 the floor. */
   "transcript:level": { peakDbfs: number };
   "audio:error": { message: string };
