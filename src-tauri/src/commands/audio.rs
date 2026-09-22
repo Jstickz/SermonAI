@@ -2,9 +2,9 @@
 
 use tauri::{AppHandle, Emitter, State};
 
-use crate::audio::capture;
+use crate::audio::capture::{self, CaptureHandle, CaptureState};
 use crate::audio::devices::{self, AudioDevice};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::state::AppState;
 
 /// Every audio source the operator can pick (FR-01).
@@ -45,38 +45,32 @@ pub struct AudioErrorPayload {
     pub message: String,
 }
 
-/// Start listening to a device so its level shows in the top bar (FR-04).
+/// Start capturing from a device (FR-06).
 ///
-/// This is level monitoring, not a service: it opens the device and drives the
-/// meter so an operator can confirm the input is live before anything depends
-/// on it. Full transport — pause and resume without reopening — is FR-06.
-///
-/// Starting again replaces any running capture. Assigning over the handle
-/// drops the previous one, which stops that device and joins its thread, so
-/// two inputs are never open at once.
+/// Starting again replaces any running capture. The old handle is dropped
+/// *before* the new device opens, not after: some interfaces allow only one
+/// capture client, so holding both would fail to open the new one having
+/// already told the operator it was switching.
 #[tauri::command]
-pub fn start_level_monitor(
+pub fn start_capture(
     app: AppHandle,
     state: State<'_, AppState>,
     device_name: String,
-) -> Result<()> {
-    // Dropped before the new one opens, not after: some interfaces allow only
-    // one capture client, and holding both would fail to open the new device
-    // while having already told the operator it was switching.
-    stop_level_monitor(state.clone())?;
+) -> Result<CaptureState> {
+    stop_capture(state.clone())?;
 
     let level_app = app.clone();
     let error_app = app;
 
     let handle = capture::spawn(
         device_name,
-        // Chunks are discarded while monitoring. They exist for the
-        // transcriber, which is not listening yet (FR-07, M1 deliverable 5);
-        // conversion still runs so the meter reflects a real capture path.
+        // Chunks are discarded until the transcriber is listening (FR-07, M1
+        // deliverable 5). Conversion still runs, so what is exercised here is
+        // the real capture path rather than a metering shortcut.
         Box::new(|_chunk| {}),
         Box::new(move |peak_dbfs| {
-            // A failed emit means the window has gone. Not worth logging on
-            // every frame at 30 fps.
+            // A failed emit means the window has gone. Not worth logging at
+            // 30 fps.
             let _ = level_app.emit("transcript:level", LevelPayload { peak_dbfs });
         }),
         Box::new(move |err| {
@@ -90,17 +84,63 @@ pub fn start_level_monitor(
         }),
     )?;
 
+    let reported = handle.state();
     *state.capture.lock().expect("capture lock") = Some(handle);
-    Ok(())
+    Ok(reported)
 }
 
-/// Stop monitoring and release the device.
+/// Stop capture and release the device.
+///
+/// Dropping the handle stops the thread, which flushes the converter's tail
+/// before the stream goes — so the last partial chunk of a service is
+/// delivered rather than lost.
 #[tauri::command]
-pub fn stop_level_monitor(state: State<'_, AppState>) -> Result<()> {
+pub fn stop_capture(state: State<'_, AppState>) -> Result<CaptureState> {
     // Taken out of the lock before dropping: the drop joins the capture
-    // thread, and holding the mutex across that would block any command that
-    // touches capture until the thread finishes.
+    // thread, and holding the mutex across that would block every other
+    // command that touches capture until the thread finishes.
     let running = state.capture.lock().expect("capture lock").take();
     drop(running);
-    Ok(())
+    Ok(CaptureState::Stopped)
+}
+
+/// Stop delivering audio without releasing the device (FR-06).
+#[tauri::command]
+pub fn pause_capture(state: State<'_, AppState>) -> Result<CaptureState> {
+    with_capture(&state, |handle| {
+        handle.pause()?;
+        Ok(handle.state())
+    })
+}
+
+#[tauri::command]
+pub fn resume_capture(state: State<'_, AppState>) -> Result<CaptureState> {
+    with_capture(&state, |handle| {
+        handle.resume()?;
+        Ok(handle.state())
+    })
+}
+
+/// What capture is doing, for a panel that has just mounted.
+#[tauri::command]
+pub fn capture_state(state: State<'_, AppState>) -> CaptureState {
+    state
+        .capture
+        .lock()
+        .expect("capture lock")
+        .as_ref()
+        .map_or(CaptureState::Stopped, |handle| handle.state())
+}
+
+fn with_capture(
+    state: &State<'_, AppState>,
+    f: impl FnOnce(&CaptureHandle) -> Result<CaptureState>,
+) -> Result<CaptureState> {
+    let guard = state.capture.lock().expect("capture lock");
+    match guard.as_ref() {
+        Some(handle) => f(handle),
+        None => Err(Error::Audio(
+            "Capture is not running. Start it in Settings.".to_string(),
+        )),
+    }
 }

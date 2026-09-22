@@ -17,9 +17,8 @@
 //! and converted on the way in. Assuming `f32` would work on the development
 //! machine and produce silence or noise on somebody's desk.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc};
-use std::time::Duration;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{mpsc, Arc, Mutex};
 
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
@@ -49,6 +48,38 @@ pub type ErrorSink = Box<dyn Fn(Error) + Send + 'static>;
 /// [`meter`](super::meter).
 pub type LevelSink = Box<dyn FnMut(f32) + Send + 'static>;
 
+/// The converter and the chunk sink, reachable from both the audio callback
+/// and the stop path.
+///
+/// A mutex touched by an audio callback is normally a mistake: the OS gives
+/// that thread a deadline, and blocking on a lock someone else holds misses it
+/// and drops audio. It is safe here because **the two never run at once**.
+/// Every lock but one is taken by the callback itself; the exception is the
+/// final flush, and stop pauses the stream first, after which cpal makes no
+/// further callbacks. So the lock is uncontended by construction rather than
+/// by luck.
+struct Shared {
+    converter: CaptureConverter,
+    sink: ChunkSink,
+}
+
+/// What the capture thread is asked to do. Sent rather than polled, so the
+/// thread sleeps on `recv` instead of waking to check a flag.
+enum Command {
+    Pause,
+    Resume,
+    Stop,
+}
+
+/// Where capture is, for the operator UI (FR-06).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureState {
+    Stopped,
+    Running,
+    Paused,
+}
+
 /// A running capture. Dropping it stops the device.
 ///
 /// `cpal::Stream` is deliberately not `Send` on every platform, so this cannot
@@ -56,6 +87,7 @@ pub type LevelSink = Box<dyn FnMut(f32) + Send + 'static>;
 /// thread of its own to live on. Until then a caller holds it directly.
 pub struct CaptureStream {
     stream: cpal::Stream,
+    shared: Arc<Mutex<Shared>>,
     /// What the device actually gave us, which is rarely what was asked for.
     pub source_rate: u32,
     pub source_channels: u16,
@@ -73,6 +105,28 @@ impl CaptureStream {
             .pause()
             .map_err(|e| Error::Audio(format!("could not pause capture: {e}")))
     }
+
+    /// Deliver whatever has not filled a chunk.
+    ///
+    /// Called once, after the stream is paused, when capture ends. Without it
+    /// up to 250 ms of the final audio is dropped — harmless mid-service,
+    /// wrong at End Service, where it is the last words of the sermon.
+    fn flush_tail(&self) {
+        let mut shared = match self.shared.lock() {
+            Ok(shared) => shared,
+            // A poisoned lock means the audio thread panicked mid-buffer.
+            // The tail is not worth propagating that into the stop path.
+            Err(err) => {
+                tracing::error!("capture state was poisoned; dropping the final chunk");
+                err.into_inner()
+            }
+        };
+
+        let tail = shared.converter.flush();
+        if !tail.is_empty() {
+            (shared.sink)(tail);
+        }
+    }
 }
 
 /// Open a device and start converting it into chunks.
@@ -86,7 +140,7 @@ impl CaptureStream {
 pub fn open(
     device: &cpal::Device,
     is_output_endpoint: bool,
-    mut sink: ChunkSink,
+    sink: ChunkSink,
     mut on_level: LevelSink,
     on_error: ErrorSink,
 ) -> Result<CaptureStream> {
@@ -106,20 +160,32 @@ pub fn open(
     let source_rate = config.sample_rate.0;
     let source_channels = config.channels;
 
-    let mut converter = CaptureConverter::new(source_rate, source_channels)?;
+    let shared = Arc::new(Mutex::new(Shared {
+        converter: CaptureConverter::new(source_rate, source_channels)?,
+        sink,
+    }));
 
-    // Conversion failure on the audio thread is reported once and then the
-    // stream is left running: resampling is stateful, and a single bad buffer
-    // is better lost than treated as the end of the service.
     let mut meter = LevelMeter::new();
+    let callback_shared = Arc::clone(&shared);
 
     let mut deliver = move |samples: &[f32]| {
         // Metered before conversion, so the level reflects what the device
-        // sent rather than what survived downmixing and resampling.
+        // sent rather than what survived downmixing and resampling. Done
+        // outside the lock, so a meter frame never waits on anything.
         if let Some(level) = meter.push(samples) {
             on_level(level);
         }
 
+        let Ok(mut state) = callback_shared.lock() else {
+            // Poisoned: an earlier callback panicked. Drop buffers and keep the
+            // stream alive rather than ending the service.
+            return;
+        };
+
+        // Conversion failure is reported and the stream left running:
+        // resampling is stateful, and a single bad buffer is better lost than
+        // treated as the end of the service.
+        let Shared { converter, sink } = &mut *state;
         match converter.push(samples) {
             Ok(chunks) => {
                 for chunk in chunks {
@@ -162,16 +228,11 @@ pub fn open(
 
     Ok(CaptureStream {
         stream,
+        shared,
         source_rate,
         source_channels,
     })
 }
-
-/// How often the capture thread wakes to check whether it has been stopped.
-///
-/// 50 ms is imperceptible to an operator pressing Stop and costs nothing; the
-/// thread is otherwise asleep while the OS drives the audio callback.
-const STOP_POLL: Duration = Duration::from_millis(50);
 
 /// A capture running on its own thread.
 ///
@@ -181,13 +242,54 @@ const STOP_POLL: Duration = Duration::from_millis(50);
 /// Dropping the handle stops capture and waits for that thread to finish, so
 /// the device is released before the next `start` opens it again.
 pub struct CaptureHandle {
-    stop: Arc<AtomicBool>,
+    commands: mpsc::Sender<Command>,
+    /// Mirrors what the thread is doing, so the UI can be told without asking
+    /// it. `AtomicU8` because `CaptureState` is three values and a lock here
+    /// would be read far more often than written.
+    state: Arc<AtomicU8>,
     thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl CaptureHandle {
+    /// Stop delivering audio without releasing the device (FR-06).
+    ///
+    /// The device stays open deliberately. Closing and reopening risks the OS
+    /// handing the input to something else in the gap, and some interfaces
+    /// allow only one capture client — a pause that loses the microphone is
+    /// not a pause.
+    pub fn pause(&self) -> Result<()> {
+        self.send(Command::Pause, CaptureState::Paused)
+    }
+
+    pub fn resume(&self) -> Result<()> {
+        self.send(Command::Resume, CaptureState::Running)
+    }
+
+    pub fn state(&self) -> CaptureState {
+        match self.state.load(Ordering::Relaxed) {
+            1 => CaptureState::Running,
+            2 => CaptureState::Paused,
+            _ => CaptureState::Stopped,
+        }
+    }
+
+    fn send(&self, command: Command, next: CaptureState) -> Result<()> {
+        self.commands.send(command).map_err(|_| {
+            Error::Audio("Capture has already stopped. Start it again in Settings.".to_string())
+        })?;
+        self.state.store(next as u8, Ordering::Relaxed);
+        Ok(())
+    }
 }
 
 impl Drop for CaptureHandle {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
+        // Ignored: a disconnected receiver means the thread has already gone,
+        // which is the state this is trying to reach.
+        let _ = self.commands.send(Command::Stop);
+        self.state
+            .store(CaptureState::Stopped as u8, Ordering::Relaxed);
+
         if let Some(thread) = self.thread.take() {
             // A panicked capture thread is logged, not propagated: unwinding
             // out of a Drop during teardown would abort the process, and
@@ -210,8 +312,8 @@ pub fn spawn(
     on_level: LevelSink,
     on_error: ErrorSink,
 ) -> Result<CaptureHandle> {
-    let stop = Arc::new(AtomicBool::new(false));
-    let thread_stop = Arc::clone(&stop);
+    let state = Arc::new(AtomicU8::new(CaptureState::Stopped as u8));
+    let (command_tx, command_rx) = mpsc::channel::<Command>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<()>>();
 
     let thread = std::thread::Builder::new()
@@ -230,9 +332,27 @@ pub fn spawn(
 
             let _ = ready_tx.send(Ok(()));
 
-            while !thread_stop.load(Ordering::Relaxed) {
-                std::thread::sleep(STOP_POLL);
+            // Blocks rather than polls. A disconnected sender means the handle
+            // was dropped, which is a stop.
+            while let Ok(command) = command_rx.recv() {
+                let outcome = match command {
+                    Command::Pause => stream.pause(),
+                    Command::Resume => stream.play(),
+                    Command::Stop => break,
+                };
+
+                if let Err(err) = outcome {
+                    tracing::error!(%err, "the device refused a transport command");
+                }
             }
+
+            // Paused before flushing, so no callback can be part-way through a
+            // buffer while the tail is taken. After this cpal makes no further
+            // calls, which is what makes the shared lock uncontended.
+            if let Err(err) = stream.pause() {
+                tracing::warn!(%err, "could not pause the device before stopping");
+            }
+            stream.flush_tail();
 
             // Dropped here, on the thread that created it.
             drop(stream);
@@ -240,10 +360,14 @@ pub fn spawn(
         .map_err(|e| Error::Audio(format!("could not start the capture thread: {e}")))?;
 
     match ready_rx.recv() {
-        Ok(Ok(())) => Ok(CaptureHandle {
-            stop,
-            thread: Some(thread),
-        }),
+        Ok(Ok(())) => {
+            state.store(CaptureState::Running as u8, Ordering::Relaxed);
+            Ok(CaptureHandle {
+                commands: command_tx,
+                state,
+                thread: Some(thread),
+            })
+        }
         Ok(Err(err)) => Err(err),
         // The thread ended without reporting, which means it panicked before
         // it could. Naming it beats a channel error the operator cannot read.

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { audio } from "@/lib/ipc";
-import type { AudioDevice, AudioDeviceKind } from "@/lib/types";
+import type { AudioDevice, AudioDeviceKind, CaptureState } from "@/lib/types";
 
 /**
  * Pick the audio input for the service (M1 deliverable 1, FR-01, FR-02, FR-05).
@@ -15,7 +15,7 @@ export function AudioSettings() {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
-  const [monitoring, setMonitoring] = useState(false);
+  const [capture, setCapture] = useState<CaptureState>("stopped");
 
   const refresh = useCallback(async () => {
     try {
@@ -54,32 +54,40 @@ export function AudioSettings() {
   }
 
   /**
-   * Open the selected input and drive the top-bar meter, so the operator can
-   * see the signal arriving rather than trust the list (FR-04).
+   * Transport for the selected input (FR-06).
+   *
+   * Pause holds the device rather than releasing it: reopening risks the OS
+   * handing the input to another application in the gap, and some interfaces
+   * allow only one capture client.
    */
-  async function toggleMonitor() {
+  async function run(action: "start" | "stop" | "pause" | "resume") {
     try {
-      if (monitoring) {
-        await audio.stopLevelMonitor();
-        setMonitoring(false);
-      } else if (selected) {
-        await audio.startLevelMonitor(selected);
-        setMonitoring(true);
-      }
+      const next =
+        action === "start" && selected
+          ? await audio.start(selected)
+          : action === "stop"
+            ? await audio.stop()
+            : action === "pause"
+              ? await audio.pause()
+              : await audio.resume();
+      setCapture(next);
       setError(null);
     } catch (e) {
       setError(String(e));
-      setMonitoring(false);
+      // The backend is the authority on what is actually open; a failed
+      // transition must not leave the buttons claiming otherwise.
+      setCapture(await audio.state().catch(() => "stopped" as CaptureState));
     }
   }
 
-  // Releasing the device on unmount: the operator switching tabs should not
-  // leave a microphone open with a meter nobody is looking at.
+  // The panel unmounts whenever the operator switches tabs, so what capture is
+  // doing has to be asked for rather than remembered.
   useEffect(() => {
-    return () => {
-      void audio.stopLevelMonitor();
-    };
+    void audio.state().then(setCapture).catch(() => undefined);
   }, []);
+
+  // Deliberately no stop-on-unmount: capture outlives this panel. An operator
+  // switching to the Library mid-sermon must not silently end the recording.
 
   const selectedGone = selected !== null && !devices.some((d) => d.name === selected);
 
@@ -91,20 +99,36 @@ export function AudioSettings() {
           <p className="mt-1 text-xs text-content-muted">
             Choose what SermonAI listens to: a microphone, a sound desk feed, or the system audio.
           </p>
-          {monitoring && (
+          {capture !== "stopped" && (
             <p className="mt-1 text-xs text-content-secondary">
-              Testing — speak or play audio and watch the meter in the top bar.
+              {capture === "running"
+                ? "Listening — speak or play audio and watch the meter above."
+                : "Paused. The device is still held, so resuming is immediate."}
             </p>
           )}
         </div>
-        <div className="flex gap-2">
-          <button
-            className={monitoring ? "btn-primary" : "btn-secondary"}
-            disabled={selected === null || selectedGone}
-            onClick={() => void toggleMonitor()}
-          >
-            {monitoring ? "Stop test" : "Test input"}
-          </button>
+        <div className="flex flex-wrap gap-2">
+          {capture === "stopped" ? (
+            <button
+              className="btn-primary"
+              disabled={selected === null || selectedGone}
+              onClick={() => void run("start")}
+            >
+              Start listening
+            </button>
+          ) : (
+            <>
+              <button
+                className="btn-secondary"
+                onClick={() => void run(capture === "paused" ? "resume" : "pause")}
+              >
+                {capture === "paused" ? "Resume" : "Pause"}
+              </button>
+              <button className="btn-secondary" onClick={() => void run("stop")}>
+                Stop
+              </button>
+            </>
+          )}
           <button className="btn-secondary" onClick={() => void refresh()}>
             Rescan
           </button>

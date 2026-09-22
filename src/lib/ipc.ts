@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AudioDevice,
+  CaptureState,
   BibleVersion,
   Detection,
   MonitorInfo,
@@ -29,13 +30,19 @@ export const audio = {
    *  before capture starts, so a stale choice is caught while there is still
    *  time to pick another rather than at the moment recording should begin. */
   checkDevice: (name: string) => invoke<void>("check_audio_device", { name }),
-  /** Open a device and drive the top-bar level meter (FR-04). Starting again
-   *  replaces any running capture, so two inputs are never open at once. */
-  startLevelMonitor: (deviceName: string) =>
-    invoke<void>("start_level_monitor", { deviceName }),
-  stopLevelMonitor: () => invoke<void>("stop_level_monitor"),
-  start: () => invoke<void>("start_capture"),
-  stop: () => invoke<void>("stop_capture"),
+
+  /* Transport (FR-06). Starting again replaces any running capture, so two
+     inputs are never open at once. */
+  start: (deviceName: string) => invoke<CaptureState>("start_capture", { deviceName }),
+  /** Releases the device, and delivers the final partial chunk rather than
+   *  dropping up to 250 ms of the end of a service. */
+  stop: () => invoke<CaptureState>("stop_capture"),
+  /** Stops audio without releasing the device: reopening risks losing the
+   *  input to another application on interfaces that allow one client. */
+  pause: () => invoke<CaptureState>("pause_capture"),
+  resume: () => invoke<CaptureState>("resume_capture"),
+  /** For a panel that has just mounted and cannot know what is running. */
+  state: () => invoke<CaptureState>("capture_state"),
 };
 
 export const display = {

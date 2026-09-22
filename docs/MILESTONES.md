@@ -142,7 +142,12 @@ Deliverable 10's note still stands: the pack system has never run against a real
   - **Capture now runs on its own thread**, which closes the `cpal::Stream` `!Send` gap flagged under FR-03. Starting a new input releases the old device first.
   - **The UI was realigned to `docs/wireframe.html`**, which it had diverged from in three ways: the meter is segmented bars rather than one continuous bar, it belongs in the `live-header` strip rather than the top bar, and Settings is a section nav beside content rather than a stack of cards. The wireframe gained a third meter tier in the same commit so code and source of truth stay together.
   - **Scope note:** `start_level_monitor` is level monitoring, not the service transport. Pause and resume without reopening the device is FR-06, the next deliverable.)*
-- [ ] Start / stop / pause / resume without restart (FR-06).
+- [x] Start / stop / pause / resume without restart (FR-06). *(22 Sept: `start_capture` / `stop_capture` / `pause_capture` / `resume_capture` / `capture_state`, with transport buttons in Settings → Audio & speech. Verified on hardware: start → Running, pause → Paused with **0 chunks delivered during a 700 ms pause**, resume → Running, stop → a partial tail flushed.
+  - **Pause holds the device rather than releasing it.** Reopening risks the OS handing the input to another application in the gap, and some interfaces allow only one capture client — a pause that loses the microphone is not a pause. `cpal`'s `Stream::pause` does this; the capture thread already owns the stream.
+  - **The FR-03 flush gap is closed.** Stop now pauses the stream, then flushes the converter's tail, then drops the stream. Measured: **1.98 s of audio from a 2 s capture, where it was 1.75 s** — the last partial chunk is delivered rather than dropped. That mattered at End Service, where the lost 250 ms was the closing words of the sermon.
+  - The shared converter is behind a mutex the audio callback takes. Normally a mistake — a blocked audio thread misses its deadline and drops audio — but safe here **by construction**: every lock but one is taken by the callback itself, and the exception is the final flush, which happens after the stream is paused and cpal has stopped calling back.
+  - The thread now blocks on a command channel instead of waking every 50 ms to poll a flag.
+  - `start_level_monitor` / `stop_level_monitor` are gone, folded into the transport rather than left as a second way to open a device.)*
 - [ ] Deepgram Nova-3 streaming over WebSocket with interim and final results (FR-07).
 - [ ] Custom vocabulary: 66 Bible book names + archaic terms sent with the stream (FR-09).
 - [ ] Word-level transcript with timestamps emitted as Tauri events to the frontend (FR-10).

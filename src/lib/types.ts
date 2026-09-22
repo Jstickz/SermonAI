@@ -74,6 +74,10 @@ export interface MonitorInfo {
  *  - `virtual_input` — a virtual cable (BlackHole, VB-Audio) presenting as an
  *    ordinary input. Recognised by name, so the label is best-effort; an
  *    unrecognised cable still captures, it is just shown as `input`. */
+/** Mirrors `CaptureState` in `src-tauri/src/audio/capture.rs` (FR-06).
+ *  `paused` holds the device open — see `audio.pause` in `ipc.ts`. */
+export type CaptureState = "stopped" | "running" | "paused";
+
 export type AudioDeviceKind = "input" | "loopback" | "virtual_input";
 
 export interface AudioDevice {
