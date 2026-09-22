@@ -531,7 +531,7 @@ SermonAI wins on four things:
 
 ### 10.1 Overview
 
-SermonAI is a single-machine desktop application built with **Tauri 2**. One compiled Rust binary hosts the backend (audio, STT, detection, storage, summary generation, export, remote server) and opens three webview windows for the React frontend (operator, projector, alternate). Frontend and backend communicate through Tauri commands and events in-process; there is no sidecar, no loopback HTTP hop for the operator UI, and no separate runtime to bundle. Outbound network traffic is limited to Deepgram, the YouVersion Platform (`api.youversion.com` and `cdn.youversion.com`), and Anthropic, and only in online mode.
+SermonAI is a single-machine desktop application built with **Tauri 2**. One compiled Rust binary hosts the backend (audio, STT, detection, storage, summary generation, export, remote server) and opens three webview windows for the React frontend (operator, projector, alternate). Frontend and backend communicate through Tauri commands and events in-process; there is no sidecar, no loopback HTTP hop for the operator UI, and no separate runtime to bundle. Outbound network traffic is limited to the SermonAI Gateway (which brokers Deepgram, Anthropic, YouVersion and Tyndale NLT in managed mode), plus direct calls to Deepgram or Anthropic where a church has supplied its own key, and only in online mode. See §17.
 
 ### 10.2 The Seven Layers (revised for v2.1)
 
@@ -680,6 +680,7 @@ sermonai/
 - **Deepgram** Nova-3 streaming STT.
 - **YouVersion Platform** licensed scripture text (over 1,000 versions including NIV, NKJV, NLT, AMP, MSG). REST API base `https://api.youversion.com/v1`, authenticated with the app-scoped `X-YVP-App-Key` header. Attribution metadata returned with every version and shown wherever the text is displayed.
 - **Anthropic Claude API** paraphrase detection and summary generation.
+- **Tyndale NLT API** the New Living Translation, which YouVersion does not license to us. Managed-only, like YouVersion: the licence is SermonAI's, not the church's.
 - **OpenAI Embeddings** one-time build job to embed all verses (never called from the app).
 - **Pack CDN** (object storage + CDN) hosting translation, speech, intelligence and theme packs with a signed manifest.
 
@@ -1031,10 +1032,14 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 
 ## 17. Security, Privacy & Compliance
 
-- All sermon content local; no account required; TLS to vendors; telemetry opt-in and content-free.
+- All sermon content stays on the church's machine; TLS to vendors; telemetry opt-in and content-free.
 - License key validated periodically; 3 devices per license; 30-day offline grace.
-- Vendor API keys provisioned through SermonAI licensing and stored in the OS keychain; customers never handle them.
-  - **Underspecified, and a decision is owed before M4.** This one line is the whole design, and it does not say what is provisioned. Handing a church *our* Deepgram or Anthropic key — even into the OS keychain — puts a working credential on a machine we do not control, where anyone with local access can read it and bill us for everyone. "Not in the installer" is not the same as "not on their disk". The alternative is a proxy that keeps vendor keys on SermonAI infrastructure, which costs a network hop on a realtime STT stream and makes a Sunday service depend on our servers being up. Neither is chosen yet, nothing implements either, and the line also sits awkwardly with "no account required" above it, since provisioning needs an identity to provision against. The operator has since chosen a hybrid model — a SermonAI Gateway holding the real keys, per-installation tokens, and optional bring-your-own-key in the OS keychain — recorded in `docs/SermonAI_API_Key_Strategy_Prompt.md`. **This line and the "no account required" line above it both need amending to match**, since an install token is an identity; that happens when the gateway is built. See the Parked entry in `docs/MILESTONES.md`.
+- **No user account, sign-in or password.** An installation is identified by an **install token** issued at onboarding, not by a person: there is nothing to log into, no credential for a volunteer to forget, and no directory of church members anywhere in the system. The token identifies the *installation* so usage can be attributed and revoked, which is a weaker claim than an account and is the reason the earlier wording "no account required" is retained in spirit but not in words — a token is still an identity, and saying otherwise would be untrue.
+- **Vendor API keys are never shipped, never bundled and never held by a church.** SermonAI runs a **hybrid key model** (see `docs/SermonAI_API_Key_Strategy_Prompt.md`):
+  - **Managed mode (default).** A SermonAI Gateway holds the real Deepgram, Anthropic, YouVersion and Tyndale credentials. The desktop app authenticates to the gateway with its install token and never sees a vendor key. This is the only arrangement in which "not in the installer" also means "not on the church's disk" — a key provisioned *into* a church's keychain is still a working credential on a machine we do not control, readable by anyone with local access, and one extraction would bill us for every church.
+  - **Bring your own key (optional).** A church may supply its own **Deepgram** or **Anthropic** key, stored in the OS keychain (Windows Credential Manager, macOS Keychain) and never in SQLite, logs, crash reports, IPC payloads or settings exports. The frontend may see a masked form and a status, never the value.
+  - **YouVersion and Tyndale are managed-only.** Their keys are tied to SermonAI's app registration and accepted publisher licences; a church's own key would not carry those licences, so BYOK is not offered and would not work.
+  - Release builds contain no key-reading path of any kind. Development keys come from a gitignored `.env` that is compiled out under `debug_assertions`.
 - Phone remote: LAN only, token-based, revocable, disabled by default, expires at End Service.
 - Bible translations only via licensed channels; imported translations are the church's responsibility and are flagged as such in the UI.
 - GDPR and CCPA satisfied by local-only design with export and delete.
@@ -1091,7 +1096,7 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 
 - [ ] Tauri 2 project: React + TypeScript frontend, Rust backend, three windows opening on the correct monitors.
 - [ ] CI/CD matrix for Windows and macOS (Intel + Apple Silicon) with signing and notarization.
-- [ ] Deepgram key, YouVersion Platform app key (registered via `platform.youversion.com`, added to CI as `YVP_APP_KEY`), Anthropic key.
+- [ ] Deepgram key, YouVersion Platform app key (registered via `platform.youversion.com`, added to CI as `YVP_APP_KEY`), Anthropic key, Tyndale NLT key. **Development and CI only** — these reach the app through a gitignored `.env` compiled out of release builds. How they reach an installed church is §17's gateway, built after M1.
 - [ ] `build-verse-index.py` run once; ~12 MB quantized index committed to `src-tauri/assets/`.
 - [ ] KJV, WEB, ASV bundled as assets; `build-translation-pack.py` producing packs for the CDN.
 - [ ] Pack downloader (resumable, checksummed) with Settings → Packs screen against a test manifest.
