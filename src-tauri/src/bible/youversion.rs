@@ -36,6 +36,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::credentials::{Access, Credentials, Service};
 use crate::error::{Error, Result};
 
 pub const BASE_URL: &str = "https://api.youversion.com/v1";
@@ -180,22 +181,37 @@ pub struct YouVersionClient {
 }
 
 impl YouVersionClient {
-    /// Build from the environment.
+    /// Build from the credential provider (PRD §17).
+    ///
+    /// The key is deliberately *not* read from the environment here. Every
+    /// service client goes through `credentials`, which is what lets the
+    /// SermonAI Gateway replace the development provider without this file
+    /// changing at all.
     ///
     /// A missing key disables online fetching rather than failing: the cache
     /// still works offline, which is the whole point of PRD §2.3.
-    pub fn from_env() -> Self {
-        let app_key = std::env::var(APP_KEY_ENV)
-            .ok()
-            .map(|key| key.trim().to_string())
-            .filter(|key| !key.is_empty());
-
-        if app_key.is_none() {
-            tracing::error!(
-                "{APP_KEY_ENV} is not set, so online Bible lookups are disabled. \
-                 Cached verses still work. Get an app key from {PORTAL_URL} and put it in .env"
-            );
-        }
+    pub fn from_credentials(credentials: &Credentials) -> Self {
+        let app_key = match credentials.access(Service::YouVersion) {
+            Ok(Access::DirectKey(secret)) => Some(secret.expose().to_string()),
+            // Managed mode routes scripture through the gateway, which this
+            // client cannot speak yet — Phase 4 of the strategy doc. Falling
+            // back to the cache is right: a church mid-service keeps its
+            // bundled translations rather than losing scripture entirely.
+            Ok(Access::Gateway { .. }) => {
+                tracing::warn!(
+                    "YouVersion is in managed mode, which this client cannot use yet; \
+                     serving cached and bundled verses only"
+                );
+                None
+            }
+            Err(err) => {
+                tracing::error!(
+                    %err,
+                    "online Bible lookups are disabled; cached verses still work"
+                );
+                None
+            }
+        };
 
         Self::with_key(app_key, BASE_URL.to_string())
     }

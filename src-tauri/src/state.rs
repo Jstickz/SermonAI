@@ -7,6 +7,7 @@ use rusqlite::Connection;
 
 use crate::audio::capture::CaptureHandle;
 use crate::bible::youversion::YouVersionClient;
+use crate::credentials::Credentials;
 use crate::packs::PackManager;
 use crate::windows::OutputAssignments;
 
@@ -25,9 +26,12 @@ pub struct AppState {
     /// remounted panel must be able to ask what is actually on screen rather
     /// than guess.
     pub outputs: Mutex<OutputAssignments>,
-    /// Online scripture. Disabled when YVP_APP_KEY is absent; the cache still
-    /// serves, so a missing key costs new lookups rather than the service.
+    /// Online scripture. Disabled when no credential is available; the cache
+    /// still serves, so that costs new lookups rather than the service.
     pub bible: YouVersionClient,
+    /// The one source of vendor credentials (PRD §17). Service clients ask
+    /// this rather than the environment, so the gateway swaps in behind them.
+    pub credentials: Credentials,
     /// The running capture, if any. Holding it here is what keeps it alive:
     /// dropping the handle stops the device and joins its thread, so replacing
     /// this releases the old input before the new one is opened.
@@ -35,12 +39,18 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(db: Connection, packs: PackManager, bible: YouVersionClient) -> Self {
+    pub fn new(
+        db: Connection,
+        packs: PackManager,
+        bible: YouVersionClient,
+        credentials: Credentials,
+    ) -> Self {
         Self {
             db: Mutex::new(db),
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
             bible,
+            credentials,
             capture: Mutex::new(None),
         }
     }

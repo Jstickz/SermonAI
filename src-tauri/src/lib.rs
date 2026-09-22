@@ -5,6 +5,7 @@
 pub mod audio;
 pub mod bible;
 pub mod commands;
+pub mod credentials;
 pub mod db;
 pub mod detection;
 pub mod error;
@@ -79,11 +80,21 @@ pub fn run() {
             let manifest_url = format!("{}/packs-manifest.json", cdn.trim_end_matches('/'));
             let packs = packs::PackManager::new(&data_dir, manifest_url);
 
-            // Online Bible access. from_env logs once and disables itself if
-            // YVP_APP_KEY is missing rather than failing startup.
-            let bible = bible::youversion::YouVersionClient::from_env();
+            // Credentials first: every service client is built from them
+            // (PRD §17). The development provider reads .env; a release build
+            // has none until the gateway lands, and reports as not activated
+            // rather than silently finding nothing.
+            let credentials =
+                credentials::Credentials::new(match credentials::dev::DevProvider::new() {
+                    Some(provider) => Box::new(provider),
+                    None => Box::new(credentials::dev::UnconfiguredProvider),
+                });
 
-            app.manage(state::AppState::new(conn, packs, bible));
+            // Online Bible access. Logs once and disables itself if no
+            // credential is available, rather than failing startup.
+            let bible = bible::youversion::YouVersionClient::from_credentials(&credentials);
+
+            app.manage(state::AppState::new(conn, packs, bible, credentials));
 
             // The projector and alternate windows are created from Rust so we can
             // place them on the operator's chosen monitors (PRD §10.3).

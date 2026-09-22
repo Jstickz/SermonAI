@@ -11,6 +11,11 @@ pub enum Error {
     #[error("Audio device unavailable: {0}")]
     Audio(String),
 
+    /// A credential or setting is missing or refused. Operator-facing: it
+    /// names the service and what to do, never the credential itself.
+    #[error("{0}")]
+    Config(String),
+
     #[error("Transcription failed: {0}")]
     Stt(String),
 
