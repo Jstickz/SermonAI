@@ -17,6 +17,7 @@ import type {
   PackStatus,
   Sermon,
   TranscriptEvent,
+  TranscriptSnapshot,
   Verse,
 } from "./types";
 
@@ -47,6 +48,11 @@ export const audio = {
   resume: () => invoke<CaptureState>("resume_capture"),
   /** For a panel that has just mounted and cannot know what is running. */
   state: () => invoke<CaptureState>("capture_state"),
+  /** Everything transcribed so far. The backend owns this, so it is whole
+   *  even when the panel has been unmounted for half the sermon. */
+  transcript: () => invoke<TranscriptSnapshot>("transcript_snapshot"),
+  /** The last 60 seconds of settled speech (FR-11), for M2's paraphrase stage. */
+  rollingTranscript: () => invoke<string>("transcript_rolling"),
 };
 
 export const display = {

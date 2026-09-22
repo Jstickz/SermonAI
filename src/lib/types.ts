@@ -50,6 +50,15 @@ export interface TranscriptSegment {
   isFinal: boolean;
 }
 
+/** Everything transcribed so far (FR-10). Mirrors `TranscriptSnapshot` in
+ *  `src-tauri/src/stt/transcript.rs`. */
+export interface TranscriptSnapshot {
+  finals: string[];
+  /** The utterance in progress; the next interim replaces it. */
+  interim: string;
+  wordCount: number;
+}
+
 /** One word with where it falls in the service (FR-10).
  *  Mirrors `Word` in `src-tauri/src/stt/deepgram.rs`. */
 export interface TranscriptWord {

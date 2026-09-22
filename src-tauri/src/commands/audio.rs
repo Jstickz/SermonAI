@@ -1,12 +1,13 @@
 //! Audio device commands (M1 deliverable 1, PRD §8.1 FR-01, FR-02, FR-05).
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::audio::capture::{self, CaptureHandle, CaptureState};
 use crate::audio::devices::{self, AudioDevice};
 use crate::error::{Error, Result};
 use crate::state::AppState;
 use crate::stt::deepgram::{DeepgramSession, TranscriptEvent};
+use crate::stt::transcript::TranscriptSnapshot;
 use crate::stt::vocabulary;
 
 /// Every audio source the operator can pick (FR-01).
@@ -71,12 +72,41 @@ pub async fn start_capture(
     // the device is opened. Opening first would leave the microphone held by an
     // app that then failed to start.
     let session = if transcribe {
+        // A new stream is a new service: the panel should not come back to the
+        // previous sermon's words above this one's.
+        state
+            .session_transcript
+            .lock()
+            .expect("transcript lock")
+            .reset();
+
         let event_app = app.clone();
+        // The handle, not the State guard: the closure outlives this call.
+        let store_app = app.clone();
         Some(
             DeepgramSession::connect(
                 &state.credentials,
                 vocabulary::keyterms(),
                 Box::new(move |event| {
+                    // Recorded before it is emitted. The event is how a mounted
+                    // panel hears about it; the store is how one that is not
+                    // mounted — the operator is in the Library — still has it
+                    // when they come back.
+                    {
+                        let state = store_app.state::<AppState>();
+                        let mut transcript =
+                            state.session_transcript.lock().expect("transcript lock");
+                        match &event {
+                            TranscriptEvent::Interim { text, .. } => {
+                                transcript.set_interim(text.clone())
+                            }
+                            TranscriptEvent::Final { text, words, .. } => {
+                                transcript.push_final(text.clone(), words.clone())
+                            }
+                            TranscriptEvent::Closed { .. } => transcript.clear_interim(),
+                        }
+                    }
+
                     let _ = event_app.emit("transcript:segment", &event);
                 }),
             )
@@ -194,4 +224,33 @@ fn with_capture(
             "Capture is not running. Start it in Settings.".to_string(),
         )),
     }
+}
+
+/// Everything transcribed so far (FR-10).
+///
+/// The Live tab calls this when it mounts, which is every time the operator
+/// switches back to it. The transcript lives in the backend precisely so that
+/// this returns the whole service rather than whatever a component happened to
+/// still be holding.
+#[tauri::command]
+pub fn transcript_snapshot(state: State<'_, AppState>) -> TranscriptSnapshot {
+    state
+        .session_transcript
+        .lock()
+        .expect("transcript lock")
+        .snapshot()
+}
+
+/// The last 60 seconds of settled speech (FR-11).
+///
+/// M2's paraphrase stage reads this when the regex stage has found nothing.
+/// Exposed now because the buffer it reads is the same store the panel uses,
+/// and a second copy would be a second thing to keep in step.
+#[tauri::command]
+pub fn transcript_rolling(state: State<'_, AppState>) -> String {
+    state
+        .session_transcript
+        .lock()
+        .expect("transcript lock")
+        .rolling()
 }

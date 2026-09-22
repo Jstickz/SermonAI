@@ -123,6 +123,8 @@ pub fn run() {
             commands::audio::pause_capture,
             commands::audio::resume_capture,
             commands::audio::capture_state,
+            commands::audio::transcript_snapshot,
+            commands::audio::transcript_rolling,
             commands::display::list_monitors,
             commands::display::set_projector_monitor,
             commands::display::set_alternate_monitor,

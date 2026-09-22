@@ -10,6 +10,7 @@ use crate::bible::youversion::YouVersionClient;
 use crate::credentials::Credentials;
 use crate::packs::PackManager;
 use crate::stt::deepgram::DeepgramSession;
+use crate::stt::transcript::SessionTranscript;
 use crate::windows::OutputAssignments;
 
 /// Long-lived services shared by every command.
@@ -41,6 +42,13 @@ pub struct AppState {
     /// transcription on. Owned rather than shared: stopping consumes it to
     /// send `CloseStream` and collect the final results.
     pub transcript: Mutex<Option<DeepgramSession>>,
+    /// Everything transcribed since capture started.
+    ///
+    /// Here rather than in the operator window because every tab unmounts when
+    /// the operator switches away, and capture deliberately keeps running. A
+    /// transcript held in React would come back empty mid-sermon, which reads
+    /// as a crash and invites the one action that actually loses the recording.
+    pub session_transcript: Mutex<SessionTranscript>,
 }
 
 impl AppState {
@@ -58,6 +66,7 @@ impl AppState {
             credentials,
             capture: Mutex::new(None),
             transcript: Mutex::new(None),
+            session_transcript: Mutex::new(SessionTranscript::new()),
         }
     }
 }
