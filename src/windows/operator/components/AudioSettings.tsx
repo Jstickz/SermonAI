@@ -20,7 +20,10 @@ export function AudioSettings() {
   const ensureDevices = useDeviceStore((s) => s.ensure);
   const refreshDevices = useDeviceStore((s) => s.refresh);
 
-  const [selected, setSelected] = useState<string | null>(null);
+  // Shared with the Live tab: two independent selections was the bug that let
+  // a lost device keep being used while Settings showed a different choice.
+  const selected = useDeviceStore((s) => s.selected);
+  const selectDevice = useDeviceStore((s) => s.select);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
@@ -30,14 +33,10 @@ export function AudioSettings() {
     void ensureDevices();
   }, [ensureDevices]);
 
-  // Pre-select the OS default once a list exists, so a church with one
-  // microphone never has to open this panel.
-  useEffect(() => {
-    setSelected((current) => current ?? devices.find((d) => d.isDefault)?.name ?? null);
-  }, [devices]);
-
   async function choose(device: AudioDevice) {
-    setSelected(device.name);
+    // Switches a running capture over as well as recording the choice, so
+    // picking a device mid-service actually moves the microphone.
+    void selectDevice(device.name);
     setChecked(null);
     setChecking(device.name);
     try {

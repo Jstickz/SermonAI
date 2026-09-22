@@ -17,6 +17,7 @@ import type {
   PackStatus,
   Sermon,
   TranscriptEvent,
+  LatencySummary,
   SttStatus,
   TranscriptSnapshot,
   Verse,
@@ -43,6 +44,10 @@ export const audio = {
   /** Releases the device, and delivers the final partial chunk rather than
    *  dropping up to 250 ms of the end of a service. */
   stop: () => invoke<CaptureState>("stop_capture"),
+  /** Move a running capture to another device without stopping transcription:
+   *  the transcript, the connection and the timeline all survive. */
+  switchDevice: (deviceName: string) =>
+    invoke<CaptureState>("switch_capture_device", { deviceName }),
   /** Stops audio without releasing the device: reopening risks losing the
    *  input to another application on interfaces that allow one client. */
   pause: () => invoke<CaptureState>("pause_capture"),
@@ -54,6 +59,8 @@ export const audio = {
   transcript: () => invoke<TranscriptSnapshot>("transcript_snapshot"),
   /** The last 60 seconds of settled speech (FR-11), for M2's paraphrase stage. */
   rollingTranscript: () => invoke<string>("transcript_rolling"),
+  /** End-to-end lag so far. Null until something has settled. */
+  latency: () => invoke<LatencySummary | null>("transcript_latency"),
 };
 
 export const display = {

@@ -7,8 +7,9 @@ use crate::audio::devices::{self, AudioDevice};
 use crate::error::{Error, Result};
 use crate::state::AppState;
 use crate::stt::deepgram::TranscriptEvent;
+use crate::stt::reconnect::AudioFeed;
 use crate::stt::reconnect::ResilientStream;
-use crate::stt::transcript::TranscriptSnapshot;
+use crate::stt::transcript::{LatencySummary, TranscriptSnapshot};
 use crate::stt::vocabulary;
 
 /// Every audio source the operator can pick (FR-01).
@@ -128,11 +129,28 @@ pub async fn start_capture(
     // Cloned senders rather than the stream itself: the stream is consumed on
     // stop to close the socket and collect the final results.
     let feed = session.as_ref().map(|s| s.feed());
+    let handle = spawn_capture(&app, device_name, feed)?;
 
+    let reported = handle.state();
+    *state.capture.lock().expect("capture lock") = Some(handle);
+    *state.transcript.lock().expect("transcript lock") = session;
+    Ok(reported)
+}
+
+/// Open a device and route it at the transcription stream, if there is one.
+///
+/// Shared by `start_capture` and `switch_capture_device` so that switching
+/// mid-service takes exactly the same path as starting — a second, nearly
+/// identical spawn is how the two drift apart.
+fn spawn_capture(
+    app: &AppHandle,
+    device_name: String,
+    feed: Option<AudioFeed>,
+) -> Result<CaptureHandle> {
     let level_app = app.clone();
-    let error_app = app;
+    let error_app = app.clone();
 
-    let handle = capture::spawn(
+    capture::spawn(
         device_name,
         Box::new(move |chunk| {
             // Without transcription the chunks are discarded, but conversion
@@ -156,11 +174,44 @@ pub async fn start_capture(
                 },
             );
         }),
-    )?;
+    )
+}
 
+/// Move a running capture to another device **without stopping transcription**.
+///
+/// The transcription stream is deliberately untouched: it holds the transcript,
+/// the connection and the timeline, and tearing it down to change microphone
+/// would lose the sermon so far and charge for a new Deepgram session. Only the
+/// device changes.
+///
+/// This is what a lost device needs. The operator picks another input and the
+/// service carries on, rather than stopping and starting a new one.
+#[tauri::command]
+pub fn switch_capture_device(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    device_name: String,
+) -> Result<CaptureState> {
+    // Checked before the old device is released, so a typo or an unplugged
+    // choice leaves the current capture running rather than killing a working
+    // one for a device that turns out not to be there.
+    devices::find_device(&device_name)?;
+
+    let feed = state
+        .transcript
+        .lock()
+        .expect("transcript lock")
+        .as_ref()
+        .map(|session| session.feed());
+
+    // Dropped before the new device opens: some interfaces allow only one
+    // capture client, and a lost Bluetooth device may still hold its endpoint.
+    let previous = state.capture.lock().expect("capture lock").take();
+    drop(previous);
+
+    let handle = spawn_capture(&app, device_name, feed)?;
     let reported = handle.state();
     *state.capture.lock().expect("capture lock") = Some(handle);
-    *state.transcript.lock().expect("transcript lock") = session;
     Ok(reported)
 }
 
@@ -185,6 +236,23 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
         // Sends CloseStream and waits, so the final results for the last
         // utterance arrive rather than being cut off.
         session.finish().await;
+    }
+
+    if let Some(latency) = state
+        .session_transcript
+        .lock()
+        .expect("transcript lock")
+        .latency()
+    {
+        tracing::info!(
+            samples = latency.samples,
+            p50_ms = latency.p50_ms,
+            p95_ms = latency.p95_ms,
+            p99_ms = latency.p99_ms,
+            max_ms = latency.max_ms,
+            budget_ms = 700,
+            "transcription lag for this run"
+        );
     }
 
     let _ = app.emit(
@@ -262,4 +330,17 @@ pub fn transcript_rolling(state: State<'_, AppState>) -> String {
         .lock()
         .expect("transcript lock")
         .rolling()
+}
+
+/// End-to-end lag so far (M1 Definition of Done).
+///
+/// `None` until something has settled. Read from the Live tab and logged at
+/// stop, so a ten-minute test produces a number rather than an impression.
+#[tauri::command]
+pub fn transcript_latency(state: State<'_, AppState>) -> Option<LatencySummary> {
+    state
+        .session_transcript
+        .lock()
+        .expect("transcript lock")
+        .latency()
 }

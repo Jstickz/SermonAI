@@ -17,8 +17,9 @@
 //! and converted on the way in. Assuming `f32` would work on the development
 //! machine and produce silence or noise on somebody's desk.
 
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
@@ -39,7 +40,11 @@ pub type ChunkSink = Box<dyn FnMut(Vec<i16>) + Send + 'static>;
 /// A disconnect is an operator event, not a crash: the service is still
 /// running, and the app has to say the device is gone and offer another
 /// (PRD §10.6).
-pub type ErrorSink = Box<dyn Fn(Error) + Send + 'static>;
+///
+/// `Sync` as well as `Send` because two callers share one sink: cpal's error
+/// callback, for a device that raises an error, and the watchdog, for one that
+/// simply stops sending. A Bluetooth headset does the second.
+pub type ErrorSink = Box<dyn Fn(Error) + Send + Sync + 'static>;
 
 /// Where meter frames go: a level in dBFS, about thirty times a second.
 ///
@@ -61,6 +66,50 @@ pub type LevelSink = Box<dyn FnMut(f32) + Send + 'static>;
 struct Shared {
     converter: CaptureConverter,
     sink: ChunkSink,
+}
+
+/// How long a running device may deliver nothing before it counts as lost.
+///
+/// **A silent device is not a quiet room.** cpal delivers buffers whether or
+/// not anyone is speaking, so a gap in callbacks means the device stopped
+/// producing, not that the preacher paused. That is what makes a watchdog
+/// sound here rather than a guess.
+///
+/// It exists because a stream error is not reliable. A Bluetooth headset
+/// disconnecting mid-service does not necessarily raise one: WASAPI can keep
+/// the endpoint valid and simply stop delivering, so the app carries on
+/// believing it is recording. That is exactly what happened in testing.
+///
+/// Two seconds is eight of our 250 ms chunks — long enough that a scheduling
+/// hiccup on a busy machine does not trip it, short enough that an operator
+/// finds out while the sermon is still recoverable.
+const SILENCE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Grace after starting or resuming, before the watchdog applies.
+///
+/// A Bluetooth device can take a moment to deliver its first buffer, and
+/// declaring it lost before it has spoken once would make it unusable.
+const STARTUP_GRACE: Duration = Duration::from_secs(3);
+
+/// How often the capture thread wakes to check the watchdog when no command
+/// has arrived.
+const WATCHDOG_TICK: Duration = Duration::from_millis(250);
+
+/// Whether a running device should be treated as lost.
+///
+/// Extracted so the decision can be tested without hardware: the three ways to
+/// get this wrong are firing while paused, firing before a slow device has
+/// spoken once, and never firing at all.
+///
+/// `running_for` is `None` while paused, which is the case that matters most —
+/// a paused device is silent on purpose, and reporting every pause as a
+/// disconnection would train the operator to ignore the warning.
+fn device_lost(running_for: Option<Duration>, since_last_data: Duration) -> bool {
+    match running_for {
+        None => false,
+        Some(elapsed) if elapsed < STARTUP_GRACE => false,
+        Some(_) => since_last_data >= SILENCE_TIMEOUT,
+    }
 }
 
 /// What the capture thread is asked to do. Sent rather than polled, so the
@@ -88,6 +137,9 @@ pub enum CaptureState {
 pub struct CaptureStream {
     stream: cpal::Stream,
     shared: Arc<Mutex<Shared>>,
+    /// Milliseconds since `epoch` at the last data callback, for the watchdog.
+    last_data_ms: Arc<AtomicU64>,
+    epoch: Instant,
     /// What the device actually gave us, which is rarely what was asked for.
     pub source_rate: u32,
     pub source_channels: u16,
@@ -104,6 +156,14 @@ impl CaptureStream {
         self.stream
             .pause()
             .map_err(|e| Error::Audio(format!("could not pause capture: {e}")))
+    }
+
+    /// How long since the device last delivered audio.
+    pub fn since_last_data(&self) -> Duration {
+        let last = self.last_data_ms.load(Ordering::Relaxed);
+        self.epoch
+            .elapsed()
+            .saturating_sub(Duration::from_millis(last))
     }
 
     /// Deliver whatever has not filled a chunk.
@@ -168,7 +228,16 @@ pub fn open(
     let mut meter = LevelMeter::new();
     let callback_shared = Arc::clone(&shared);
 
+    // The watchdog's heartbeat. An atomic store is a handful of nanoseconds,
+    // which is what the audio thread can afford; anything needing a lock or an
+    // allocation would not be.
+    let epoch = Instant::now();
+    let last_data_ms = Arc::new(AtomicU64::new(0));
+    let heartbeat = Arc::clone(&last_data_ms);
+
     let mut deliver = move |samples: &[f32]| {
+        heartbeat.store(epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+
         // Metered before conversion, so the level reflects what the device
         // sent rather than what survived downmixing and resampling. Done
         // outside the lock, so a meter frame never waits on anything.
@@ -229,6 +298,8 @@ pub fn open(
     Ok(CaptureStream {
         stream,
         shared,
+        last_data_ms,
+        epoch,
         source_rate,
         source_channels,
     })
@@ -319,8 +390,21 @@ pub fn spawn(
     let thread = std::thread::Builder::new()
         .name("sermonai-capture".to_string())
         .spawn(move || {
-            let opened = devices::find_device(&device_name)
-                .and_then(|(device, is_output)| open(&device, is_output, sink, on_level, on_error));
+            // Shared, because two things report a lost device: cpal's own
+            // error callback for a device that raises one, and the watchdog
+            // for a device that simply goes quiet. Bluetooth does the second.
+            let report: Arc<ErrorSink> = Arc::new(on_error);
+            let stream_report = Arc::clone(&report);
+
+            let opened = devices::find_device(&device_name).and_then(|(device, is_output)| {
+                open(
+                    &device,
+                    is_output,
+                    sink,
+                    on_level,
+                    Box::new(move |err| stream_report(err)),
+                )
+            });
 
             let stream = match opened.and_then(|stream| stream.play().map(|()| stream)) {
                 Ok(stream) => stream,
@@ -332,17 +416,56 @@ pub fn spawn(
 
             let _ = ready_tx.send(Ok(()));
 
-            // Blocks rather than polls. A disconnected sender means the handle
-            // was dropped, which is a stop.
-            while let Ok(command) = command_rx.recv() {
-                let outcome = match command {
-                    Command::Pause => stream.pause(),
-                    Command::Resume => stream.play(),
-                    Command::Stop => break,
-                };
+            // Woken by a command, or by the watchdog tick. A disconnected
+            // sender means the handle was dropped, which is a stop.
+            let mut running_since = Some(Instant::now());
 
-                if let Err(err) = outcome {
-                    tracing::error!(%err, "the device refused a transport command");
+            loop {
+                match command_rx.recv_timeout(WATCHDOG_TICK) {
+                    Ok(command) => {
+                        let outcome = match command {
+                            Command::Pause => {
+                                // A paused device is silent on purpose, so the
+                                // watchdog has to stand down or it would report
+                                // every pause as a lost device.
+                                running_since = None;
+                                stream.pause()
+                            }
+                            Command::Resume => {
+                                running_since = Some(Instant::now());
+                                stream.play()
+                            }
+                            Command::Stop => break,
+                        };
+
+                        if let Err(err) = outcome {
+                            tracing::error!(%err, "the device refused a transport command");
+                        }
+                    }
+
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        if !device_lost(
+                            running_since.map(|since| since.elapsed()),
+                            stream.since_last_data(),
+                        ) {
+                            continue;
+                        }
+
+                        // Reported once, then the watchdog stands down: the
+                        // device is not coming back on its own, and an error a
+                        // second for the rest of the service would bury it.
+                        running_since = None;
+                        tracing::warn!(
+                            device = %device_name,
+                            "no audio for {}s; treating the device as lost",
+                            SILENCE_TIMEOUT.as_secs()
+                        );
+                        report(Error::Audio(format!(
+                            "\"{device_name}\" stopped sending audio and appears to be disconnected.                              Choose another input to carry on."
+                        )));
+                    }
+
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
                 }
             }
 
@@ -413,6 +536,54 @@ mod tests {
     use super::*;
     use crate::audio::convert::CHUNK_SAMPLES;
     use std::sync::mpsc;
+
+    #[test]
+    fn a_paused_device_is_never_reported_lost() {
+        // The case that matters most. A paused device is silent on purpose,
+        // and reporting every pause as a disconnection would teach the
+        // operator to ignore the one warning that matters.
+        assert!(!device_lost(None, Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn a_slow_device_gets_time_to_speak_once() {
+        // Bluetooth can take a moment to deliver its first buffer. Declaring
+        // it lost before it ever has would make it unusable.
+        assert!(!device_lost(
+            Some(Duration::from_millis(500)),
+            Duration::from_secs(10)
+        ));
+        assert!(!device_lost(
+            Some(STARTUP_GRACE - Duration::from_millis(1)),
+            Duration::from_secs(10)
+        ));
+    }
+
+    #[test]
+    fn a_running_device_that_stops_sending_is_reported() {
+        // The Bluetooth case from testing: WASAPI kept the endpoint valid and
+        // simply stopped delivering, so no stream error was ever raised and
+        // the app carried on believing it was recording.
+        assert!(device_lost(Some(Duration::from_secs(30)), SILENCE_TIMEOUT));
+        assert!(device_lost(
+            Some(Duration::from_secs(30)),
+            Duration::from_secs(10)
+        ));
+    }
+
+    #[test]
+    fn a_brief_gap_is_not_a_disconnection() {
+        // A busy machine can miss a buffer or two without the device having
+        // gone anywhere, and a false alarm mid-sermon is its own failure.
+        assert!(!device_lost(
+            Some(Duration::from_secs(30)),
+            SILENCE_TIMEOUT - Duration::from_millis(1)
+        ));
+        assert!(!device_lost(
+            Some(Duration::from_secs(30)),
+            Duration::from_millis(250)
+        ));
+    }
 
     /// Opening a device that is not there must name it and offer a way out,
     /// rather than panicking on the audio thread where nothing can catch it.

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { audio, on } from "@/lib/ipc";
+import { Modal } from "./Modal";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { FONT_SIZES, useTranscriptViewStore } from "@/stores/transcriptViewStore";
-import type { CaptureState, SttStatus } from "@/lib/types";
+import type { AudioDeviceKind, CaptureState, LatencySummary, SttStatus } from "@/lib/types";
 
 /** Mirrors `PARAGRAPH_GAP_SECS` in `src-tauri/src/stt/transcript.rs`. A
  *  preacher pauses for breath in well under a second and for effect in two or
@@ -44,8 +45,12 @@ export function LiveTranscript() {
    *  rather than shown per chunk, since a 90-second outage would otherwise
    *  emit a banner a hundred and twenty times. */
   const [droppedSeconds, setDroppedSeconds] = useState(0);
+  /** Shown in the footer during a test run, so the DoD number is visible as it
+   *  is being measured rather than only in the log afterwards. */
+  const [latency, setLatency] = useState<LatencySummary | null>(null);
+  /** Set when the device stops sending. Cleared by choosing another. */
+  const [deviceLost, setDeviceLost] = useState<string | null>(null);
   const [capture, setCapture] = useState<CaptureState>("stopped");
-  const [device, setDevice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /**
    * Where the switch is shown while the backend catches up.
@@ -116,6 +121,17 @@ export function LiveTranscript() {
       })
       .catch(() => undefined);
 
+    let unlistenAudio: (() => void) | undefined;
+    void on("audio:error", ({ message }) => {
+      setDeviceLost(message);
+      // The list is stale the moment a device goes, so the picker in the
+      // banner must not offer the one that just disappeared.
+      void useDeviceStore.getState().refresh();
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlistenAudio = fn;
+    });
+
     let unlistenStatus: (() => void) | undefined;
     void on("stt:status", (status) => {
       if (status.kind === "audio_dropped") {
@@ -131,6 +147,7 @@ export function LiveTranscript() {
     return () => {
       cancelled = true;
       unlisten?.();
+      unlistenAudio?.();
       unlistenStatus?.();
     };
   }, []);
@@ -138,15 +155,14 @@ export function LiveTranscript() {
   // The device is chosen in Settings; this reads the same cached list rather
   // than offering a second picker that could disagree with the first.
   const devices = useDeviceStore((s) => s.devices);
+  const device = useDeviceStore((s) => s.selected);
   const ensureDevices = useDeviceStore((s) => s.ensure);
+  const refreshDevices = useDeviceStore((s) => s.refresh);
+  const selectDevice = useDeviceStore((s) => s.select);
 
   useEffect(() => {
     void ensureDevices();
   }, [ensureDevices]);
-
-  useEffect(() => {
-    setDevice((current) => current ?? devices.find((d) => d.isDefault)?.name ?? devices[0]?.name ?? null);
-  }, [devices]);
 
   useEffect(() => {
     void audio.state().then(setCapture).catch(() => undefined);
@@ -194,6 +210,8 @@ export function LiveTranscript() {
         setInterim("");
         setStt(null);
         setDroppedSeconds(0);
+        setLatency(null);
+        setDeviceLost(null);
         lastEnd.current = null;
         setCapture(await audio.start(device, true));
       } else {
@@ -214,6 +232,18 @@ export function LiveTranscript() {
   const running = capture !== "stopped";
   // The optimistic position wins while an operation is in flight.
   const listening = pending ?? running;
+
+  // Polled rather than pushed: a lag figure updated on every utterance would
+  // re-render the panel as often as the transcript itself, for a number nobody
+  // watches that closely.
+  useEffect(() => {
+    if (!listening) return;
+    const timer = window.setInterval(() => {
+      void audio.latency().then(setLatency).catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [listening]);
+
 
   const fontSize = useTranscriptViewStore((s) => s.fontSize);
   const cycleFontSize = useTranscriptViewStore((s) => s.cycleFontSize);
@@ -364,8 +394,104 @@ export function LiveTranscript() {
         </span>
         {/* Persistence is M4 (FR-34); until then nothing is saved, and saying
             so beats an empty space the operator reads as "saved". */}
-        <span className="mono">not saved yet · M4</span>
+        <span className="mono flex items-center gap-3">
+          {latency && (
+            <span
+              className={latency.p99Ms > 700 ? "text-status-warning" : undefined}
+              title={`p50 ${latency.p50Ms} ms · p95 ${latency.p95Ms} ms · max ${latency.maxMs} ms over ${latency.samples} utterances`}
+            >
+              lag p99 {latency.p99Ms} ms
+            </span>
+          )}
+          <span>not saved yet · M4</span>
+        </span>
       </div>
+
+      {/* A lost microphone interrupts the service, so it interrupts the
+          screen. Inline in the transcript it competed with the words for
+          attention and could be scrolled away from. */}
+      {deviceLost && (
+        <Modal
+          title="The audio input stopped"
+          description={deviceLost}
+          // No safe default: dismissing would leave the app recording nothing
+          // while looking like it was recording.
+          required
+          icon={
+            <span className="icon-circle bg-status-warning-bg text-status-warning">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path d="M12 8v5M12 17h.01" />
+                <circle cx="12" cy="12" r="9" />
+              </svg>
+            </span>
+          }
+        >
+          <div className="mt-5">
+            {devices.length === 0 ? (
+              <p className="text-[13px] text-content-muted">
+                No other input is available. Reconnect a device and rescan.
+              </p>
+            ) : (
+              <>
+                <p className="mb-2 text-[12px] text-content-muted">
+                  Choose another input to carry on. The transcript so far is kept.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {devices.map((d) => (
+                    <button
+                      key={`${d.kind}:${d.name}`}
+                      className="flex items-center justify-between gap-3 rounded-md border-2 border-line-default bg-bg-sunken px-4 py-3 text-left transition-colors duration-base ease-brand-out hover:border-line-strong"
+                      onClick={() => {
+                        void selectDevice(d.name);
+                        setDeviceLost(null);
+                      }}
+                    >
+                      <span className="min-w-0 break-words text-[13px] font-medium">{d.name}</span>
+                      <span className="chip">{kindLabel(d.kind)}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button className="btn-secondary" onClick={() => void refreshDevices()}>
+                Rescan
+              </button>
+              {/* Stopping is the other honest way out, and it keeps the
+                  transcript rather than discarding it. */}
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setDeviceLost(null);
+                  void toggle();
+                }}
+              >
+                Stop Transcribing
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </section>
   );
+}
+
+function kindLabel(kind: AudioDeviceKind): string {
+  switch (kind) {
+    case "input":
+      return "Input";
+    case "loopback":
+      return "System audio";
+    case "virtual_input":
+      return "Virtual cable";
+  }
 }

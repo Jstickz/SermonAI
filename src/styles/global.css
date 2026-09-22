@@ -160,6 +160,23 @@
     @apply cursor-not-allowed opacity-40;
   }
 
+  /* Modal (wireframe.html §modal-backdrop). Anchored near the top rather than
+     centred, so a dialog that grows does not shift the operator's eye down the
+     screen mid-read. */
+  .modal-backdrop {
+    @apply fixed inset-0 z-[200] flex items-start justify-center bg-black/55 pt-[15vh];
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .modal-card {
+    @apply w-[560px] max-w-[92vw] rounded-lg bg-bg-raised p-6 shadow-modal;
+  }
+
+  .icon-circle {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-pill bg-bg-pill text-content-secondary;
+  }
+
   .chip {
     @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill bg-bg-pill px-2.5 py-1 text-xs font-medium text-content-secondary;
   }
