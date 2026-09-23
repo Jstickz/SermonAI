@@ -51,27 +51,58 @@ the platform difference described in `audio/devices.rs`.
    amber** — red means clipping and will hurt recognition, and a level near the
    floor will too.
 
-5. Watch the footer: **`lag p99 … ms`** appears after a few utterances and
-   updates every three seconds. It turns amber above 700 ms. Hover it for p50,
-   p95, max and the sample count.
-
-6. When the file finishes, turn **Transcribe** off. The full summary is logged:
+5. Watch the footer. Two figures appear after a few utterances and refresh
+   every three seconds:
 
    ```
-   INFO transcription lag for this run samples=… p50_ms=… p95_ms=… p99_ms=… max_ms=… budget_ms=700
+   appear 452/681/698 ms      settle 811/2289/2289 ms
    ```
 
-### What the number means
+   `appear` is p50/p95/p99 for when words land on screen; it turns amber above
+   700 ms. `settle` is when Deepgram confirms them. Hover either for the sample
+   count and maximum. A reconnect count appears if the connection dropped.
 
-Lag is measured per settled utterance as **now, minus when those words were
-spoken** — wall clock since capture began, less the audio timestamp of the last
-word. That covers the whole path: capture, conversion, the socket, Deepgram's
-own processing, and the event arriving. It is not one hop timed and called
-latency.
+6. When the file finishes, turn **Transcribe** off. Both summaries are logged:
 
-Expect p50 well under the budget and p99 close to it. Deepgram only settles an
-utterance when it is confident the speaker has finished, so the tail is
-dominated by how long it waits, not by anything on this machine.
+   ```
+   INFO lag until words appear (interim) ... p50_ms=… p95_ms=… p99_ms=… budget_ms=700
+   INFO lag until an utterance is confirmed (settled) ... p50_ms=… p95_ms=… p99_ms=…
+   ```
+
+### Which number the line is asking for
+
+**`appear`.** The line says "transcript *appears*", and words appear as interim
+results. That is the figure to compare against 700 ms.
+
+`settle` is when Deepgram stops revising an utterance, which it decides only
+once it judges the speaker to have stopped — measured at roughly 2.3 s and not
+movable through the `endpointing` parameter. It is recorded because M2's
+detection runs on confirmed text, so it bounds how quickly a spoken reference
+can reach the projector. It is **not** what this line budgets.
+
+Reporting `settle` against the 700 ms budget is exactly the mistake that made a
+passing pipeline read as a fourfold failure; see
+`docs/testing/m1-latency-baseline.md`.
+
+### What the numbers measure
+
+Per result: **now, minus when those words were spoken** — wall clock since the
+first audio was *sent*, less the audio timestamp of the last word. That covers
+chunking, the socket, Deepgram's processing and the event arriving.
+
+The anchor matters. Timing from when *capture* started charges the WebSocket
+handshake, over a second against the live service, to every sample.
+
+Of the total, 250 ms is our own chunk accumulation and is fixed by FR-03. The
+rest is network and Deepgram.
+
+### If a reconnect happened
+
+The footer shows a reconnect count, and those samples are excluded from the
+percentiles: replayed audio is sent faster than real time, so its results are
+late by construction and would let a network outage read as a slow pipeline. A
+run with reconnects covers less than the whole period, and the log says how many
+samples were set aside.
 
 ### Also check, by reading
 
@@ -154,14 +185,20 @@ Chromium's shared code.
 
 Measured at idle on a dev build:
 
-| | |
-|---|---|
-| Sum of working sets | **583 MB** |
-| Private working set | **168 MB** |
+| Method | Resolved | Reported |
+|---|---|---|
+| Sum of working sets | 9 of 9 | **583 MB** |
+| Private working set, resolved by counter *name* | **1 of 9** | **6 MB** |
+| Private working set, resolved by **PID** | 9 of 9 | **193 MB** |
 
-The first would have failed a 300 MB budget the app is comfortably inside. The
-script reports the private figure, which is what Task Manager's "Memory (private
-working set)" column shows.
+Both wrong methods look plausible. Summing working sets triple-counts Chromium's
+shared pages and would fail a budget the app is inside. Resolving by
+performance-counter name silently loses most of the tree, because several
+processes are all called `msedgewebview2` — that produced a 40 MB reading on a
+DoD run, which is `sermonai.exe` on its own.
+
+The script now matches by PID, prints how many processes it resolved on every
+sample, and declares a run invalid if it only finds one.
 
 ### The number of record is a release build
 
@@ -182,19 +219,22 @@ CI keeps it on, because release downloads do need signed update bundles.
 Then run the built app rather than the dev server:
 
 ```powershell
-& "src-tauri	argetelease\sermonai.exe"
+& ".\src-tauri\target\release\sermonai.exe"
 ```
 
 ---
 
 ## Status
 
-| Line | Can be run here | State |
-|---|---|---|
-| 1 — lag p99 < 700 ms | yes, via loopback | instrumented, not yet run |
-| 2 — device lost | needs a USB device | code path never exercised |
-| 3 — internet drops | yes | reconnect never exercised against a real drop |
-| 4 — RAM < 300 MB | yes | 168 MB at idle on a dev build; not yet under load |
+| Line | State on Windows |
+|---|---|
+| 1 — words appear under 700 ms p99 | **failing on the first figure, needs re-running** after two measurement faults were fixed |
+| 2 — device lost | **passed** 23 Sept, Bluetooth headset |
+| 3 — internet drops | **passed** 23 Sept, real network, including a two-minute outage |
+| 4 — RAM under 300 MB | **unverified** — the 40 MB figure was an undercount; re-run needed |
 
-macOS needs all four repeated, and line 1 needs BlackHole there. The gate on M2
-is a full 60-minute run on both platforms.
+The 60-minute stability run passed on Windows.
+
+**macOS needs all four repeated and none has run there**, and line 1 needs
+BlackHole because CoreAudio cannot capture a render endpoint. Parked as a known
+risk rather than done.
