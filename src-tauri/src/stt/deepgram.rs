@@ -37,18 +37,23 @@ use crate::error::{Error, Result};
 ///
 /// **This is a latency decision, not a compliance one.** `api.deepgram.com`
 /// resolves to `api.sac1.deepgram.com` — Sacramento — for everybody, wherever
-/// they are. Measured from Lagos with real speech at real-time pace, 10 minutes
-/// per region:
+/// they are. Measured with real speech at real-time pace, 10 minutes per
+/// region, n=400 and n=414 (`examples/region_probe.rs`):
 ///
 /// | | p50 | p95 | p99 |
 /// |---|---|---|---|
-/// | Sacramento | 313 ms | 586 ms | 799 ms |
-/// | Frankfurt | 172 ms | 459 ms | 666 ms |
+/// | Sacramento | 320 ms | 591 ms | 819 ms |
+/// | Frankfurt | 208 ms | 486 ms | 715 ms |
 ///
 /// The same API keys work on both; only the base URL changes. For a church in
-/// West Africa the EU endpoint is roughly 140 ms per result cheaper and
-/// noticeably steadier, which is most of the difference between meeting the
-/// latency budget and missing it.
+/// West Africa the EU endpoint is roughly 110 ms per result cheaper at every
+/// percentile, which is most of the difference between meeting the latency
+/// budget and missing it.
+///
+/// Both are **flat over the ten minutes** — Sacramento's per-minute median
+/// moved between 311 and 327 ms, Frankfurt's between 204 and 216 — so this is
+/// distance, not congestion, and it will not improve by waiting or by being
+/// gentler with the connection.
 ///
 /// Not auto-detected. Guessing from an IP address is wrong often enough to be
 /// worse than a setting an operator can see, and a church that must keep audio
