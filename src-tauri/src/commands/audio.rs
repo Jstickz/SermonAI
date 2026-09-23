@@ -318,7 +318,10 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
                 p95_ms = interim.p95_ms,
                 p99_ms = interim.p99_ms,
                 max_ms = interim.max_ms,
-                budget_ms = 700,
+                // PRD §18.1's provisional end-to-end budget, which this
+                // plus the fixed 250 ms chunk has to fit inside.
+                budget_p95_ms = 900,
+                budget_p99_ms = 1300,
                 "lag until words appear (interim) — this is the DoD line's measure"
             );
         }

@@ -434,11 +434,11 @@ export function LiveTranscript() {
         <span className="mono flex items-center gap-3">
           {/* Both numbers, because they mean different things: when words
               appear, and when Deepgram stops revising them. The first is what
-              the DoD budgets at 700 ms; the second is what M2's detection
+              the DoD budgets against PRD §18.1; the second is what M2's detection
               will run on. */}
           {latency?.interim && (
             <span
-              className={latency.interim.p99Ms > 700 ? "text-status-warning" : undefined}
+              className={overBudget(latency.interim) ? "text-status-warning" : undefined}
               title={`Words appear: p50 ${latency.interim.p50Ms} ms · p95 ${latency.interim.p95Ms} ms · p99 ${latency.interim.p99Ms} ms · max ${latency.interim.maxMs} ms over ${latency.interim.samples} results`}
             >
               appear {latency.interim.p50Ms}/{latency.interim.p95Ms}/{latency.interim.p99Ms} ms
@@ -568,6 +568,24 @@ function kindLabel(kind: AudioDeviceKind): string {
  *  shape stops offering the button rather than sending the operator somewhere
  *  irrelevant. Exported for the test.
  */
+/** PRD §18.1's provisional end-to-end budget, less the 250 ms a chunk spends
+ *  accumulating — which is fixed by FR-03 and sits on top of whatever the
+ *  footer shows. So these are what the *measured* figure may reach.
+ *
+ *  The line used to be a single 700 ms p99. That predated two-stage detection,
+ *  was not derived from any measurement, and is not reachable from a Nigerian
+ *  connection at any Deepgram region: the round trip alone is 715 ms at p99 on
+ *  the nearest one. See docs/testing/network-latency.md. */
+const BUDGET_P95_MS = 900 - 250;
+const BUDGET_P99_MS = 1300 - 250;
+
+/** Whether to warn on the appear figure. Both percentiles, not just the tail:
+ *  a p95 over budget means most of the service is late, which matters more to
+ *  an operator than one slow utterance in a hundred. Exported for the test. */
+export function overBudget(appear: { p95Ms: number; p99Ms: number }): boolean {
+  return appear.p95Ms > BUDGET_P95_MS || appear.p99Ms > BUDGET_P99_MS;
+}
+
 export function isMissingKeyError(message: string): boolean {
   return message.includes("Services and keys");
 }

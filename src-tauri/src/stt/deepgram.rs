@@ -652,7 +652,7 @@ mod tests {
         // PRD §4.2 lists Nigeria, Kenya, Ghana, Rwanda, South Africa, UK and
         // USA. Six of the seven are far closer to Frankfurt than to
         // Sacramento, and `api.deepgram.com` resolves to Sacramento for
-        // everybody. Measured from Lagos: 313 ms p50 against 172 ms.
+        // everybody. Measured from Abuja: 320 ms p50 against 208 ms.
         //
         // The USA is the exception, which is what the setting is for.
         assert_eq!(Region::default(), Region::Eu);

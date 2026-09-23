@@ -57,16 +57,112 @@ fn load_dev_env() {
     }
 }
 
+/// A log file the app writes itself, plus stdout where there is one.
+///
+/// **A release build has no console.** `main.rs` sets
+/// `windows_subsystem = "windows"` so launching SermonAI does not open a black
+/// window behind it, and the consequence is that `sermonai.exe > log.txt`
+/// produces an **empty file**: there is no stdout to redirect. Every diagnostic
+/// from a normally-launched run was therefore going nowhere, which is why a
+/// 60-minute DoD run could not afterwards answer "were there any reconnects".
+///
+/// Appended rather than truncated, so a crash and a relaunch do not erase the
+/// evidence of what happened before it. Nothing rotates it yet; a service
+/// produces a few hundred kilobytes.
+///
+/// Returns the path so startup can log where it is — an operator asked for
+/// diagnostics should not have to be told a directory over the phone.
+fn init_logging() -> Option<std::path::PathBuf> {
+    use std::io::Write;
+    use std::sync::{Arc, Mutex};
+
+    /// `MakeWriter` needs something cloneable that writes; a bare `File` is
+    /// not, and cloning the handle per event would interleave lines from
+    /// different threads mid-message.
+    struct Shared(Arc<Mutex<std::fs::File>>);
+
+    impl Write for Shared {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("log file lock").write(buf)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.0.lock().expect("log file lock").flush()
+        }
+    }
+
+    // Default to info for our own crate. Without this a release build honours
+    // an unset RUST_LOG and records nothing at all, which is the same failure
+    // in a different disguise.
+    let filter = || {
+        tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("sermonai_lib=info"))
+    };
+
+    let path = log_file_path();
+    let file = path.as_ref().and_then(|path| {
+        std::fs::create_dir_all(path.parent()?).ok()?;
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .ok()
+    });
+
+    match file {
+        Some(file) => {
+            use tracing_subscriber::layer::{Layer, SubscriberExt};
+            use tracing_subscriber::util::SubscriberInitExt;
+
+            let shared = Arc::new(Mutex::new(file));
+            tracing_subscriber::registry()
+                .with(
+                    tracing_subscriber::fmt::layer()
+                        .with_ansi(false)
+                        .with_writer(move || Shared(Arc::clone(&shared)))
+                        .with_filter(filter()),
+                )
+                .with(tracing_subscriber::fmt::layer().with_filter(filter()))
+                .init();
+            path
+        }
+        None => {
+            // A read-only or missing app-data directory must not stop a
+            // service starting. Console only, and say so once it is up.
+            tracing_subscriber::fmt().with_env_filter(filter()).init();
+            None
+        }
+    }
+}
+
+/// `%LOCALAPPDATA%\SermonAI\logs\sermonai.log` on Windows,
+/// `~/Library/Logs/SermonAI/sermonai.log` on macOS.
+///
+/// Resolved from the environment rather than from Tauri's path API because
+/// logging has to be running before the app is built — a failure during
+/// `setup()` is exactly the one worth having on disk.
+fn log_file_path() -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "windows")]
+    let base = std::path::PathBuf::from(std::env::var("LOCALAPPDATA").ok()?).join("SermonAI");
+
+    #[cfg(target_os = "macos")]
+    let base = std::path::PathBuf::from(std::env::var("HOME").ok()?)
+        .join("Library")
+        .join("Logs")
+        .join("SermonAI");
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let base = std::env::temp_dir().join("SermonAI");
+
+    Some(base.join("logs").join("sermonai.log"))
+}
+
 pub fn run() {
     // Taken before anything else so the cold-start figure covers the whole of
     // our startup, not just the part after logging is up.
     let started = std::time::Instant::now();
 
     load_dev_env();
-
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+    let log_path = init_logging();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -110,6 +206,13 @@ pub fn run() {
             //
             // Needs RUST_LOG to be set, since the filter comes from the
             // environment and is empty by default.
+            match &log_path {
+                Some(path) => tracing::info!(path = %path.display(), "writing this log to disk"),
+                None => tracing::warn!(
+                    "no log file could be opened; this run leaves no diagnostics behind"
+                ),
+            }
+
             tracing::info!(
                 elapsed_ms = started.elapsed().as_millis() as u64,
                 "startup complete"

@@ -7,11 +7,18 @@ of the four produce a **number** rather than an impression.
 
 ---
 
-## Line 1 — Ten-minute sermon, lag under 700 ms (p99)
+## Line 1 — Ten-minute sermon, within PRD §18.1's provisional budget
 
 > *Play a 10-minute sermon recording through a virtual audio device on each
-> platform: transcript appears with under 700 ms lag (p99), no dropped words
-> visible on inspection.*
+> platform: transcript appears within §18.1's provisional budget — **900 ms p95,
+> 1300 ms p99** — no dropped words visible on inspection.*
+
+The line read "under 700 ms lag (p99)" until 23 September 2026. That figure
+predated the two-stage detection decision, was not derived from any
+measurement, and **is not reachable from a Nigerian connection at any Deepgram
+region**: the round trip alone spends 715 ms at p99 on the nearest one, before
+the 250 ms chunk is counted. It cites §18.1 now rather than carrying a second
+number that can drift from the PRD.
 
 ### No virtual audio device needed on Windows
 
@@ -59,21 +66,22 @@ the platform difference described in `audio/devices.rs`.
    ```
 
    `appear` is p50/p95/p99 for when words land on screen; it turns amber above
-   700 ms. `settle` is when Deepgram confirms them. Hover either for the sample
+   the budget. `settle` is when Deepgram confirms them. Hover either for the sample
    count and maximum. A reconnect count appears if the connection dropped, and
    a red "Ns of audio lost" if any chunk was refused.
 
 6. When the file finishes, turn **Transcribe** off. Both summaries are logged:
 
    ```
-   INFO lag until words appear (interim) ... p50_ms=… p95_ms=… p99_ms=… budget_ms=700
+   INFO lag until words appear (interim) ... p50_ms=… p95_ms=… p99_ms=… budget_p95_ms=900 budget_p99_ms=1300
    INFO lag until an utterance is confirmed (settled) ... p50_ms=… p95_ms=… p99_ms=…
    ```
 
 ### Which number the line is asking for
 
-**`appear`.** The line says "transcript *appears*", and words appear as interim
-results. That is the figure to compare against 700 ms.
+**`appear`**, against **900 ms p95 / 1300 ms p99**. The line says "transcript
+*appears*", and words appear as interim results, so that is the figure the
+budget is about.
 
 `settle` is when Deepgram stops revising an utterance, which it decides only
 once it judges the speaker to have stopped — measured at roughly 2.3 s and not
@@ -81,7 +89,7 @@ movable through the `endpointing` parameter. It is recorded because M2's
 detection runs on confirmed text, so it bounds how quickly a spoken reference
 can reach the projector. It is **not** what this line budgets.
 
-Reporting `settle` against the 700 ms budget is exactly the mistake that made a
+Reporting `settle` against the appear budget is exactly the mistake that made a
 passing pipeline read as a fourfold failure; see
 `docs/testing/m1-latency-baseline.md`.
 
@@ -234,22 +242,30 @@ as a failed build. It now skips updater artifacts when there is no key and says
 so; CI has the key, so releases are still signed. Nothing about the app binary
 changes either way.
 
-Then run the built app rather than the dev server — **and keep the log**:
+Then run the built app rather than the dev server:
 
 ```powershell
-$env:RUST_LOG = "sermonai_lib=info"
-& ".\src-tauri\target\release\sermonai.exe" *> "$env:TEMP\sermonai-dod.log"
+& ".\src-tauri\target\release\sermonai.exe"
 ```
 
-The release build logs to stdout and nowhere else, so a run started from the
-Start menu or by double-clicking leaves no record behind. That is how the
-60-minute run came to have no answer to "were there any reconnects" — the
-figures were in the footer, and everything behind them went with the window.
+**The app writes its own log; do not redirect it.** A release build sets
+`windows_subsystem = "windows"` so it does not open a console behind itself,
+which means `sermonai.exe > log.txt` produces an **empty file** — there is no
+stdout to capture. That is how the 60-minute run came to have no answer to
+"were there any reconnects": the figures were in the footer, and everything
+behind them went with the window.
 
-Afterwards, the lines worth reading:
+It logs here instead, and says so on the line after `startup complete`:
+
+```
+%LOCALAPPDATA%\SermonAI\logs\sermonai.log
+```
+
+Appended rather than truncated, so a crash and a relaunch do not erase what
+happened before. Afterwards, the lines worth reading:
 
 ```powershell
-$log = "$env:TEMP\sermonai-dod.log"
+$log = "$env:LOCALAPPDATA\SermonAI\logs\sermonai.log"
 Select-String -Path $log -Pattern "lag by minute" | Select-Object -Last 60
 Select-String -Path $log -Pattern "would not accept"
 Select-String -Path $log -Pattern "reconnects during this run|drift_ms_per_hour"
@@ -281,7 +297,7 @@ Anthropic is not needed for these two lines — nothing in M1 calls it.
 
 | Line | State on Windows |
 |---|---|
-| 1 — words appear under 700 ms p99 | **needs re-running.** The 60-minute run read 2,445 ms, but the metric was accumulating dropped audio and clock drift into the figure. Fixed 23 Sept; see `m1-latency-baseline.md` |
+| 1 — words appear inside §18.1's 900/1300 ms | **needs re-running.** The 60-minute run read 2,445 ms p99, but the metric was accumulating dropped audio and clock drift. Fixed 23 Sept, along with the budget itself: 700 ms was never reachable from here. See `m1-latency-baseline.md` and `network-latency.md` |
 | 2 — device lost | **passed** 23 Sept, Bluetooth headset |
 | 3 — internet drops | **passed** 23 Sept, real network, including a two-minute outage |
 | 4 — RAM under 300 MB | **passed** 23 Sept — 212 MB on a release build over 60 minutes, measured by PID across the whole process tree |

@@ -1,7 +1,7 @@
 # Where the lag actually goes
 
-Measured 23 September 2026 from the development machine in Nigeria, against the
-live Deepgram service, with `src-tauri/examples/region_probe.rs`.
+Measured 23 September 2026 from **one home broadband connection in Abuja,
+Nigeria**, against the live Deepgram service, with `src-tauri/examples/region_probe.rs`.
 
 ## Method
 
@@ -76,7 +76,8 @@ words on screen**:
 | Sacramento | ~570 ms | ~841 ms | ~1,069 ms |
 | **Frankfurt** | ~458 ms | ~736 ms | ~965 ms |
 
-**The M1 DoD line's 700 ms p99 is not reachable from here at any region.** The
+**The M1 DoD line's 700 ms p99 is not reachable from this connection at any
+region.** The
 network alone spends 715 ms at p99 on the closest one, before the chunk is even
 counted. That number predates the two-stage detection decision and is not
 derived from any measurement; PRD §18.1's provisional budget of 900/1300 ms,
@@ -94,3 +95,16 @@ just met on Sacramento.
 
 Nothing else on our side is worth more than a few milliseconds: regex detection
 is budgeted at 5 ms and the staging render at 50.
+
+## What this does not cover
+
+**One home connection, on a weekday, with nothing else on it.** A church during
+a service is a different network: a congregation's phones on the same wifi, a
+stream going out, and an access point that may be two rooms away. That is the
+condition the budget actually has to survive, and none of these numbers speak
+to it.
+
+Measure it at the first real Sunday in M4, from the church's own connection
+during a live service, and compare against the per-minute figures here. If it
+is materially worse, the levers are the ones in the table above — and the
+offline speech pack (FR-08) stops being a nice-to-have.

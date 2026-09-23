@@ -1088,7 +1088,7 @@ unconfirmed text where a congregation can read it.
 | Step | p95 | p99 |
 |---|---|---|
 | Audio chunk | 250ms | 300ms |
-| STT interim return (online) | 400ms | 700ms |
+| STT interim return (online, EU region) | 500ms | 750ms |
 | Regex detection | 5ms | 15ms |
 | Vector semantic detection | 5ms | 20ms |
 | LLM paraphrase detection | 1500ms | 3000ms |
@@ -1124,6 +1124,34 @@ below rather than budgeted.
 | Step | Observed p95 | Note |
 |---|---|---|
 | Spoken word → confirmed text | ~2.3s | Deepgram's endpointing. Not tunable through `endpointing`; treat as the cost of a confirmed utterance. |
+| STT interim return, **US region** | 591ms (p99 819ms) | `api.deepgram.com` resolves to Sacramento for everyone. Recorded because it is what a church gets if the region setting is wrong, and it does not fit the budget above. |
+
+**The STT row was 400/700ms until 23 September 2026.** It was an estimate; the
+figures above are measured, 10 minutes per region, streaming real speech at
+real-time pace against the live service. The round trip is the dominant term
+and it is not ours to shorten — see `docs/testing/network-latency.md`.
+
+Choosing the nearer region is worth ~110ms at every percentile and is the
+single largest lever available on our side, which is why `stt::deepgram::Region`
+defaults to the EU endpoint rather than to Deepgram's global default. PRD §4.2
+lists Nigeria, Kenya, Ghana, Rwanda, South Africa, UK and USA; six of the seven
+are far nearer Frankfurt than Sacramento.
+
+#### Where these numbers come from, and what they do not cover
+
+**One home broadband connection in Abuja, Nigeria, on a weekday, with nothing
+else on it.** That is the whole basis of the network figures in this section.
+
+**A church during a service is a different network** and is untested: a
+congregation's phones on the same wifi, a stream going out, and an access point
+that may be two rooms away. That is the condition these budgets actually have
+to survive.
+
+**Measure it at the first real Sunday in M4**, from the church's own connection
+during a live service, against the per-minute figures in
+`docs/testing/network-latency.md`. If it is materially worse, the budgets here
+are wrong rather than the build, and the offline speech pack (FR-08) stops
+being optional.
 
 A verse therefore reaches the projector roughly two and a half seconds after it
 is spoken, and a *provisional* candidate reaches staging in about one. If the
