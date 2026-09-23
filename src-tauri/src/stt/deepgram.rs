@@ -165,6 +165,14 @@ pub fn stream_url_at(base: &str, vocabulary: &[String]) -> String {
          &interim_results=true&punctuate=true&smart_format=true"
     );
 
+    // Development only, for the lag_breakdown experiment. Deepgram decides
+    // when an utterance is settled, and this is the only lever over it.
+    #[cfg(debug_assertions)]
+    if let Ok(ms) = std::env::var("SERMONAI_DEEPGRAM_ENDPOINTING") {
+        url.push_str("&endpointing=");
+        url.push_str(&ms);
+    }
+
     // FR-09. Deepgram takes one `keyterm` per term, repeated.
     for term in vocabulary {
         let trimmed = term.trim();

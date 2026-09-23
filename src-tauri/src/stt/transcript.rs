@@ -73,22 +73,83 @@ pub struct TranscriptSnapshot {
     pub word_count: usize,
 }
 
-/// End-to-end lag, for M1's Definition of Done.
-///
-/// Measured per settled utterance as *now minus when those words were spoken*:
-/// the wall clock since capture began, less the audio timestamp of the last
-/// word. That covers the whole path — capture, conversion, the socket,
-/// Deepgram's own processing and the event reaching us — rather than timing
-/// one hop and calling it latency.
+/// Lag percentiles for one kind of result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LatencySummary {
+pub struct Percentiles {
     pub samples: usize,
     pub p50_ms: u64,
     pub p95_ms: u64,
-    /// The number M1's DoD budgets at 700 ms.
     pub p99_ms: u64,
     pub max_ms: u64,
+}
+
+/// End-to-end lag, for M1's Definition of Done.
+///
+/// **Two numbers, because they answer different questions**, and reporting
+/// only one of them was a mistake.
+///
+/// `interim` is when words **first appear on screen**, which is what the DoD
+/// line means by "transcript appears". `settled` is when Deepgram confirms an
+/// utterance will not change, which is necessarily later because it waits for
+/// the speaker to stop before deciding. A first run reported 2,797 ms p99
+/// against a 700 ms budget while measuring only `settled` — comparing
+/// Deepgram's endpointing delay against a budget written about visible text.
+///
+/// `settled` still matters and is not excused by that: M2's detection stages
+/// run on settled text, so it bounds how long after a spoken reference a verse
+/// can reach the projector.
+///
+/// Both are measured per result as *now minus when those words were spoken*:
+/// the wall clock since **the first audio was sent**, less the audio timestamp
+/// of the last word. That covers chunking, the socket, Deepgram's own
+/// processing and the event arriving.
+///
+/// The anchor matters. Timing from when *capture* began charges the WebSocket
+/// handshake — over a second against the live service — to every sample.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatencySummary {
+    /// When words first appear. `None` before anything has been heard.
+    pub interim: Option<Percentiles>,
+    /// When an utterance is confirmed.
+    pub settled: Option<Percentiles>,
+    /// Reconnects during the run. **A non-zero count makes the tail suspect**:
+    /// replayed audio is sent faster than real time, so results for it arrive
+    /// late by construction and inflate the high percentiles.
+    pub reconnects: usize,
+    /// Samples discarded because they fell in a catch-up window after a
+    /// reconnect. Reported rather than silently dropped, so the percentiles
+    /// can be read as covering less than the whole run.
+    pub excluded_catch_up: usize,
+}
+
+/// Percentiles over a set of lag samples, or `None` when there are none.
+///
+/// Nearest-rank on the sorted samples: with a few hundred utterances in a
+/// service, interpolating between neighbours would be false precision. A
+/// summary of nothing returns `None`, because zero would read as a
+/// measurement rather than an absence.
+fn percentiles(lags: &[f64]) -> Option<Percentiles> {
+    if lags.is_empty() {
+        return None;
+    }
+
+    let mut sorted = lags.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+    let at = |q: f64| -> u64 {
+        let rank = ((sorted.len() as f64 * q).ceil() as usize).clamp(1, sorted.len());
+        (sorted[rank - 1] * 1000.0).round().max(0.0) as u64
+    };
+
+    Some(Percentiles {
+        samples: sorted.len(),
+        p50_ms: at(0.50),
+        p95_ms: at(0.95),
+        p99_ms: at(0.99),
+        max_ms: (sorted[sorted.len() - 1] * 1000.0).round().max(0.0) as u64,
+    })
 }
 
 /// Everything transcribed since capture started.
@@ -99,8 +160,16 @@ pub struct SessionTranscript {
     word_count: usize,
     /// When capture began, for measuring lag. `None` until the first start.
     started: Option<Instant>,
-    /// Lag per settled utterance, in seconds.
-    lags: Vec<f64>,
+    /// Lag per interim result: when words first appeared.
+    interim_lags: Vec<f64>,
+    /// Lag per settled utterance.
+    settled_lags: Vec<f64>,
+    /// Reconnects so far, which make the tail suspect.
+    reconnects: usize,
+    /// While set, results are catch-up from a replay rather than live, and are
+    /// counted separately instead of poisoning the percentiles.
+    catch_up_until: Option<Instant>,
+    excluded_catch_up: usize,
 }
 
 impl SessionTranscript {
@@ -120,15 +189,10 @@ impl SessionTranscript {
         let start = words.first().map_or(0.0, |w| w.start);
         let end = words.last().map_or(start, |w| w.end);
 
-        // Lag is recorded before the segment is stored, while `end` is the
-        // newest thing we know about.
-        if let Some(started) = self.started {
-            let lag = started.elapsed().as_secs_f64() - end;
-            // A negative lag means the clock and the audio timeline disagree,
-            // which happened once already when a reconnect double-counted the
-            // offset. Recording it would hide that; dropping it would too, so
-            // it is clamped at zero and the max will show the disagreement.
-            self.lags.push(lag.max(0.0));
+        // Recorded before the segment is stored, while `end` is the newest
+        // thing we know about.
+        if let Some(lag) = self.lag_for(end) {
+            self.settled_lags.push(lag);
         }
 
         self.word_count += text.split_whitespace().count();
@@ -151,47 +215,90 @@ impl SessionTranscript {
         self.interim = text;
     }
 
+    /// Record how long it took for these words to appear on screen.
+    ///
+    /// Separate from `set_interim` because the panel takes only the text,
+    /// while the measurement needs the timing the words carry.
+    pub fn record_interim_timing(&mut self, words: &[Word]) {
+        let Some(end) = words.last().map(|w| w.end) else {
+            return;
+        };
+        if let Some(lag) = self.lag_for(end) {
+            self.interim_lags.push(lag);
+        }
+    }
+
+    /// Lag for a result whose newest word ends at `end`, or `None` when it
+    /// should not be counted.
+    fn lag_for(&mut self, end: f64) -> Option<f64> {
+        let started = self.started?;
+
+        // Catch-up after a reconnect is late by construction: the backlog is
+        // sent faster than real time, so Deepgram returns results for audio
+        // that is already old. Counting those would let a network outage read
+        // as a slow pipeline.
+        if self
+            .catch_up_until
+            .is_some_and(|until| Instant::now() < until)
+        {
+            self.excluded_catch_up += 1;
+            return None;
+        }
+
+        let lag = started.elapsed().as_secs_f64() - end;
+        // A negative lag means the clock and the audio timeline disagree,
+        // which happened once already when a reconnect double-counted the
+        // offset. Recording it would hide that; dropping it would too, so it
+        // is clamped at zero and the max will show the disagreement.
+        Some(lag.max(0.0))
+    }
+
+    /// Note that the connection dropped, and that results for the next
+    /// `catch_up_seconds` are replayed audio rather than live speech.
+    pub fn note_reconnect(&mut self, catch_up_seconds: f64) {
+        self.reconnects += 1;
+        // A little longer than the backlog itself, because Deepgram still has
+        // to process what was replayed before its results come back.
+        let window = std::time::Duration::from_secs_f64(catch_up_seconds.max(1.0) + 5.0);
+        self.catch_up_until = Some(Instant::now() + window);
+    }
+
     /// Clear the in-progress text without settling it, when a stream closes.
     pub fn clear_interim(&mut self) {
         self.interim.clear();
     }
 
     /// Start a new service. Everything already transcribed is discarded.
-    ///
-    /// The clock starts here rather than at the first word, so the wait before
-    /// anyone speaks is not counted as lag.
     pub fn reset(&mut self) {
-        *self = Self {
-            started: Some(Instant::now()),
-            ..Self::default()
-        };
+        *self = Self::default();
     }
 
-    /// Lag percentiles so far, or `None` before anything has settled.
+    /// Mark the moment the first audio reached the transcriber.
     ///
-    /// Nearest-rank percentiles on the sorted samples: with a few hundred
-    /// utterances in a service, interpolating between neighbours would be
-    /// false precision.
-    pub fn latency(&self) -> Option<LatencySummary> {
-        if self.lags.is_empty() {
-            return None;
+    /// **This, and not the moment capture started.** Deepgram's word
+    /// timestamps are relative to the first audio byte it received, so a clock
+    /// started any earlier is offset by everything in between — including the
+    /// WebSocket handshake, measured at over a second against the live
+    /// service. Anchoring at capture start added that whole handshake to every
+    /// lag sample, and a DoD run reported 2,797 ms p99 with roughly 1,200 ms of
+    /// it being the connection being opened.
+    ///
+    /// Called on every chunk and ignored after the first, because the caller is
+    /// the audio path and should not have to track which chunk is first.
+    pub fn mark_stream_start(&mut self) {
+        if self.started.is_none() {
+            self.started = Some(Instant::now());
         }
+    }
 
-        let mut sorted = self.lags.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-
-        let at = |q: f64| -> u64 {
-            let rank = ((sorted.len() as f64 * q).ceil() as usize).clamp(1, sorted.len());
-            (sorted[rank - 1] * 1000.0).round().max(0.0) as u64
-        };
-
-        Some(LatencySummary {
-            samples: sorted.len(),
-            p50_ms: at(0.50),
-            p95_ms: at(0.95),
-            p99_ms: at(0.99),
-            max_ms: (sorted[sorted.len() - 1] * 1000.0).round().max(0.0) as u64,
-        })
+    /// Lag percentiles so far, for both kinds of result.
+    pub fn latency(&self) -> LatencySummary {
+        LatencySummary {
+            interim: percentiles(&self.interim_lags),
+            settled: percentiles(&self.settled_lags),
+            reconnects: self.reconnects,
+            excluded_catch_up: self.excluded_catch_up,
+        }
     }
 
     /// Group settled utterances into paragraphs by the pauses between them.
@@ -336,14 +443,14 @@ mod tests {
         let mut transcript = SessionTranscript::new();
         transcript.reset();
         // Injected directly: measuring real lag would mean sleeping through it.
-        transcript.lags = (1..=100).map(|ms| ms as f64 / 1000.0).collect();
+        transcript.settled_lags = (1..=100).map(|ms| ms as f64 / 1000.0).collect();
 
-        let summary = transcript.latency().expect("samples exist");
-        assert_eq!(summary.samples, 100);
-        assert_eq!(summary.p50_ms, 50);
-        assert_eq!(summary.p95_ms, 95);
-        assert_eq!(summary.p99_ms, 99);
-        assert_eq!(summary.max_ms, 100);
+        let settled = transcript.latency().settled.expect("samples exist");
+        assert_eq!(settled.samples, 100);
+        assert_eq!(settled.p50_ms, 50);
+        assert_eq!(settled.p95_ms, 95);
+        assert_eq!(settled.p99_ms, 99);
+        assert_eq!(settled.max_ms, 100);
     }
 
     #[test]
@@ -351,7 +458,9 @@ mod tests {
         // A summary of nothing would read as a measurement of zero.
         let mut transcript = SessionTranscript::new();
         transcript.reset();
-        assert!(transcript.latency().is_none());
+        let latency = transcript.latency();
+        assert!(latency.interim.is_none());
+        assert!(latency.settled.is_none());
     }
 
     #[test]

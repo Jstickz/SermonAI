@@ -63,17 +63,31 @@ export type SttStatus =
   | { kind: "reconnecting"; attempt: number; retryInMs: number; bufferedSeconds: number }
   | { kind: "audio_dropped"; seconds: number };
 
-/** End-to-end lag, for M1's Definition of Done. Mirrors `LatencySummary` in
- *  `src-tauri/src/stt/transcript.rs`. Measured per settled utterance as the
- *  wall clock since capture began less the audio timestamp of the last word,
- *  so it covers the whole path rather than one hop. */
-export interface LatencySummary {
+/** Lag percentiles for one kind of result. */
+export interface Percentiles {
   samples: number;
   p50Ms: number;
   p95Ms: number;
-  /** The number M1's DoD budgets at 700 ms. */
   p99Ms: number;
   maxMs: number;
+}
+
+/**
+ * End-to-end lag, for M1's Definition of Done. Mirrors `LatencySummary` in
+ * `src-tauri/src/stt/transcript.rs`.
+ *
+ * Two numbers because they answer different questions. `interim` is when words
+ * first appear on screen — what the DoD line means by "transcript appears".
+ * `settled` is when Deepgram stops revising them, which is necessarily later
+ * because it waits for the speaker to stop. Reporting only `settled` compared
+ * Deepgram's endpointing delay against a budget written about visible text.
+ */
+export interface LatencySummary {
+  interim: Percentiles | null;
+  settled: Percentiles | null;
+  /** Non-zero makes the tail suspect: replayed audio is late by construction. */
+  reconnects: number;
+  excludedCatchUp: number;
 }
 
 /** Everything transcribed so far (FR-10). Mirrors `TranscriptSnapshot` in

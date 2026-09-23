@@ -60,7 +60,7 @@ export const audio = {
   /** The last 60 seconds of settled speech (FR-11), for M2's paraphrase stage. */
   rollingTranscript: () => invoke<string>("transcript_rolling"),
   /** End-to-end lag so far. Null until something has settled. */
-  latency: () => invoke<LatencySummary | null>("transcript_latency"),
+  latency: () => invoke<LatencySummary>("transcript_latency"),
 };
 
 export const display = {

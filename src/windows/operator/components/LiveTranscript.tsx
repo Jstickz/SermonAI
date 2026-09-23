@@ -433,12 +433,31 @@ export function LiveTranscript() {
         {/* Persistence is M4 (FR-34); until then nothing is saved, and saying
             so beats an empty space the operator reads as "saved". */}
         <span className="mono flex items-center gap-3">
-          {latency && (
+          {/* Both numbers, because they mean different things: when words
+              appear, and when Deepgram stops revising them. The first is what
+              the DoD budgets at 700 ms; the second is what M2's detection
+              will run on. */}
+          {latency?.interim && (
             <span
-              className={latency.p99Ms > 700 ? "text-status-warning" : undefined}
-              title={`p50 ${latency.p50Ms} ms · p95 ${latency.p95Ms} ms · max ${latency.maxMs} ms over ${latency.samples} utterances`}
+              className={latency.interim.p99Ms > 700 ? "text-status-warning" : undefined}
+              title={`Words appear: p50 ${latency.interim.p50Ms} ms · p95 ${latency.interim.p95Ms} ms · p99 ${latency.interim.p99Ms} ms · max ${latency.interim.maxMs} ms over ${latency.interim.samples} results`}
             >
-              lag p99 {latency.p99Ms} ms
+              appear {latency.interim.p50Ms}/{latency.interim.p95Ms}/{latency.interim.p99Ms} ms
+            </span>
+          )}
+          {latency?.settled && (
+            <span
+              title={`Confirmed: p50 ${latency.settled.p50Ms} ms · p95 ${latency.settled.p95Ms} ms · p99 ${latency.settled.p99Ms} ms · max ${latency.settled.maxMs} ms over ${latency.settled.samples} utterances. Gated by Deepgram's endpointing.`}
+            >
+              settle {latency.settled.p50Ms}/{latency.settled.p95Ms}/{latency.settled.p99Ms} ms
+            </span>
+          )}
+          {latency && latency.reconnects > 0 && (
+            <span
+              className="text-status-warning"
+              title="A reconnect replays held audio faster than real time, so its results are late by construction. Those samples are excluded."
+            >
+              {latency.reconnects} reconnect{latency.reconnects === 1 ? "" : "s"}
             </span>
           )}
           <span>not saved yet · M4</span>

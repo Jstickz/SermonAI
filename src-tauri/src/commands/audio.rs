@@ -8,7 +8,7 @@ use crate::error::{Error, Result};
 use crate::state::AppState;
 use crate::stt::deepgram::TranscriptEvent;
 use crate::stt::reconnect::AudioFeed;
-use crate::stt::reconnect::ResilientStream;
+use crate::stt::reconnect::{ResilientStream, SttStatus};
 use crate::stt::transcript::{LatencySummary, TranscriptSnapshot};
 use crate::stt::vocabulary;
 
@@ -100,7 +100,11 @@ pub async fn start_capture(
                         let mut transcript =
                             state.session_transcript.lock().expect("transcript lock");
                         match &event {
-                            TranscriptEvent::Interim { text, .. } => {
+                            TranscriptEvent::Interim { text, words } => {
+                                // Timing first: this is when the words reached
+                                // the screen, which is the number the DoD line
+                                // about the transcript appearing is asking for.
+                                transcript.record_interim_timing(words);
                                 transcript.set_interim(text.clone())
                             }
                             TranscriptEvent::Final { text, words, .. } => {
@@ -113,6 +117,23 @@ pub async fn start_capture(
                     let _ = event_app.emit("transcript:segment", &event);
                 }),
                 Box::new(move |status| {
+                    // A reconnect makes the latency tail meaningless: replayed
+                    // audio is sent faster than real time, so its results are
+                    // late by construction. Told here so the percentiles can
+                    // exclude that window rather than report a network outage
+                    // as a slow pipeline.
+                    if let SttStatus::Reconnecting {
+                        buffered_seconds, ..
+                    } = &status
+                    {
+                        status_app
+                            .state::<AppState>()
+                            .session_transcript
+                            .lock()
+                            .expect("transcript lock")
+                            .note_reconnect(*buffered_seconds);
+                    }
+
                     // The operator needs to know the difference between a
                     // transcript that has stopped and one that is catching up.
                     let _ = status_app.emit("stt:status", &status);
@@ -147,6 +168,7 @@ fn spawn_capture(
     device_name: String,
     feed: Option<AudioFeed>,
 ) -> Result<CaptureHandle> {
+    let clock_app = app.clone();
     let level_app = app.clone();
     let error_app = app.clone();
 
@@ -157,6 +179,16 @@ fn spawn_capture(
             // still runs: a level test should exercise the real capture path,
             // not a shortcut that could hide a fault in it.
             if let Some(feed) = &feed {
+                // The lag clock starts with the first audio actually sent, not
+                // when capture began: Deepgram times its words from the first
+                // byte it receives, so anchoring earlier charges the handshake
+                // to every measurement.
+                clock_app
+                    .state::<AppState>()
+                    .session_transcript
+                    .lock()
+                    .expect("transcript lock")
+                    .mark_stream_start();
                 feed.send(chunk);
             }
         }),
@@ -238,21 +270,41 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
         session.finish().await;
     }
 
-    if let Some(latency) = state
-        .session_transcript
-        .lock()
-        .expect("transcript lock")
-        .latency()
     {
-        tracing::info!(
-            samples = latency.samples,
-            p50_ms = latency.p50_ms,
-            p95_ms = latency.p95_ms,
-            p99_ms = latency.p99_ms,
-            max_ms = latency.max_ms,
-            budget_ms = 700,
-            "transcription lag for this run"
-        );
+        let latency = state
+            .session_transcript
+            .lock()
+            .expect("transcript lock")
+            .latency();
+
+        if let Some(interim) = &latency.interim {
+            tracing::info!(
+                samples = interim.samples,
+                p50_ms = interim.p50_ms,
+                p95_ms = interim.p95_ms,
+                p99_ms = interim.p99_ms,
+                max_ms = interim.max_ms,
+                budget_ms = 700,
+                "lag until words appear (interim) — this is the DoD line's measure"
+            );
+        }
+        if let Some(settled) = &latency.settled {
+            tracing::info!(
+                samples = settled.samples,
+                p50_ms = settled.p50_ms,
+                p95_ms = settled.p95_ms,
+                p99_ms = settled.p99_ms,
+                max_ms = settled.max_ms,
+                "lag until an utterance is confirmed (settled) — gated by Deepgram endpointing, and what M2 detection will run on"
+            );
+        }
+        if latency.reconnects > 0 {
+            tracing::warn!(
+                reconnects = latency.reconnects,
+                excluded_catch_up = latency.excluded_catch_up,
+                "the connection dropped during this run; replayed audio is late by construction and its samples were excluded"
+            );
+        }
     }
 
     let _ = app.emit(
@@ -337,7 +389,7 @@ pub fn transcript_rolling(state: State<'_, AppState>) -> String {
 /// `None` until something has settled. Read from the Live tab and logged at
 /// stop, so a ten-minute test produces a number rather than an impression.
 #[tauri::command]
-pub fn transcript_latency(state: State<'_, AppState>) -> Option<LatencySummary> {
+pub fn transcript_latency(state: State<'_, AppState>) -> LatencySummary {
     state
         .session_transcript
         .lock()
