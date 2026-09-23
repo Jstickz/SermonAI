@@ -758,6 +758,12 @@ sermonai/
 - Persistent panel showing "Staged" and "Live" side by side.
 - Enter or Go Live button promotes staged to live. Escape clears staging.
 - Auto-live toggle in settings with an obvious on-screen indicator when enabled.
+- **Provisional candidates** (§18.1): a reference matched in interim text appears
+  here marked unconfirmed, and **cannot be promoted, staged live, or auto-lived**
+  in that state. It firms up when the confirmed text supports it, and is
+  withdrawn silently if not. Silently because interim results are revisions
+  rather than mistakes; a panel that announced every retraction would train the
+  operator to ignore it.
 
 ### 13.6 Projector Display
 - Full-screen; layouts: verse only, verse + reference, verse + reference + translation.
@@ -1050,18 +1056,83 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 
 ### 18.1 Latency Targets
 
+Amended 23 September 2026, after M1 measured the path end to end. The previous
+table budgeted a single "end-to-end regex path" at 800 ms p99 from spoken word
+to output, which is **not reachable** and never was: detection runs on
+*confirmed* text, and confirmation is Deepgram's decision, taken only once it
+judges the speaker to have stopped. Measured at roughly **2.3 s p95**, and
+unmoved by the `endpointing` parameter across default, 100 ms and 300 ms.
+
+So the path has two budgets, split where control changes hands.
+
+#### Two-stage detection
+
+A reference is caught twice:
+
+1. **Provisional.** The regex stage also runs on interim text, and a match
+   raises a candidate in staging **marked unconfirmed**. It is never
+   projectable, and it is withdrawn silently if the confirmed text does not
+   support it — interim results are revisions, and in testing
+   "...if you will to join" became "...to John chapter three" one result later.
+   Silent withdrawal matters: an operator who sees candidates appear and
+   retract loudly will stop trusting the panel.
+2. **Confirmed.** When the settled text supports the candidate, it firms up and
+   becomes projectable.
+
+This buys the operator most of a second of warning without ever putting
+unconfirmed text where a congregation can read it.
+
+#### Per-stage budgets
+
 | Step | p95 | p99 |
 |---|---|---|
 | Audio chunk | 250ms | 300ms |
-| STT word return (online) | 400ms | 700ms |
+| STT interim return (online) | 400ms | 700ms |
 | Regex detection | 5ms | 15ms |
 | Vector semantic detection | 5ms | 20ms |
 | LLM paraphrase detection | 1500ms | 3000ms |
 | Cache lookup | 5ms | 20ms |
 | Staged → live on output | 50ms | 100ms |
 | Remote tap → output | 300ms | 600ms |
-| **End-to-end regex path** | **500ms** | **800ms** |
-| **End-to-end semantic path** | **2000ms** | **3500ms** |
+
+#### End-to-end budgets
+
+| Path | p95 | p99 |
+|---|---|---|
+| **Spoken word → provisional candidate in staging** | **900ms** | **1300ms** |
+| **Confirmed text → projectable candidate (regex)** | **50ms** | **150ms** |
+| **Confirmed text → projectable candidate (semantic)** | **60ms** | **200ms** |
+| **Confirmed text → projectable candidate (paraphrase)** | **1600ms** | **3200ms** |
+
+**Where the provisional numbers come from.** Measured on 38 s of speech against
+the live service: words appear at 452 / 681 / 698 ms (p50/p95/p99), of which
+250 ms is our own chunking and the rest is network plus Deepgram. Regex and the
+staging render add tens of milliseconds. The budget is set at 900 / 1300 rather
+than at the measurement because that measurement was taken on one machine on a
+good connection, and the network leg is the part a church in Abuja or Nairobi
+will find worst. Roughly 200 ms of headroom at p95 is the allowance for that,
+not slack.
+
+**Why the confirmed budgets are small.** They start *after* Deepgram has
+confirmed, so they measure only our own work: matching, a cache lookup, and
+updating staging. Everything before that point is the vendor's and is recorded
+below rather than budgeted.
+
+#### Observed, not budgeted
+
+| Step | Observed p95 | Note |
+|---|---|---|
+| Spoken word → confirmed text | ~2.3s | Deepgram's endpointing. Not tunable through `endpointing`; treat as the cost of a confirmed utterance. |
+
+A verse therefore reaches the projector roughly two and a half seconds after it
+is spoken, and a *provisional* candidate reaches staging in about one. If the
+first number has to fall, it needs a different STT vendor or model rather than a
+tighter budget here.
+
+#### Other targets
+
+| Step | p95 | p99 |
+|---|---|---|
 | Summary PDF (60-min sermon, online) | 90s | 150s |
 | Summary PDF (offline, reduced) | 180s | 300s |
 | Archive search (1,000 sermons) | 500ms | 1s |
