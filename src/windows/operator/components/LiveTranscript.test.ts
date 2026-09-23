@@ -67,6 +67,33 @@ describe("reconnectingMessage", () => {
     expect(text).toContain("Retrying");
   });
 
+  it("stops promising recovery once the buffer has overflowed", () => {
+    // Seen on a real outage: the amber banner said "60s of speech held, and it
+    // will be transcribed when the connection returns" directly above a red
+    // one saying "about 25s of speech was not transcribed". Both were true and
+    // together they were incoherent — the operator cannot tell which to
+    // believe, and the reassurance is the one that is misleading.
+    const text = reconnectingMessage(
+      { attempt: 8, retryInMs: 30000, bufferedSeconds: 60 },
+      25,
+    );
+
+    expect(text).toContain("about 25s of speech has already been lost");
+    expect(text).toContain("most recent 60s is still held");
+    expect(text).not.toContain("will be transcribed when the connection returns");
+    expect(text).toContain("Retrying in 30s (attempt 8)");
+  });
+
+  it("keeps the reassurance while the buffer still fits the outage", () => {
+    const text = reconnectingMessage(
+      { attempt: 2, retryInMs: 1000, bufferedSeconds: 8 },
+      0,
+    );
+    expect(text).toContain("8s of speech held");
+    expect(text).toContain("will be transcribed when the connection returns");
+    expect(text).not.toContain("lost");
+  });
+
   it("rounds a sub-second delay up rather than to zero", () => {
     // BACKOFF_MS[0] is 500 ms. "Retrying in 0s" reads as stuck.
     const text = reconnectingMessage({ attempt: 1, retryInMs: 500, bufferedSeconds: 4 });

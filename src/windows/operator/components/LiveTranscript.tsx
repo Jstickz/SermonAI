@@ -23,24 +23,28 @@ const PARAGRAPH_GAP_SECONDS = 2.5;
  * Guards against a missing number rather than trusting the type, because the
  * type is exactly what was wrong.
  */
-export function reconnectingMessage(status: {
-  attempt: number;
-  retryInMs: number;
-  bufferedSeconds: number;
-}): string {
+export function reconnectingMessage(
+  status: { attempt: number; retryInMs: number; bufferedSeconds: number },
+  droppedSeconds = 0,
+): string {
   const seconds = Number.isFinite(status.retryInMs)
     ? Math.max(1, Math.round(status.retryInMs / 1000))
     : null;
 
   const retry = seconds === null ? "Retrying" : `Retrying in ${seconds}s`;
   const held = Number.isFinite(status.bufferedSeconds) ? Math.round(status.bufferedSeconds) : 0;
+  const lost = Math.round(droppedSeconds);
 
-  // The operator's real question during an outage is not whether it is
-  // retrying but whether the sermon is being kept.
+  // Once the buffer is full the reassurance stops being true, and saying it
+  // anyway contradicts the banner underneath reporting the loss. An operator
+  // reading "it will be transcribed when the connection returns" directly
+  // above "25s was not transcribed" cannot tell which to believe.
   const kept =
-    held > 0
-      ? `Still recording — ${held}s of speech held, and it will be transcribed when the connection returns.`
-      : "Still recording. Nothing spoken is being lost.";
+    lost > 0
+      ? `The buffer is full: about ${lost}s of speech has already been lost, and the oldest is dropped as you keep talking. The most recent ${held}s is still held.`
+      : held > 0
+        ? `Still recording — ${held}s of speech held, and it will be transcribed when the connection returns.`
+        : "Still recording. Nothing spoken is being lost.";
 
   return `Deepgram is unreachable. ${retry} (attempt ${status.attempt}). ${kept}`;
 }
@@ -348,11 +352,14 @@ export function LiveTranscript() {
           am I losing the sermon — unanswered. */}
       {stt?.kind === "reconnecting" && (
         <p className="rounded-md bg-status-warning-bg px-3 py-2 text-[13px] text-status-warning">
-          {reconnectingMessage(stt)}
+          {reconnectingMessage(stt, droppedSeconds)}
         </p>
       )}
 
-      {droppedSeconds > 0 && (
+      {/* Hidden while reconnecting, because the amber banner above already
+          reports the loss. Shown afterwards as the standing record that this
+          transcript has a hole in it. */}
+      {droppedSeconds > 0 && stt?.kind !== "reconnecting" && (
         <p className="rounded-md bg-status-danger-bg px-3 py-2 text-[13px] text-status-danger">
           The outage outlasted the buffer: about {Math.round(droppedSeconds)}s of speech was not
           transcribed. The transcript has a gap.
