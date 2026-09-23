@@ -238,9 +238,15 @@ impl YouVersionClient {
     /// Every request carries the app key header; there is no other auth.
     fn get(&self, path: &str) -> Result<reqwest::RequestBuilder> {
         let key = self.app_key.as_ref().ok_or_else(|| {
-            Error::Bible(format!(
-                "online Bible lookups are off because {APP_KEY_ENV} is not set. Add it to .env and restart"
-            ))
+            // Names no environment variable. YouVersion is managed-only — the
+            // publisher licence is SermonAI's, so there is no key a church can
+            // paste and nothing they can put in a file. Telling an operator to
+            // edit a .env offers an action that does nothing in a release
+            // build, where that path is not compiled in at all.
+            Error::Bible(
+                "Online verse lookup is off. It comes with SermonAI activation, which is not built yet. Bundled and cached verses still work."
+                    .to_string(),
+            )
         })?;
 
         Ok(self
@@ -421,8 +427,14 @@ mod tests {
         let client = YouVersionClient::with_key(None, BASE_URL.to_string());
         assert!(!client.is_online_enabled());
 
+        // The message must not send a church to a file they cannot usefully
+        // edit: in a release build nothing reads .env, and YouVersion takes no
+        // pasted key either. It should say what still works instead.
         let err = client.get("/bibles").unwrap_err().to_string();
-        assert!(err.contains(APP_KEY_ENV), "{err}");
+        assert!(!err.contains(APP_KEY_ENV), "{err}");
+        assert!(!err.contains(".env"), "{err}");
+        assert!(err.contains("activation"), "{err}");
+        assert!(err.contains("cached"), "{err}");
     }
 
     #[test]

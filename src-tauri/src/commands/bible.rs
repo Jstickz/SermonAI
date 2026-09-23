@@ -26,7 +26,7 @@ pub fn open_license_portal(app: AppHandle) -> Result<()> {
 pub async fn refresh_bible_licenses(state: State<'_, AppState>) -> Result<Vec<BibleVersion>> {
     if !state.bible.is_online_enabled() {
         return Err(Error::Bible(
-            "online Bible access is off because no YouVersion app key is set. Add YVP_APP_KEY to .env and restart"
+            "Licences cannot be checked: online verse lookup comes with SermonAI activation, which is not built yet."
                 .into(),
         ));
     }

@@ -191,8 +191,15 @@ async fn without_a_key_the_client_is_disabled_but_usable() {
     let client = YouVersionClient::with_key(None, "http://127.0.0.1:1".to_string());
     assert!(!client.is_online_enabled());
 
+    // The message is operator-facing, so it must not name an environment
+    // variable or a .env file. YouVersion is managed-only — no key a church
+    // could paste would carry SermonAI's publisher licence — and in a release
+    // build nothing reads .env at all. It should say what still works instead.
     let err = client.list_bibles("eng").await.unwrap_err().to_string();
-    assert!(err.contains(APP_KEY_ENV), "should name the variable: {err}");
+    assert!(!err.contains(APP_KEY_ENV), "names an env var: {err}");
+    assert!(!err.contains(".env"), "sends the operator to a file: {err}");
+    assert!(err.contains("activation"), "should say why: {err}");
+    assert!(err.contains("cached"), "should say what still works: {err}");
 }
 
 /// The only test that can confirm YouVersion's real response shapes.
