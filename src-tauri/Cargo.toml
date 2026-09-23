@@ -53,6 +53,16 @@ tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
 sha2 = "0.10"
 hex = "0.4"
 
+# BYOK key storage: Windows Credential Manager and macOS Keychain (PRD §17).
+# Native backends only — the Linux ones pull in dbus and a secret-service
+# client, and we ship neither platform. Weight against the 40 MB gate is a few
+# hundred KB of OS bindings, which is the cheapest correct answer: the
+# alternative is a file we would have to encrypt ourselves.
+keyring = { version = "3", default-features = false, features = [
+    "windows-native",
+    "apple-native",
+] }
+
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1"
 once_cell = "1"

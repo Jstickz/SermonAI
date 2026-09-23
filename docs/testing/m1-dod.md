@@ -206,21 +206,37 @@ A `tauri dev` run carries an unoptimized Rust binary and a live Vite server with
 hot-reload state. For the figure that goes in MILESTONES:
 
 ```powershell
-npm run tauri:build:local
+npm run tauri:build
 ```
 
-Use `tauri:build:local`, not `tauri:build`. The latter also signs the updater
-artifacts and needs `TAURI_SIGNING_PRIVATE_KEY`, which lives in GitHub Actions
-secrets rather than on a development machine. Without it the build produces
-every bundle correctly and *then* fails on the signature, which reads as a build
-failure when nothing is actually wrong. `tauri:build:local` turns that step off;
-CI keeps it on, because release downloads do need signed update bundles.
+This used to fail at the very last step on a development machine: Tauri built
+every bundle correctly and *then* refused to sign the updater artifacts, because
+`TAURI_SIGNING_PRIVATE_KEY` lives in GitHub Actions secrets and not on a laptop.
+The installers were on disk and the command still exited non-zero, which reads
+as a failed build. It now skips updater artifacts when there is no key and says
+so; CI has the key, so releases are still signed. Nothing about the app binary
+changes either way.
 
 Then run the built app rather than the dev server:
 
 ```powershell
 & ".\src-tauri\target\release\sermonai.exe"
 ```
+
+### Give the release build a key first
+
+A release build reads no `.env` — that path is compiled out so a church's
+installer contains no route from an environment variable to a vendor call. Until
+BYOK landed it therefore could not transcribe at all, and reported *"Deepgram is
+not available yet."*
+
+Now it can. In the built app, go to **Settings → Services & keys**, paste your
+Deepgram key next to Deepgram, press **Save key**, then **Test** to confirm the
+vendor accepts it before you start a ten-minute run. The key goes to Windows
+Credential Manager, so it survives reinstalling and you only do this once per
+machine.
+
+Anthropic is not needed for these two lines — nothing in M1 calls it.
 
 ---
 

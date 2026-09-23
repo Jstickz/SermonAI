@@ -1,16 +1,18 @@
-import { useState } from "react";
 import { LevelMeter } from "./components/LevelMeter";
 import { LiveTranscript } from "./components/LiveTranscript";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { TabPanel } from "./components/TabPanel";
+import { TABS, useNavStore } from "@/stores/navStore";
 
 // M0 shell only. The panels below are filled in per milestone:
 // transcript M1, detection cards M2, staging M3, library M4, packs M0/M5.
-const TABS = ["Live", "Library", "Series", "Studio", "Settings"] as const;
-type Tab = (typeof TABS)[number];
 
 export function OperatorApp() {
-  const [tab, setTab] = useState<Tab>("Live");
+  // In a store rather than local state so a message elsewhere can navigate —
+  // the "no key set" error on the Live tab opens Settings at the right
+  // section. See navStore.
+  const tab = useNavStore((s) => s.tab);
+  const setTab = useNavStore((s) => s.setTab);
 
   return (
     <div className="flex h-full flex-col bg-bg-canvas">

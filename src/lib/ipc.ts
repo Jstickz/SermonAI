@@ -19,6 +19,9 @@ import type {
   TranscriptEvent,
   LatencySummary,
   SttStatus,
+  ServiceCredential,
+  ServiceId,
+  TestOutcome,
   TranscriptSnapshot,
   Verse,
 } from "./types";
@@ -114,6 +117,26 @@ export const library = {
   list: () => invoke<Sermon[]>("list_sermons"),
   downloadSummaryPdf: (sermonId: number) => invoke<string>("download_summary_pdf", { sermonId }),
   regenerateSummary: (sermonId: number) => invoke<void>("regenerate_summary", { sermonId }),
+};
+
+export const credentials = {
+  /** Every service and its current state. Cheap; safe on every panel mount. */
+  list: () => invoke<ServiceCredential[]>("list_service_credentials"),
+
+  /** Store a key the operator pasted. Returns the refreshed listing, so the
+   *  panel cannot show a stale row after a save — and a save that lands but
+   *  reads back missing, which is what a failing credential store looks like,
+   *  shows up at once rather than after a restart. */
+  setKey: (service: ServiceId, key: string) =>
+    invoke<ServiceCredential[]>("set_service_key", { service, key }),
+
+  remove: (service: ServiceId) =>
+    invoke<ServiceCredential[]>("remove_service_key", { service }),
+
+  /** The cheapest real call this vendor offers. Resolves with ok:false for a
+   *  key the vendor rejected, and rejects only when the test could not run —
+   *  the operator's problem versus ours. */
+  test: (service: ServiceId) => invoke<TestOutcome>("test_service_key", { service }),
 };
 
 export const packs = {

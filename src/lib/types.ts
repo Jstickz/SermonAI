@@ -268,3 +268,47 @@ export interface PackProgress {
   bytesOnDisk: number;
   sizeBytes: number;
 }
+
+/* ---------- credentials (PRD §17) ----------
+ * Mirrors `src-tauri/src/credentials/mod.rs`. Change both together.
+ *
+ * Nothing here can carry a raw key. `masked` is the last four characters and
+ * is the most the frontend is ever given — the backend has no command that
+ * returns a credential, so a devtools session or a logged IPC payload has
+ * nothing to leak. */
+
+export type ServiceId = "deepgram" | "anthropic" | "you_version" | "tyndale_nlt";
+
+/** Where a key on this machine came from. Shown because the two are easy to
+ *  confuse: a developer whose `.env` looks ignored has usually pasted a key
+ *  into Settings and forgotten. */
+export type KeySource = "keychain" | "dev_env";
+
+export type CredentialStatus =
+  | { kind: "managed_active" }
+  | { kind: "byok_active"; masked: string; source: KeySource }
+  | { kind: "not_activated" }
+  | { kind: "token_revoked" }
+  | { kind: "quota_reached" }
+  | { kind: "gateway_unreachable" }
+  /** The OS credential store would not open. Not the same as having no key,
+   *  and must not be shown as one — the operator may have already pasted it. */
+  | { kind: "store_unavailable"; detail: string }
+  | { kind: "dev_key_missing"; envVar: string };
+
+export interface ServiceCredential {
+  service: ServiceId;
+  label: string;
+  /** What stops working without it, not the vendor's product category. */
+  purpose: string;
+  /** False for YouVersion and Tyndale: the licence is SermonAI's, so a
+   *  church's own key would authenticate and return nothing it may display. */
+  allowsByok: boolean;
+  status: CredentialStatus;
+}
+
+/** Result of the Test button's real call. */
+export interface TestOutcome {
+  ok: boolean;
+  message: string;
+}

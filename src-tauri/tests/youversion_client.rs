@@ -17,7 +17,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::get;
 use axum::Router;
 use sermonai_lib::bible::youversion::{YouVersionClient, APP_KEY_ENV};
-use sermonai_lib::credentials::dev::DevProvider;
+use sermonai_lib::credentials::local::LocalProvider;
 use sermonai_lib::credentials::Credentials;
 
 const TEST_KEY: &str = "test-app-key-123";
@@ -214,9 +214,7 @@ async fn live_api_returns_content_and_attribution() {
     // Through the credential provider, like the app does, rather than
     // reading the variable a second way — this test is the one place
     // that would not notice if the abstraction stopped being used.
-    let credentials = Credentials::new(Box::new(
-        DevProvider::new().expect("integration tests are a debug build"),
-    ));
+    let credentials = Credentials::new(Box::new(LocalProvider::new()));
     let client = YouVersionClient::from_credentials(&credentials);
     assert!(client.is_online_enabled());
 

@@ -22,6 +22,10 @@ use tauri::Manager;
 
 /// Load `.env` into the environment. **Development builds only.**
 ///
+/// Note this only populates the environment. What *reads* it is
+/// `credentials::local`, and only when the OS credential store has nothing for
+/// that service — so a key pasted into Settings always wins.
+///
 /// A developer's `.env` holds working vendor keys, so this has to be certain
 /// never to run in a shipped app. The whole function body is behind
 /// `debug_assertions`, which is off for `--release` and therefore off for every
@@ -81,14 +85,12 @@ pub fn run() {
             let packs = packs::PackManager::new(&data_dir, manifest_url);
 
             // Credentials first: every service client is built from them
-            // (PRD §17). The development provider reads .env; a release build
-            // has none until the gateway lands, and reports as not activated
-            // rather than silently finding nothing.
+            // (PRD §17). Today that is BYOK — a church's own keys in the OS
+            // credential store, with a developer's .env behind it — and the
+            // gateway provider replaces it in Phase 3 without any service
+            // client changing.
             let credentials =
-                credentials::Credentials::new(match credentials::dev::DevProvider::new() {
-                    Some(provider) => Box::new(provider),
-                    None => Box::new(credentials::dev::UnconfiguredProvider),
-                });
+                credentials::Credentials::new(Box::new(credentials::local::LocalProvider::new()));
 
             // Online Bible access. Logs once and disables itself if no
             // credential is available, rather than failing startup.
@@ -139,6 +141,10 @@ pub fn run() {
             commands::bible::open_license_portal,
             commands::bible::refresh_bible_licenses,
             commands::bible::is_bible_online,
+            commands::credentials::list_service_credentials,
+            commands::credentials::set_service_key,
+            commands::credentials::remove_service_key,
+            commands::credentials::test_service_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SermonAI");

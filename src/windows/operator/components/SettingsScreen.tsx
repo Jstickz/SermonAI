@@ -1,7 +1,8 @@
-import { useState } from "react";
 import { AudioSettings } from "./AudioSettings";
 import { DisplaySettings } from "./DisplaySettings";
 import { PackSettings } from "./PackSettings";
+import { ServiceSettings } from "./ServiceSettings";
+import { useNavStore, type SettingsSection } from "@/stores/navStore";
 
 /**
  * Settings: a section list beside one section's content
@@ -16,6 +17,7 @@ const SECTIONS = [
   { id: "general", label: "General", milestone: "M8" },
   { id: "audio", label: "Audio & speech", milestone: null },
   { id: "displays", label: "Displays & themes", milestone: null },
+  { id: "services", label: "Services & keys", milestone: null },
   { id: "translations", label: "Translations", milestone: "M6" },
   { id: "summary", label: "Summary template", milestone: "M4" },
   { id: "remote", label: "Phone remote", milestone: "M7" },
@@ -27,8 +29,16 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]["id"];
 
+/** The sections with a screen behind them. Listing them once keeps the
+ *  fallback from shadowing a panel that was added but not added here — a
+ *  mistake that renders as "not built yet" over working code. */
+const BUILT: readonly string[] = ["audio", "displays", "packs", "services"];
+
 export function SettingsScreen() {
-  const [section, setSection] = useState<SectionId>("audio");
+  // In the nav store rather than local state so the Live tab can send the
+  // operator straight here when a service has no key. See navStore.
+  const section = useNavStore((s) => s.settingsSection);
+  const setSection = useNavStore((s) => s.setSettingsSection);
 
   return (
     <div className="settings-layout">
@@ -37,7 +47,7 @@ export function SettingsScreen() {
           <button
             key={s.id}
             className={section === s.id ? "on" : undefined}
-            onClick={() => setSection(s.id)}
+            onClick={() => setSection(s.id as SettingsSection)}
             aria-current={section === s.id ? "page" : undefined}
           >
             {s.label}
@@ -49,7 +59,8 @@ export function SettingsScreen() {
         {section === "audio" && <AudioSettings />}
         {section === "displays" && <DisplaySettings />}
         {section === "packs" && <PackSettings />}
-        {!["audio", "displays", "packs"].includes(section) && <NotBuiltYet section={section} />}
+        {section === "services" && <ServiceSettings />}
+        {!BUILT.includes(section) && <NotBuiltYet section={section} />}
       </div>
     </div>
   );

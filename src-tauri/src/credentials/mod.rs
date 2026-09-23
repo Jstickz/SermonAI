@@ -28,7 +28,9 @@
 //! would have to be rewritten later. Asking a client to carry that shape now,
 //! while only the development provider exists, is the whole point of the phase.
 
-pub mod dev;
+pub mod keychain;
+pub mod local;
+pub mod verify;
 
 use std::fmt;
 
@@ -51,6 +53,45 @@ impl Service {
             Service::Deepgram | Service::Anthropic => true,
             // The licence is ours, not theirs. See the module note.
             Service::YouVersion | Service::TyndaleNlt => false,
+        }
+    }
+
+    /// The stable identifier this service is stored under in the OS credential
+    /// store.
+    ///
+    /// Never change one of these: a rename orphans the entry rather than
+    /// migrating it, and the operator would be told their key had vanished
+    /// while it sat in Credential Manager under the old name.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Service::Deepgram => "deepgram",
+            Service::Anthropic => "anthropic",
+            Service::YouVersion => "youversion",
+            Service::TyndaleNlt => "tyndale-nlt",
+        }
+    }
+
+    /// Every service, in the order the settings panel lists them.
+    pub fn all() -> [Service; 4] {
+        [
+            Service::Deepgram,
+            Service::Anthropic,
+            Service::YouVersion,
+            Service::TyndaleNlt,
+        ]
+    }
+
+    /// What the operator is told this service does, on the settings panel.
+    ///
+    /// Phrased as the thing that stops working without it, not as the vendor's
+    /// product category. An operator deciding whether to paste a key needs to
+    /// know what breaks, and "speech recognition platform" does not tell them.
+    pub fn purpose(self) -> &'static str {
+        match self {
+            Service::Deepgram => "Live transcription. Without it, nothing is transcribed.",
+            Service::Anthropic => "Sermon summaries and paraphrase detection.",
+            Service::YouVersion => "Online verse lookup beyond the bundled translations.",
+            Service::TyndaleNlt => "The New Living Translation.",
         }
     }
 
@@ -164,8 +205,8 @@ impl fmt::Display for Secret {
 pub enum CredentialStatus {
     /// Reached through the gateway on SermonAI's account.
     ManagedActive,
-    /// Using a key the church supplied. `masked` is safe to display.
-    ByokActive { masked: String },
+    /// Using a key held on this machine. `masked` is safe to display.
+    ByokActive { masked: String, source: KeySource },
     /// No install token and no key: onboarding has not finished.
     NotActivated,
     /// The gateway recognised the token and refused it.
@@ -176,8 +217,26 @@ pub enum CredentialStatus {
     /// is a billing conversation and the other is a network cable, and telling
     /// a church the wrong one wastes a Sunday.
     GatewayUnreachable,
+    /// The OS credential store could not be opened or read. Distinct from
+    /// [`CredentialStatus::NotActivated`] on purpose: "no key is set" invites
+    /// the operator to paste one, and they may have already pasted it.
+    StoreUnavailable { detail: String },
     /// Development only: the service has no key in `.env`.
     DevKeyMissing { env_var: String },
+}
+
+/// Where a key on this machine came from.
+///
+/// Shown on the settings panel because the two sources are easy to confuse:
+/// a developer whose `.env` appears to be ignored is usually looking at a key
+/// they pasted into Settings months earlier and forgot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeySource {
+    /// Windows Credential Manager or the macOS Keychain.
+    Keychain,
+    /// A developer's `.env`. Never present in a release build.
+    DevEnv,
 }
 
 impl CredentialStatus {
@@ -194,6 +253,40 @@ impl CredentialStatus {
 pub trait Provider: Send + Sync + 'static {
     fn access(&self, service: Service) -> Result<Access>;
     fn status(&self, service: Service) -> CredentialStatus;
+
+    /// Store a church's own key for this service.
+    ///
+    /// Defaulted to a refusal so a provider with no local store — the gateway
+    /// one — does not have to pretend it can. An implementation that *can*
+    /// store must call [`Credentials::check_byok_allowed`] first.
+    fn set_byok(&self, service: Service, _key: &str) -> Result<()> {
+        Err(Error::Config(format!(
+            "This build cannot store a {} key on this machine.",
+            service.label()
+        )))
+    }
+
+    fn remove_byok(&self, service: Service) -> Result<()> {
+        Err(Error::Config(format!(
+            "This build holds no {} key to remove.",
+            service.label()
+        )))
+    }
+}
+
+/// One service's line on the settings panel.
+///
+/// Deliberately carries no key, masked or otherwise, beyond what is already
+/// inside [`CredentialStatus`] — the frontend never receives a raw credential,
+/// and the way to keep that true is to have no field that could hold one.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceCredential {
+    pub service: Service,
+    pub label: String,
+    pub purpose: String,
+    pub allows_byok: bool,
+    pub status: CredentialStatus,
 }
 
 /// The process-wide provider, held in `AppState`.
@@ -213,6 +306,28 @@ impl Credentials {
 
     pub fn status(&self, service: Service) -> CredentialStatus {
         self.provider.status(service)
+    }
+
+    /// Every service and its current state, for the settings panel.
+    pub fn summary(&self) -> Vec<ServiceCredential> {
+        Service::all()
+            .into_iter()
+            .map(|service| ServiceCredential {
+                service,
+                label: service.label().to_string(),
+                purpose: service.purpose().to_string(),
+                allows_byok: service.allows_byok(),
+                status: self.provider.status(service),
+            })
+            .collect()
+    }
+
+    pub fn set_byok(&self, service: Service, key: &str) -> Result<()> {
+        self.provider.set_byok(service, key)
+    }
+
+    pub fn remove_byok(&self, service: Service) -> Result<()> {
+        self.provider.remove_byok(service)
     }
 
     /// Reject a BYOK key for a service that cannot accept one.
@@ -278,7 +393,8 @@ mod tests {
     fn only_active_states_let_a_client_call() {
         assert!(CredentialStatus::ManagedActive.is_usable());
         assert!(CredentialStatus::ByokActive {
-            masked: "••••1234".into()
+            masked: "••••1234".into(),
+            source: KeySource::Keychain,
         }
         .is_usable());
 
@@ -287,6 +403,9 @@ mod tests {
             CredentialStatus::TokenRevoked,
             CredentialStatus::QuotaReached,
             CredentialStatus::GatewayUnreachable,
+            CredentialStatus::StoreUnavailable {
+                detail: "Credential Manager would not open".into(),
+            },
             CredentialStatus::DevKeyMissing {
                 env_var: "DEEPGRAM_API_KEY".into(),
             },

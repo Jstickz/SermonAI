@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { audio, on } from "@/lib/ipc";
 import { Modal } from "./Modal";
 import { useDeviceStore } from "@/stores/deviceStore";
+import { useNavStore } from "@/stores/navStore";
 import { FONT_SIZES, useTranscriptViewStore } from "@/stores/transcriptViewStore";
 import type { AudioDeviceKind, CaptureState, LatencySummary, SttStatus } from "@/lib/types";
 
@@ -343,9 +344,7 @@ export function LiveTranscript() {
         </div>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-status-danger-bg px-3 py-2 text-status-danger">{error}</p>
-      )}
+      {error && <CaptureError message={error} />}
 
       {/* Branding §9.3: name the thing that failed, then say what happens
           next. "Reconnecting…" alone leaves the operator's real question —
@@ -551,4 +550,42 @@ function kindLabel(kind: AudioDeviceKind): string {
     case "virtual_input":
       return "Virtual cable";
   }
+}
+
+/** Does this message mean a service has no key on this machine?
+ *
+ *  Matched on the backend's own wording rather than an error code because
+ *  `Error::Config` carries only a string today. Narrow on purpose: it looks
+ *  for the section name the backend already names, so a message that changes
+ *  shape stops offering the button rather than sending the operator somewhere
+ *  irrelevant. Exported for the test.
+ */
+export function isMissingKeyError(message: string): boolean {
+  return message.includes("Services and keys");
+}
+
+/**
+ * A capture failure, with the one action that fixes it where the failure is.
+ *
+ * Branding §9.3 asks an error to name what failed and offer one action. For a
+ * missing key that action is a different tab, and an operator reading "add one
+ * in Settings" mid-service should not then have to find it — least of all with
+ * a congregation waiting.
+ */
+function CaptureError({ message }: { message: string }) {
+  const goToSettings = useNavStore((s) => s.goToSettings);
+
+  return (
+    <div className="rounded-md bg-status-danger-bg px-3 py-2 text-status-danger">
+      <p>{message}</p>
+      {isMissingKeyError(message) && (
+        <button
+          className="btn-secondary mt-2"
+          onClick={() => goToSettings("services")}
+        >
+          Open Services and keys
+        </button>
+      )}
+    </div>
+  );
 }
