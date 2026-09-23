@@ -169,8 +169,20 @@ A `tauri dev` run carries an unoptimized Rust binary and a live Vite server with
 hot-reload state. For the figure that goes in MILESTONES:
 
 ```powershell
-npm run tauri:build
-# then run the installed app, not the dev server
+npm run tauri:build:local
+```
+
+Use `tauri:build:local`, not `tauri:build`. The latter also signs the updater
+artifacts and needs `TAURI_SIGNING_PRIVATE_KEY`, which lives in GitHub Actions
+secrets rather than on a development machine. Without it the build produces
+every bundle correctly and *then* fails on the signature, which reads as a build
+failure when nothing is actually wrong. `tauri:build:local` turns that step off;
+CI keeps it on, because release downloads do need signed update bundles.
+
+Then run the built app rather than the dev server:
+
+```powershell
+& "src-tauri	argetelease\sermonai.exe"
 ```
 
 ---
