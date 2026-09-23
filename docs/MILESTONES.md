@@ -32,20 +32,18 @@ Update this table first. It is the only place status is recorded.
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
 **Current milestone:** M2 — Scripture Detection Engine
-**Current blocker:** none. **M0 closed on 21 September 2026, on schedule** — twelve of twelve deliverables and six of six Definition of Done lines.
+**Current blocker:** none in code. M1 closed on Windows on 23 September, a fortnight early. **It did not close on macOS**, and that is the standing risk M2 is being built on top of.
 
-The last line closed on a real Mac: the `.dmg` downloaded through Safari, the unidentified-developer warning appeared as expected for an unsigned build, and SermonAI launched and ran correctly once cleared. Three details of that run are still to be recorded (which Mac, which macOS version, how the warning was cleared) — they do not affect the tick, but they decide whether `docs/INSTALL.md` matches what a tester meets on macOS 15.
+**M1 in one line.** Speak into any input and the words appear, through a device picker that survives a disconnection, a capture path that resamples properly, a transcript that outlives a tab switch, and a connection that repairs itself.
 
-**What closing M0 does not mean.** Two things are ticked with known gaps, both parked against M11's release checklist rather than left implicit:
+**What M1 taught, which M2 should not have to relearn:**
 
-- **Gatekeeper is cleared, not satisfied.** An informed tester with INSTALL.md open got past the warning. A church volunteer on a Saturday evening will read it as "this download is unsafe" and stop. Only notarization removes it.
-- **WebView2's silent bootstrap has never run.** DoD 1 passed on Windows 11, which ships WebView2 with the OS, so the installer never had to bootstrap it — and that is the path a Windows 10 machine takes. FR-63 lists Windows 10 1909+ as supported.
+- **Hardware and networks fail silently.** A Bluetooth headset raises no stream error — WASAPI keeps the endpoint valid and stops delivering. A dropped network raises nothing either — TCP keeps accepting writes into a buffer nobody is reading. Both were found by testing on real hardware after passing every test that existed, and both needed a *timeout* rather than an error to detect.
+- **A green test can mean the test is wrong.** The reconnect harness had to be checked by disabling the fix and watching it fail. Before that it passed twice while proving nothing — once because a flag was read at the wrong moment, once because two tests shared an endpoint and connected to each other.
+- **Types do not cross the IPC boundary.** `retry_in_ms` reached the frontend under that name while TypeScript read `retryInMs`; the type said `number`, the value was `undefined`, and the operator saw "Retrying in NaNs". Every tagged enum crossing that boundary now has its field names asserted on both sides.
+- **Measure the thing, not a proxy for it.** Summing `WorkingSet` across nine processes read 583 MB where the private working set was 152 MB, and would have failed a budget the app was comfortably inside.
 
-Neither blocks M1. Both block public download.
-
-**Where M0 landed.** An under-40 MB unsigned installer for Windows and macOS on both architectures, three windows placed on chosen monitors, three bundled public-domain translations, a 31,102-verse semantic index searched in 2.46 ms against a 5 ms budget, a resumable pack downloader, and a cold start around 300 ms against a 1 second budget.
-
-**Size budget, measured rather than estimated.** The earlier "only 7 to 13 MB left for the encoder" warning rested on a guess that three translations would cost 12 to 18 MB. A translation actually compresses to about 1.3 MB:
+**Size budget, still measured rather than estimated:**
 
 | Item | Size |
 |---|---|
@@ -55,7 +53,9 @@ Neither blocks M1. Both block public download.
 | Encoder matrix + tokenizer | 7.97 MB |
 | **Projected installer** | **~25 MB** |
 
-Comfortably inside the 40 MB gate, with roughly 15 MB spare. The PRD assumed 384 dims and a 12 MB index; the real model is 256 dims, so both came in smaller. CI will print the real number on the next build.
+Comfortably inside the 40 MB gate, with roughly 15 MB spare.
+
+**Two things block a church using this, neither of them M2's work.** The SermonAI Gateway does not exist, so a release build can reach no vendor at all; and the builds are unsigned, so Gatekeeper and SmartScreen still stop a volunteer. Both are parked, both are real, and both come due before M4's live service.
 
 ---
 
