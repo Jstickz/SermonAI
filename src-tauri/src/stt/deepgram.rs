@@ -21,7 +21,7 @@
 //!
 //! Reconnection with backoff is M1 deliverable 10, not here.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -34,6 +34,48 @@ use crate::credentials::{Access, Credentials, Service};
 use crate::error::{Error, Result};
 
 const BASE_URL: &str = "wss://api.deepgram.com/v1/listen";
+
+/// Where to connect, for callers that do not care.
+///
+/// Tests pass their own endpoint instead, pointing at a local server that
+/// misbehaves on purpose. That is a parameter rather than an environment
+/// variable because two tests running in parallel shared one variable and each
+/// connected to the other's server — which looked exactly like the product bug
+/// they were written to catch.
+pub fn default_endpoint() -> &'static str {
+    BASE_URL
+}
+
+/// How long a write may block before the socket is presumed dead.
+///
+/// **This is what a dropped network actually looks like.** TCP does not report
+/// the peer vanishing: writes keep succeeding into the kernel send buffer, and
+/// once it fills they block forever. Nothing errors, nothing closes. At 32 KB a
+/// second of audio the buffer fills in a few seconds, so a write that has not
+/// completed in five is the earliest reliable evidence the connection is gone.
+const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How long to wait for *anything* from Deepgram while audio is flowing.
+///
+/// The other half of the same problem: `read` on a dead socket pends forever
+/// rather than erroring. Deepgram sends results continuously while it is
+/// receiving audio — including empty ones through silence — so a long gap with
+/// audio going out means the connection is dead even though the socket still
+/// looks open.
+///
+/// Only applied when audio has recently been sent. A paused capture legitimately
+/// produces nothing, and reporting that as a drop would end a service every time
+/// the operator paused.
+///
+/// Six seconds rather than ten, because ten felt slow in testing and the whole
+/// budget is visible to the operator as a dead transcript. Deepgram answers
+/// within a few hundred milliseconds while audio is flowing, so six is still an
+/// order of magnitude of headroom over its normal response; going much below
+/// would start reporting a congested connection as a dead one.
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(6);
+
+/// How often to check the two timeouts above.
+const LIVENESS_TICK: Duration = Duration::from_secs(1);
 
 /// Deepgram closes a stream after roughly ten seconds of silence. Eight leaves
 /// room for a late frame without being chatty.
@@ -67,7 +109,11 @@ pub struct Word {
 /// difference is not a detail of the same thing: one replaces what came before
 /// it and must not be acted on, the other is settled and may be.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(
+    rename_all = "snake_case",
+    tag = "kind",
+    rename_all_fields = "camelCase"
+)]
 pub enum TranscriptEvent {
     /// Deepgram's current guess at the utterance in progress. **Replaces** any
     /// previous interim; never append. Do not detect scripture in it.
@@ -108,8 +154,13 @@ pub type EventSink = Box<dyn FnMut(TranscriptEvent) + Send + 'static>;
 /// `sample_rate` here produces a connection that succeeds and transcribes
 /// noise, which is far harder to diagnose than a refused connection.
 pub fn stream_url(vocabulary: &[String]) -> String {
+    stream_url_at(BASE_URL, vocabulary)
+}
+
+/// The same, against a given endpoint.
+pub fn stream_url_at(base: &str, vocabulary: &[String]) -> String {
     let mut url = format!(
-        "{BASE_URL}?model=nova-3&language=en&encoding=linear16\
+        "{base}?model=nova-3&language=en&encoding=linear16\
          &sample_rate={SAMPLE_RATE_HZ}&channels={CHANNELS}\
          &interim_results=true&punctuate=true&smart_format=true"
     );
@@ -306,6 +357,16 @@ impl DeepgramSession {
     pub async fn connect_with(
         access: &Access,
         vocabulary: Vec<String>,
+        on_event: EventSink,
+    ) -> Result<Self> {
+        Self::connect_to(default_endpoint(), access, vocabulary, on_event).await
+    }
+
+    /// The same, against a given endpoint.
+    pub async fn connect_to(
+        endpoint: &str,
+        access: &Access,
+        vocabulary: Vec<String>,
         mut on_event: EventSink,
     ) -> Result<Self> {
         let key = match access {
@@ -320,7 +381,10 @@ impl DeepgramSession {
             }
         };
 
-        let mut request = stream_url(&vocabulary)
+        let url = stream_url_at(endpoint, &vocabulary);
+        tracing::info!(url = %url.split('?').next().unwrap_or_default(), "connecting to Deepgram");
+
+        let mut request = url
             .into_client_request()
             .map_err(|e| Error::Stt(format!("could not build the Deepgram request: {e}")))?;
         request.headers_mut().insert(
@@ -343,60 +407,130 @@ impl DeepgramSession {
             // before any audio.
             keepalive.tick().await;
 
+            let mut liveness = tokio::time::interval(LIVENESS_TICK);
+            liveness.tick().await;
+
+            let mut last_message = Instant::now();
+            let mut last_audio: Option<Instant> = None;
+            // Set when the socket is judged dead, so the reason reaches the
+            // supervisor in one place rather than at four `break`s.
+            let mut death: Option<String> = None;
+
             loop {
                 tokio::select! {
                     chunk = audio_rx.recv() => match chunk {
                         Some(samples) => {
-                            if write.send(Message::Binary(pcm_bytes(&samples))).await.is_err() {
-                                break;
+                            // Timed, because an unbounded write is exactly how
+                            // a dropped network hangs this task forever.
+                            match tokio::time::timeout(
+                                WRITE_TIMEOUT,
+                                write.send(Message::Binary(pcm_bytes(&samples))),
+                            )
+                            .await
+                            {
+                                Ok(Ok(())) => {
+                                    last_audio = Some(Instant::now());
+                                    // Audio counts as activity, so the idle
+                                    // timer only matters while capture is paused.
+                                    keepalive.reset();
+                                }
+                                Ok(Err(err)) => {
+                                    death = Some(format!("the connection failed while sending: {err}"));
+                                    break;
+                                }
+                                Err(_) => {
+                                    death = Some(format!(
+                                        "the connection stopped accepting audio after {}s",
+                                        WRITE_TIMEOUT.as_secs()
+                                    ));
+                                    break;
+                                }
                             }
-                            // Audio counts as activity, so the idle timer only
-                            // matters while capture is paused.
-                            keepalive.reset();
                         }
                         // The session was dropped or finished: tell Deepgram to
                         // return whatever it is still holding rather than
                         // cutting the socket and losing the last words.
                         None => {
-                            let _ = write
-                                .send(Message::Text(r#"{"type":"CloseStream"}"#.to_string()))
-                                .await;
+                            let _ = tokio::time::timeout(
+                                WRITE_TIMEOUT,
+                                write.send(Message::Text(r#"{"type":"CloseStream"}"#.to_string())),
+                            )
+                            .await;
                             break;
                         }
                     },
 
                     message = read.next() => match message {
                         Some(Ok(Message::Text(payload))) => {
+                            last_message = Instant::now();
                             if let Some(event) = parse_message(&payload) {
                                 on_event(event);
                             }
                         }
                         Some(Ok(Message::Close(frame))) => {
-                            on_event(TranscriptEvent::Closed {
-                                reason: frame.map(|f| f.reason.to_string()),
-                            });
+                            death = Some(
+                                frame
+                                    .map(|f| f.reason.to_string())
+                                    .filter(|r| !r.is_empty())
+                                    .unwrap_or_else(|| "Deepgram closed the connection".to_string()),
+                            );
                             break;
                         }
-                        Some(Ok(_)) => {}
+                        Some(Ok(_)) => last_message = Instant::now(),
                         Some(Err(err)) => {
-                            on_event(TranscriptEvent::Closed {
-                                reason: Some(err.to_string()),
-                            });
+                            death = Some(err.to_string());
                             break;
                         }
-                        None => break,
+                        None => {
+                            death = Some("the connection ended".to_string());
+                            break;
+                        }
                     },
 
-                    _ = keepalive.tick() => {
-                        if write
-                            .send(Message::Text(r#"{"type":"KeepAlive"}"#.to_string()))
-                            .await
-                            .is_err()
-                        {
+                    _ = liveness.tick() => {
+                        // Only meaningful while audio is going out. A paused
+                        // capture legitimately produces nothing, and calling
+                        // that a drop would end a service at every pause.
+                        let sending = last_audio
+                            .is_some_and(|at| at.elapsed() < RESPONSE_TIMEOUT);
+                        if sending && last_message.elapsed() >= RESPONSE_TIMEOUT {
+                            death = Some(format!(
+                                "no response for {}s while sending audio",
+                                RESPONSE_TIMEOUT.as_secs()
+                            ));
                             break;
                         }
                     }
+
+                    _ = keepalive.tick() => {
+                        match tokio::time::timeout(
+                            WRITE_TIMEOUT,
+                            write.send(Message::Text(r#"{"type":"KeepAlive"}"#.to_string())),
+                        )
+                        .await
+                        {
+                            Ok(Ok(())) => {}
+                            Ok(Err(err)) => {
+                                death = Some(format!("keepalive failed: {err}"));
+                                break;
+                            }
+                            Err(_) => {
+                                death = Some("keepalive timed out".to_string());
+                                break;
+                            }
+                        }
+                    }
                 }
+            }
+
+            if let Some(reason) = death {
+                tracing::warn!(%reason, "the Deepgram connection is gone");
+                on_event(TranscriptEvent::Closed {
+                    reason: Some(reason),
+                });
+                // Nothing more will arrive on a dead socket, and waiting for it
+                // is what left the app stuck rather than reconnecting.
+                return;
             }
 
             // Drain anything Deepgram sends after CloseStream: the final
@@ -412,6 +546,22 @@ impl DeepgramSession {
             audio: audio_tx,
             task,
         })
+    }
+
+    /// Hand a chunk to the socket, waiting if it is busy.
+    ///
+    /// For callers that are **not** the audio thread — the supervisor task,
+    /// and above all the backlog replay after a reconnect. `send` drops when
+    /// the queue is full, which is right on the audio thread and wrong here:
+    /// replaying a minute of held audio through a ten-second queue discarded
+    /// most of it, and the transcript came back missing words with no error
+    /// beyond a log line.
+    ///
+    /// Waiting instead pushes back on the supervisor, which stops draining its
+    /// own queue, which is the 60-second buffer that is supposed to absorb
+    /// this. Backpressure ends up where the design already put it.
+    pub async fn send_awaiting(&self, chunk: Vec<i16>) -> bool {
+        self.audio.send(chunk).await.is_ok()
     }
 
     /// A handle the audio thread can hold.

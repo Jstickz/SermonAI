@@ -11,6 +11,41 @@ import type { AudioDeviceKind, CaptureState, LatencySummary, SttStatus } from "@
 const PARAGRAPH_GAP_SECONDS = 2.5;
 
 /**
+ * What the banner says while the connection is down.
+ *
+ * A pure function so it can be tested against the exact JSON the backend
+ * emits — see `the_status_json_matches_what_the_banner_reads` in
+ * `stt/reconnect.rs`. It was inline before, and rendered "Retrying in NaNs"
+ * because a field name did not match across the boundary. Nothing threw:
+ * `undefined / 1000` is a number in JavaScript, so a wrong name reached the
+ * operator as a plausible-looking sentence.
+ *
+ * Guards against a missing number rather than trusting the type, because the
+ * type is exactly what was wrong.
+ */
+export function reconnectingMessage(status: {
+  attempt: number;
+  retryInMs: number;
+  bufferedSeconds: number;
+}): string {
+  const seconds = Number.isFinite(status.retryInMs)
+    ? Math.max(1, Math.round(status.retryInMs / 1000))
+    : null;
+
+  const retry = seconds === null ? "Retrying" : `Retrying in ${seconds}s`;
+  const held = Number.isFinite(status.bufferedSeconds) ? Math.round(status.bufferedSeconds) : 0;
+
+  // The operator's real question during an outage is not whether it is
+  // retrying but whether the sermon is being kept.
+  const kept =
+    held > 0
+      ? `Still recording — ${held}s of speech held, and it will be transcribed when the connection returns.`
+      : "Still recording. Nothing spoken is being lost.";
+
+  return `Deepgram is unreachable. ${retry} (attempt ${status.attempt}). ${kept}`;
+}
+
+/**
  * The live transcript (FR-07, FR-10).
  *
  * Settled text accumulates; the sentence in progress is held separately and
@@ -313,11 +348,7 @@ export function LiveTranscript() {
           am I losing the sermon — unanswered. */}
       {stt?.kind === "reconnecting" && (
         <p className="rounded-md bg-status-warning-bg px-3 py-2 text-[13px] text-status-warning">
-          Deepgram is unreachable. Retrying in {Math.round(stt.retryInMs / 1000)}s (attempt{" "}
-          {stt.attempt}).{" "}
-          {stt.bufferedSeconds > 0
-            ? `Still recording — ${Math.round(stt.bufferedSeconds)}s of speech held and will be transcribed when it returns.`
-            : "Still recording. Nothing spoken is being lost."}
+          {reconnectingMessage(stt)}
         </p>
       )}
 

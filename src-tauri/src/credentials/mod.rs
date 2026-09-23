@@ -156,7 +156,11 @@ impl fmt::Display for Secret {
 ///
 /// Mirrored by `CredentialStatus` in `src/lib/types.ts`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(
+    rename_all = "snake_case",
+    tag = "kind",
+    rename_all_fields = "camelCase"
+)]
 pub enum CredentialStatus {
     /// Reached through the gateway on SermonAI's account.
     ManagedActive,

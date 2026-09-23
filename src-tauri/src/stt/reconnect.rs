@@ -28,12 +28,13 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 
-use super::deepgram::{DeepgramSession, EventSink, TranscriptEvent, Word};
+use super::deepgram::{self, DeepgramSession, EventSink, TranscriptEvent, Word};
 use crate::audio::{convert::CHUNK_SAMPLES, SAMPLE_RATE_HZ};
 use crate::credentials::{Access, Credentials, Service};
 use crate::error::Result;
 
 /// Delays between reconnection attempts, in milliseconds.
+///
 ///
 /// Quick at first, because most drops are a momentary blip and a two-second
 /// wait for a one-second outage is two seconds of sermon transcribed late.
@@ -58,8 +59,20 @@ const CHUNK_SECONDS: f64 = CHUNK_SAMPLES as f64 / SAMPLE_RATE_HZ as f64;
 /// What the operator should be told about the transcription connection.
 ///
 /// Mirrored by `SttStatus` in `src/lib/types.ts`.
+///
+/// `rename_all_fields` is the load-bearing attribute. `rename_all` renames the
+/// *variants*, not the fields inside them, so `retry_in_ms` reached the
+/// frontend under that name while TypeScript read `retryInMs` — and the banner
+/// read "Retrying in NaNs". Nothing failed: the type said `number`, the value
+/// was `undefined`, and `undefined / 1000` is a number in JavaScript. The
+/// contract test below is what makes the field names an assertion rather than
+/// an assumption.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(
+    rename_all = "snake_case",
+    tag = "kind",
+    rename_all_fields = "camelCase"
+)]
 pub enum SttStatus {
     Connected,
     /// Trying again. Carries enough for a banner to count down rather than
@@ -115,10 +128,30 @@ impl ResilientStream {
         on_event: EventSink,
         on_status: StatusSink,
     ) -> Result<Self> {
+        Self::connect_at(
+            deepgram::default_endpoint(),
+            credentials,
+            vocabulary,
+            on_event,
+            on_status,
+        )
+        .await
+    }
+
+    /// The same, against a given endpoint, for tests that need a server which
+    /// fails on purpose.
+    pub async fn connect_at(
+        endpoint: &str,
+        credentials: &Credentials,
+        vocabulary: Vec<String>,
+        on_event: EventSink,
+        on_status: StatusSink,
+    ) -> Result<Self> {
         let access = credentials.access(Service::Deepgram)?;
         let (audio_tx, audio_rx) = mpsc::channel::<Vec<i16>>(MAX_BACKLOG_CHUNKS);
 
         let mut supervisor = Supervisor {
+            endpoint: endpoint.to_string(),
             access,
             vocabulary,
             on_event,
@@ -165,6 +198,7 @@ impl ResilientStream {
 }
 
 struct Supervisor {
+    endpoint: String,
     access: Access,
     vocabulary: Vec<String>,
     on_event: EventSink,
@@ -189,7 +223,8 @@ impl Supervisor {
     async fn open(&mut self) -> Result<Stream> {
         let (event_tx, event_rx) = mpsc::unbounded_channel::<TranscriptEvent>();
 
-        let session = DeepgramSession::connect_with(
+        let session = DeepgramSession::connect_to(
+            &self.endpoint,
             &self.access,
             self.vocabulary.clone(),
             Box::new(move |event| {
@@ -207,14 +242,54 @@ impl Supervisor {
     }
 
     async fn run(mut self, mut stream: Stream, mut audio: mpsc::Receiver<Vec<i16>>) {
+        tracing::info!("transcription supervisor started");
         (self.on_status)(SttStatus::Connected);
+
+        // A heartbeat, so a retest shows whether the supervisor is running,
+        // starved or wedged. Silence in the log was the least useful thing
+        // about the last failure: the app looked stuck and nothing said where.
+        let mut heartbeat = tokio::time::interval(Duration::from_secs(5));
+        heartbeat.tick().await;
+        let mut chunks_in: u64 = 0;
+        let mut chunks_sent: u64 = 0;
 
         loop {
             tokio::select! {
+                _ = heartbeat.tick() => {
+                    tracing::info!(
+                        chunks_in,
+                        chunks_sent,
+                        buffered = self.backlog.len(),
+                        audio_seconds = self.offset_seconds + self.stream_seconds,
+                        "transcription alive"
+                    );
+                }
+
                 chunk = audio.recv() => match chunk {
                     Some(samples) => {
-                        self.stream_seconds += CHUNK_SECONDS;
-                        stream.session.send(samples);
+                        chunks_in += 1;
+                        // Awaited, not dropped on a full queue: this task is
+                        // not the audio thread, so it can wait, and waiting
+                        // pushes back on the 60-second buffer that exists to
+                        // absorb exactly this.
+                        if stream.session.send_awaiting(samples.clone()).await {
+                            self.stream_seconds += CHUNK_SECONDS;
+                            chunks_sent += 1;
+                        } else {
+                            // The socket task has gone. Previously this ended
+                            // the whole run, which stopped transcription for
+                            // good on the first hiccup; a dead stream is the
+                            // reason reconnection exists.
+                            tracing::warn!("the stream stopped accepting audio; reconnecting");
+                            self.hold(samples);
+                            match self.reconnect(&mut audio).await {
+                                Some(next) => {
+                                    stream = next;
+                                    (self.on_status)(SttStatus::Connected);
+                                }
+                                None => break,
+                            }
+                        }
                     }
                     // The handle was dropped: capture has stopped.
                     None => break,
@@ -222,7 +297,11 @@ impl Supervisor {
 
                 event = stream.events.recv() => match event {
                     Some(TranscriptEvent::Closed { reason }) => {
-                        tracing::warn!(?reason, "the transcription stream closed; reconnecting");
+                        tracing::warn!(
+                            ?reason,
+                            buffered_chunks = self.backlog.len(),
+                            "the transcription stream closed; reconnecting"
+                        );
                         match self.reconnect(&mut audio).await {
                             Some(next) => {
                                 stream = next;
@@ -239,6 +318,7 @@ impl Supervisor {
             }
         }
 
+        tracing::info!("transcription supervisor stopping");
         stream.session.finish().await;
         // Drain whatever arrived during the close handshake: the final results
         // for the last utterance come through here.
@@ -316,20 +396,48 @@ impl Supervisor {
                 }
             }
 
+            tracing::info!(attempt, "reopening the Deepgram connection");
             match self.open().await {
                 Ok(stream) => {
+                    tracing::info!(attempt, "reconnected");
                     // The backlog is sent before anything new, so the sermon
                     // stays in order.
                     // Backlog first, so the sermon stays in order — and it
                     // counts towards the new stream's audio, not the old one's.
-                    for chunk in std::mem::take(&mut self.backlog) {
+                    //
+                    // Every chunk is awaited. Firing them all at a queue a
+                    // sixth the size of the backlog is what corrupted the
+                    // transcript after a reconnect: most of the held minute
+                    // was discarded on the floor of a `try_send`.
+                    let held = std::mem::take(&mut self.backlog);
+                    let expected = held.len();
+                    let mut replayed = 0usize;
+
+                    for chunk in held {
+                        if !stream.session.send_awaiting(chunk).await {
+                            break;
+                        }
                         self.stream_seconds += CHUNK_SECONDS;
-                        stream.session.send(chunk);
+                        replayed += 1;
+                    }
+
+                    if replayed != expected {
+                        // The socket died again mid-replay. Say how much of the
+                        // sermon went with it rather than leaving a silent hole.
+                        let lost = (expected - replayed) as f64 * CHUNK_SECONDS;
+                        tracing::error!(replayed, expected, "the replay was cut short");
+                        (self.on_status)(SttStatus::AudioDropped { seconds: lost });
+                    } else {
+                        tracing::info!(
+                            chunks = replayed,
+                            seconds = replayed as f64 * CHUNK_SECONDS,
+                            "replayed held audio after reconnecting"
+                        );
                     }
                     return Some(stream);
                 }
                 Err(err) => {
-                    tracing::warn!(%err, attempt, "reconnection failed");
+                    tracing::warn!(%err, attempt, "reconnection failed; will retry");
                 }
             }
         }
@@ -380,6 +488,46 @@ struct Stream {
 mod tests {
     use super::*;
 
+    /// The exact JSON the banner receives, with a real backoff value.
+    ///
+    /// This is a contract test, and it exists because the field names were
+    /// wrong in a way nothing caught. `rename_all` renames variants, not the
+    /// fields inside them, so `retry_in_ms` crossed the boundary under that
+    /// name; TypeScript read `retryInMs`, got `undefined`, and rendered
+    /// "Retrying in NaNs". The type said `number` and JavaScript was happy to
+    /// divide `undefined` by a thousand.
+    ///
+    /// The literal below is duplicated in `LiveTranscript.test.ts`, which
+    /// formats it into the sentence an operator reads. If this assertion is
+    /// ever updated, that fixture has to change with it — which is the point.
+    #[test]
+    fn the_status_json_matches_what_the_banner_reads() {
+        // A real delay from the table, not an invented one: the third attempt.
+        let retry_in_ms = BACKOFF_MS[2];
+        assert_eq!(retry_in_ms, 2_000);
+
+        let status = SttStatus::Reconnecting {
+            attempt: 3,
+            retry_in_ms,
+            // Twelve seconds of held speech: 48 chunks at a quarter-second.
+            buffered_seconds: 48.0 * CHUNK_SECONDS,
+        };
+
+        let json = serde_json::to_string(&status).expect("status should serialize");
+        assert_eq!(
+            json,
+            r#"{"kind":"reconnecting","attempt":3,"retryInMs":2000,"bufferedSeconds":12.0}"#
+        );
+    }
+
+    #[test]
+    fn a_connected_status_carries_no_fields_to_misread() {
+        assert_eq!(
+            serde_json::to_string(&SttStatus::Connected).unwrap(),
+            r#"{"kind":"connected"}"#
+        );
+    }
+
     #[test]
     fn the_backoff_starts_quick_and_settles_long() {
         // Most drops are a blip: waiting two seconds for a one-second outage
@@ -419,6 +567,7 @@ mod tests {
 
     fn supervisor() -> Supervisor {
         Supervisor {
+            endpoint: deepgram::default_endpoint().to_string(),
             access: Access::DirectKey(crate::credentials::Secret::new("test")),
             vocabulary: Vec::new(),
             on_event: Box::new(|_| {}),
@@ -481,6 +630,53 @@ mod tests {
         assert_eq!(supervisor.backlog.len(), MAX_BACKLOG_CHUNKS);
         assert_eq!(supervisor.backlog[0][0], 1, "the oldest chunk should go");
         assert_eq!(supervisor.backlog.last().unwrap()[0], 9_999);
+    }
+
+    /// The bug that corrupted the transcript after a reconnect, as a test.
+    ///
+    /// The backlog holds sixty seconds; the socket's queue holds ten. Firing
+    /// the whole backlog at it with `try_send` discarded everything past the
+    /// first forty chunks, and the only trace was a log line per drop. The
+    /// transcript came back missing words and nothing reported a failure.
+    #[tokio::test]
+    async fn replaying_the_backlog_does_not_outrun_the_socket_queue() {
+        let (tx, mut rx) = mpsc::channel::<Vec<i16>>(40);
+
+        // What the old code did.
+        let mut dropped = 0;
+        for i in 0..MAX_BACKLOG_CHUNKS {
+            if tx.try_send(vec![i as i16]).is_err() {
+                dropped += 1;
+            }
+        }
+        assert!(
+            dropped > 0,
+            "the queue is smaller than the backlog, so try_send must drop"
+        );
+        assert_eq!(dropped, MAX_BACKLOG_CHUNKS - 40, "only the first 40 fit");
+
+        // What it does now: a reader drains while the writer awaits, so every
+        // chunk arrives, in order, exactly once.
+        while rx.try_recv().is_ok() {}
+        let reader = tokio::spawn(async move {
+            let mut seen = Vec::new();
+            while let Some(chunk) = rx.recv().await {
+                seen.push(chunk[0]);
+            }
+            seen
+        });
+
+        for i in 0..MAX_BACKLOG_CHUNKS {
+            assert!(tx.send(vec![i as i16]).await.is_ok());
+        }
+        drop(tx);
+
+        let seen = reader.await.expect("reader should finish");
+        assert_eq!(seen.len(), MAX_BACKLOG_CHUNKS, "nothing may be dropped");
+        assert!(
+            seen.windows(2).all(|w| w[1] == w[0] + 1),
+            "order must be preserved and nothing duplicated"
+        );
     }
 
     #[test]
