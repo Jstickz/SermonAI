@@ -9,6 +9,7 @@
 //!
 //! Milestone: M2, except the vector stage's assets and search, built in M0.
 
+pub mod spoken_numbers;
 pub mod vector;
 
 /// Fire the LLM stage only after this long without a direct hit (FR-14).

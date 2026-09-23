@@ -330,6 +330,25 @@
     @apply italic text-content-muted;
   }
 
+  /*
+   * A detected scripture inside the transcript (wireframe.html
+   * §scripture-hit): accent-900 ground, accent-100 text, 6px radius.
+   *
+   * Note the PRD and the wireframe disagree here. §13.2 calls for an "amber
+   * highlight on detected scripture"; the wireframe draws it in accent violet,
+   * which is also what Branding §2 makes the accent colour. Amber is the
+   * warning colour in this palette (§status.warning), and a detected verse is
+   * not a warning — so the wireframe's reading is followed and the PRD line
+   * needs amending.
+   *
+   * Nothing emits these yet: they need M2's detection stages. The style is
+   * here so the panel is ready for them and the two documents' disagreement is
+   * recorded where someone will see it.
+   */
+  .transcript-body .scripture-hit {
+    @apply rounded-md bg-accent-900 px-1.5 py-0.5 font-medium text-accent-100;
+  }
+
   .stack-header {
     @apply flex items-center justify-between px-1;
   }
