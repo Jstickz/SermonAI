@@ -22,6 +22,7 @@
 //! [`push_final`](SessionTranscript::push_final), which is the single point
 //! every settled word passes through.
 
+use std::collections::VecDeque;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -100,13 +101,30 @@ pub struct Percentiles {
 /// run on settled text, so it bounds how long after a spoken reference a verse
 /// can reach the projector.
 ///
-/// Both are measured per result as *now minus when those words were spoken*:
-/// the wall clock since **the first audio was sent**, less the audio timestamp
-/// of the last word. That covers chunking, the socket, Deepgram's own
-/// processing and the event arriving.
+/// Both are measured per result as **now, minus the moment the audio carrying
+/// those words was handed to the transcriber**. That covers the socket,
+/// Deepgram's own processing and the event arriving; the 250 ms the audio spent
+/// accumulating into a chunk is fixed by FR-03 and sits on top.
 ///
-/// The anchor matters. Timing from when *capture* began charges the WebSocket
-/// handshake — over a second against the live service — to every sample.
+/// ## Why it is anchored per chunk rather than once per run
+///
+/// It used to be `wall clock since the first chunk` minus `the word's audio
+/// timestamp`. Those are two different clocks, and the gap between them only
+/// ever widens:
+///
+/// - A **dropped chunk** removes 250 ms from Deepgram's timeline and nothing
+///   from the wall clock. The difference is permanent.
+/// - **Sound cards drift.** Measured on this machine's microphone array over
+///   ten minutes: +370 ms per hour, at +/-120 ms resolution.
+///
+/// Neither is latency, both were counted as latency, and both accumulate — so
+/// the figure grew with session length. A 38-second run reported 452/681/698 ms
+/// and a 60-minute run of the same pipeline reported 1490/1926/2445 ms, with a
+/// p50 sitting almost exactly at the midpoint of a straight line, which is the
+/// signature of accumulation rather than of a slow pipeline.
+///
+/// Anchoring each result to the send time of its own audio measures one clock
+/// against itself, so neither cause can reach it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LatencySummary {
@@ -122,7 +140,32 @@ pub struct LatencySummary {
     /// reconnect. Reported rather than silently dropped, so the percentiles
     /// can be read as covering less than the whole run.
     pub excluded_catch_up: usize,
+    /// Chunks the transcriber would not accept, each 250 ms of speech that no
+    /// one will ever read.
+    ///
+    /// Surfaced rather than left to a log line, because this is lost sermon
+    /// rather than a slow one: a transcript with holes in it reads as complete.
+    pub dropped_chunks: usize,
 }
+
+impl LatencySummary {
+    /// Seconds of speech lost to chunks the transcriber refused.
+    pub fn dropped_seconds(&self) -> f64 {
+        self.dropped_chunks as f64 * CHUNK_SECONDS
+    }
+}
+
+/// One chunk of audio, in seconds. Mirrors `CHUNK_SAMPLES` at 16 kHz (FR-03).
+const CHUNK_SECONDS: f64 = 0.25;
+
+/// How many send marks to keep.
+///
+/// Deepgram can revise an utterance for a couple of seconds, and a reconnect
+/// replays up to 60 s, so a result may refer to audio sent a minute ago. Five
+/// minutes is generous cover at 4 marks a second — 1,200 entries, a few tens of
+/// kilobytes — and bounded so an hour-long service cannot grow it without
+/// limit.
+const MAX_SEND_MARKS: usize = 1_200;
 
 /// Percentiles over a set of lag samples, or `None` when there are none.
 ///
@@ -158,8 +201,17 @@ pub struct SessionTranscript {
     finals: Vec<FinalSegment>,
     interim: String,
     word_count: usize,
-    /// When capture began, for measuring lag. `None` until the first start.
-    started: Option<Instant>,
+    /// When each chunk of audio was handed to the transcriber, keyed by the
+    /// cumulative audio seconds it completed.
+    ///
+    /// Only *accepted* chunks advance the key, because Deepgram's word
+    /// timestamps count the audio it actually received — so this and its
+    /// timeline stay in step even when we drop something.
+    sent_marks: VecDeque<(f64, Instant)>,
+    /// Cumulative seconds of audio accepted for sending.
+    audio_sent: f64,
+    /// Chunks the transcriber refused. Lost speech, not just a lost sample.
+    dropped_chunks: usize,
     /// Lag per interim result: when words first appeared.
     interim_lags: Vec<f64>,
     /// Lag per settled utterance.
@@ -191,7 +243,7 @@ impl SessionTranscript {
 
         // Recorded before the segment is stored, while `end` is the newest
         // thing we know about.
-        if let Some(lag) = self.lag_for(end) {
+        if let Some(lag) = self.lag_for_at(end, Instant::now()) {
             self.settled_lags.push(lag);
         }
 
@@ -220,37 +272,48 @@ impl SessionTranscript {
     /// Separate from `set_interim` because the panel takes only the text,
     /// while the measurement needs the timing the words carry.
     pub fn record_interim_timing(&mut self, words: &[Word]) {
+        self.record_interim_timing_at(words, Instant::now());
+    }
+
+    fn record_interim_timing_at(&mut self, words: &[Word], now: Instant) {
         let Some(end) = words.last().map(|w| w.end) else {
             return;
         };
-        if let Some(lag) = self.lag_for(end) {
+        if let Some(lag) = self.lag_for_at(end, now) {
             self.interim_lags.push(lag);
         }
     }
 
     /// Lag for a result whose newest word ends at `end`, or `None` when it
     /// should not be counted.
-    fn lag_for(&mut self, end: f64) -> Option<f64> {
-        let started = self.started?;
-
+    ///
+    /// `end` is on Deepgram's timeline, which counts the audio it actually
+    /// received — the same quantity `audio_sent` counts. So the mark for the
+    /// chunk that carried this word is the first one at or past `end`, and the
+    /// lag is how long ago we handed that chunk over.
+    /// `now` is a parameter rather than read inside, so a test can simulate an
+    /// hour-long service without taking an hour. The bug this replaced only
+    /// appears once wall clock and audio time have both advanced a long way,
+    /// which no test that runs in milliseconds can otherwise reach — and the
+    /// first attempt at testing it passed against the broken code for exactly
+    /// that reason.
+    fn lag_for_at(&mut self, end: f64, now: Instant) -> Option<f64> {
         // Catch-up after a reconnect is late by construction: the backlog is
         // sent faster than real time, so Deepgram returns results for audio
         // that is already old. Counting those would let a network outage read
         // as a slow pipeline.
-        if self
-            .catch_up_until
-            .is_some_and(|until| Instant::now() < until)
-        {
+        if self.catch_up_until.is_some_and(|until| now < until) {
             self.excluded_catch_up += 1;
             return None;
         }
 
-        let lag = started.elapsed().as_secs_f64() - end;
-        // A negative lag means the clock and the audio timeline disagree,
-        // which happened once already when a reconnect double-counted the
-        // offset. Recording it would hide that; dropping it would too, so it
-        // is clamped at zero and the max will show the disagreement.
-        Some(lag.max(0.0))
+        // Marks are appended in order, so this is sorted by construction.
+        let idx = self
+            .sent_marks
+            .partition_point(|(audio_at, _)| *audio_at < end);
+        let (_, sent_at) = self.sent_marks.get(idx)?;
+
+        Some(now.saturating_duration_since(*sent_at).as_secs_f64())
     }
 
     /// Note that the connection dropped, and that results for the next
@@ -273,21 +336,28 @@ impl SessionTranscript {
         *self = Self::default();
     }
 
-    /// Mark the moment the first audio reached the transcriber.
+    /// Record that a chunk was offered to the transcriber.
     ///
-    /// **This, and not the moment capture started.** Deepgram's word
-    /// timestamps are relative to the first audio byte it received, so a clock
-    /// started any earlier is offset by everything in between — including the
-    /// WebSocket handshake, measured at over a second against the live
-    /// service. Anchoring at capture start added that whole handshake to every
-    /// lag sample, and a DoD run reported 2,797 ms p99 with roughly 1,200 ms of
-    /// it being the connection being opened.
+    /// `accepted` is what `AudioFeed::send` returned. A refused chunk advances
+    /// the loss count and **not** the audio clock, because Deepgram never hears
+    /// it and its word timestamps will not count it either — which is exactly
+    /// what keeps the two timelines from drifting apart.
     ///
-    /// Called on every chunk and ignored after the first, because the caller is
-    /// the audio path and should not have to track which chunk is first.
-    pub fn mark_stream_start(&mut self) {
-        if self.started.is_none() {
-            self.started = Some(Instant::now());
+    /// Called for every chunk; the caller does not have to know which is first.
+    pub fn note_chunk_sent(&mut self, accepted: bool) {
+        self.note_chunk_sent_at(accepted, Instant::now());
+    }
+
+    fn note_chunk_sent_at(&mut self, accepted: bool, now: Instant) {
+        if !accepted {
+            self.dropped_chunks += 1;
+            return;
+        }
+
+        self.audio_sent += CHUNK_SECONDS;
+        self.sent_marks.push_back((self.audio_sent, now));
+        if self.sent_marks.len() > MAX_SEND_MARKS {
+            self.sent_marks.pop_front();
         }
     }
 
@@ -298,6 +368,7 @@ impl SessionTranscript {
             settled: percentiles(&self.settled_lags),
             reconnects: self.reconnects,
             excluded_catch_up: self.excluded_catch_up,
+            dropped_chunks: self.dropped_chunks,
         }
     }
 
@@ -367,6 +438,7 @@ impl SessionTranscript {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     fn words(pairs: &[(&str, f64, f64)]) -> Vec<Word> {
         pairs
@@ -461,6 +533,127 @@ mod tests {
         let latency = transcript.latency();
         assert!(latency.interim.is_none());
         assert!(latency.settled.is_none());
+    }
+
+    /// A simulated service: audio is fed in real time, and each result comes
+    /// back `response` later.
+    ///
+    /// Drives the clock explicitly so a 60-minute run takes microseconds. The
+    /// point is that wall clock and audio time advance *together*, which is
+    /// what a real service does and what the broken measurement depended on —
+    /// a test that advances only one of them passes against either version.
+    struct Service {
+        transcript: SessionTranscript,
+        base: Instant,
+        chunk: u32,
+    }
+
+    impl Service {
+        fn new() -> Self {
+            Self {
+                transcript: SessionTranscript::new(),
+                base: Instant::now(),
+                chunk: 0,
+            }
+        }
+
+        fn at(&self, chunk: u32) -> Instant {
+            self.base + Duration::from_millis(u64::from(chunk) * 250)
+        }
+
+        /// Run for `chunks` chunks, dropping one every `drop_every` (0 = none),
+        /// and taking a lag sample every 20 chunks.
+        fn run(&mut self, chunks: u32, drop_every: u32, response: Duration) {
+            for _ in 0..chunks {
+                let accepted = drop_every == 0 || self.chunk % drop_every != 0;
+                // The one instant this chunk exists at: when its 250 ms
+                // finished accumulating and it was handed over. The result it
+                // produces is timed from here, so the harness measures exactly
+                // `response` and nothing else.
+                let sent_at = self.at(self.chunk);
+                self.transcript.note_chunk_sent_at(accepted, sent_at);
+                self.chunk += 1;
+
+                if self.chunk % 20 == 0 {
+                    // Deepgram timestamps the audio it actually received.
+                    let heard = self.transcript.audio_sent;
+                    self.transcript.record_interim_timing_at(
+                        &words(&[("word", heard - 0.2, heard)]),
+                        sent_at + response,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn lag_does_not_grow_with_the_length_of_the_service() {
+        // The regression. Lag was `wall clock since the first chunk` minus
+        // `the word's audio timestamp` — two different clocks whose gap only
+        // widens. A 38-second run measured 452/681/698 ms; an hour of the same
+        // pipeline measured 1490/1926/2445 ms, with p50 almost exactly at the
+        // midpoint of a straight line. That is the signature of accumulation,
+        // not of a slow pipeline.
+        //
+        // Here one chunk in 500 is refused — about 7 over the hour, which is
+        // the order the DoD figures implied.
+        let response = Duration::from_millis(400);
+        let mut service = Service::new();
+        service.run(4 * 60 * 60, 500, response); // 60 minutes at 4 chunks/s
+
+        let interim = service.transcript.latency().interim.expect("samples");
+        assert!(interim.samples > 500, "only {} samples", interim.samples);
+
+        // Every sample is the same real 400 ms, so the spread must be flat.
+        // Under the old formula the tail carried every dropped chunk.
+        assert!(
+            interim.p50_ms.abs_diff(400) <= 10,
+            "p50 was {} ms, not the 400 ms actually taken",
+            interim.p50_ms
+        );
+        assert!(
+            interim.max_ms <= 450,
+            "lag grew through the service: max {} ms against a flat 400",
+            interim.max_ms
+        );
+    }
+
+    #[test]
+    fn dropped_audio_is_counted_as_lost_speech_rather_than_as_slowness() {
+        // A refused chunk is 250 ms nobody will ever read. Reporting it as
+        // latency describes a slow pipeline; reporting it as loss describes a
+        // transcript with holes, which is the true and more serious thing.
+        let mut service = Service::new();
+        service.run(400, 50, Duration::from_millis(300)); // 100 s, 8 refused
+
+        let latency = service.transcript.latency();
+        assert_eq!(latency.dropped_chunks, 8);
+        assert!((latency.dropped_seconds() - 2.0).abs() < 1e-9);
+
+        let interim = latency.interim.expect("samples");
+        assert!(
+            interim.max_ms <= 350,
+            "the 2 s of dropped audio leaked into the lag: {} ms",
+            interim.max_ms
+        );
+    }
+
+    #[test]
+    fn a_result_for_audio_we_never_sent_is_not_counted() {
+        // Better to measure nothing than to invent a number. A timestamp past
+        // what we have sent means the two timelines disagree, and any lag
+        // derived from them is fiction.
+        let mut transcript = SessionTranscript::new();
+        for _ in 0..4 {
+            transcript.note_chunk_sent(true); // 1 s
+        }
+
+        transcript.record_interim_timing(&words(&[("impossible", 59.0, 60.0)]));
+
+        assert!(
+            transcript.latency().interim.is_none(),
+            "a timestamp beyond the audio sent must not produce a sample"
+        );
     }
 
     #[test]

@@ -60,7 +60,8 @@ the platform difference described in `audio/devices.rs`.
 
    `appear` is p50/p95/p99 for when words land on screen; it turns amber above
    700 ms. `settle` is when Deepgram confirms them. Hover either for the sample
-   count and maximum. A reconnect count appears if the connection dropped.
+   count and maximum. A reconnect count appears if the connection dropped, and
+   a red "Ns of audio lost" if any chunk was refused.
 
 6. When the file finishes, turn **Transcribe** off. Both summaries are logged:
 
@@ -86,15 +87,31 @@ passing pipeline read as a fourfold failure; see
 
 ### What the numbers measure
 
-Per result: **now, minus when those words were spoken** — wall clock since the
-first audio was *sent*, less the audio timestamp of the last word. That covers
-chunking, the socket, Deepgram's processing and the event arriving.
+Per result: **now, minus the moment the audio carrying those words was handed to
+the transcriber.** That covers the socket, Deepgram's processing and the event
+arriving. The 250 ms the audio spent accumulating into a chunk is fixed by
+FR-03 and sits on top; the rest is network and Deepgram.
 
-The anchor matters. Timing from when *capture* started charges the WebSocket
-handshake, over a second against the live service, to every sample.
+**The anchor is per chunk, and that matters.** It used to be a single mark at
+the start of the run, with each result's own audio timestamp subtracted — two
+different clocks, whose gap only ever widens. A dropped chunk removes 250 ms
+from Deepgram's timeline and nothing from the wall clock; sound cards drift
+(+370 ms/hour measured here). Neither is latency, both counted as latency, and
+both accumulate, so the figure grew with the length of the run. That is why a
+38-second run read 452/681/698 ms and an hour of the same pipeline read
+1490/1926/2445.
 
-Of the total, 250 ms is our own chunk accumulation and is fixed by FR-03. The
-rest is network and Deepgram.
+This measurement has now been wrong twice, both times at the anchor. If a
+future run produces a surprising figure, suspect this before suspecting the
+pipeline — and check it against something it cannot exceed.
+
+### Audio lost
+
+A red **"Ns of audio lost"** appears in the footer if the transcriber refused
+any chunks. **Read this before the lag figure.** Each one is 250 ms of speech
+that is missing from the transcript and cannot be recovered, and a transcript
+with holes in it reads as complete. The line's own wording — *"no dropped words
+visible on inspection"* — is asking about exactly this.
 
 ### If a reconnect happened
 
@@ -244,12 +261,20 @@ Anthropic is not needed for these two lines — nothing in M1 calls it.
 
 | Line | State on Windows |
 |---|---|
-| 1 — words appear under 700 ms p99 | **failing on the first figure, needs re-running** after two measurement faults were fixed |
+| 1 — words appear under 700 ms p99 | **needs re-running.** The 60-minute run read 2,445 ms, but the metric was accumulating dropped audio and clock drift into the figure. Fixed 23 Sept; see `m1-latency-baseline.md` |
 | 2 — device lost | **passed** 23 Sept, Bluetooth headset |
 | 3 — internet drops | **passed** 23 Sept, real network, including a two-minute outage |
-| 4 — RAM under 300 MB | **unverified** — the 40 MB figure was an undercount; re-run needed |
+| 4 — RAM under 300 MB | **passed** 23 Sept — 212 MB on a release build over 60 minutes, measured by PID across the whole process tree |
 
 The 60-minute stability run passed on Windows.
+
+Line 1 is the only Windows line still open, and it has now been measured wrong
+twice — first by charging the WebSocket handshake to every sample, then by
+charging every dropped chunk and every tick of sound-card drift. Both times the
+fault was the anchor, and both times the number looked plausible. The re-run
+should be read alongside the new **"Ns of audio lost"** figure in the footer: if
+that is non-zero, words are missing from the transcript, which matters more than
+the lag line.
 
 **macOS needs all four repeated and none has run there**, and line 1 needs
 BlackHole because CoreAudio cannot capture a render endpoint. Parked as a known

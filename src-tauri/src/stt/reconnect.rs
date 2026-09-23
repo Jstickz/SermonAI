@@ -103,10 +103,20 @@ pub struct AudioFeed {
 impl AudioFeed {
     /// Queue a chunk. Never blocks: the audio thread has a deadline the OS
     /// enforces and must not wait on a network write.
-    pub fn send(&self, chunk: Vec<i16>) {
+    ///
+    /// **Returns whether the chunk was accepted.** A dropped chunk is 250 ms of
+    /// sermon that no one will ever read, and it also shortens Deepgram's
+    /// timeline against our wall clock permanently — so the caller has to know,
+    /// both to count the loss and to keep the lag measurement honest. Returning
+    /// `()` and logging was how an hour-long run came to report 1,490 ms of
+    /// median lag that was partly just accumulated absence.
+    #[must_use = "a dropped chunk is lost audio and must be counted"]
+    pub fn send(&self, chunk: Vec<i16>) -> bool {
         if self.audio.try_send(chunk).is_err() {
             tracing::warn!("transcription is not keeping up; dropping audio");
+            return false;
         }
+        true
     }
 }
 
@@ -182,10 +192,16 @@ impl ResilientStream {
     /// A full channel here means the supervisor is wedged rather than merely
     /// disconnected — disconnection is absorbed by the backlog inside it — so
     /// the chunk is dropped and logged.
-    pub fn send(&self, chunk: Vec<i16>) {
+    ///
+    /// Returns whether it was accepted; see [`AudioFeed::send`] for why the
+    /// caller must not ignore that.
+    #[must_use = "a dropped chunk is lost audio and must be counted"]
+    pub fn send(&self, chunk: Vec<i16>) -> bool {
         if self.audio.try_send(chunk).is_err() {
             tracing::warn!("transcription is not keeping up; dropping audio");
+            return false;
         }
+        true
     }
 
     /// Close the stream and wait for the final results.

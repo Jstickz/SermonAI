@@ -147,7 +147,10 @@ async fn a_silent_connection_is_detected_and_replaced() {
 
     // Healthy for a moment, so the test is not measuring startup.
     for _ in 0..4 {
-        stream.send(chunk());
+        assert!(
+            stream.send(chunk()),
+            "the feed refused a chunk; the outage buffer should have absorbed it"
+        );
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     assert_eq!(server.connections.load(Ordering::SeqCst), 1);
@@ -159,7 +162,10 @@ async fn a_silent_connection_is_detected_and_replaced() {
     // response timeout and reopen the connection by itself.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(25);
     while tokio::time::Instant::now() < deadline {
-        stream.send(chunk());
+        assert!(
+            stream.send(chunk()),
+            "the feed refused a chunk; the outage buffer should have absorbed it"
+        );
         tokio::time::sleep(Duration::from_millis(100)).await;
         if server.connections.load(Ordering::SeqCst) > 1 {
             break;
@@ -197,7 +203,10 @@ async fn audio_during_an_outage_is_held_and_replayed() {
     .expect("the first connection should succeed");
 
     for _ in 0..4 {
-        stream.send(chunk());
+        assert!(
+            stream.send(chunk()),
+            "the feed refused a chunk; the outage buffer should have absorbed it"
+        );
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
     let before = server.audio_chunks.load(Ordering::SeqCst);
@@ -209,7 +218,10 @@ async fn audio_during_an_outage_is_held_and_replayed() {
 
     // Twenty chunks spoken while there is nothing to send them to.
     for _ in 0..20 {
-        stream.send(chunk());
+        assert!(
+            stream.send(chunk()),
+            "the feed refused a chunk; the outage buffer should have absorbed it"
+        );
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 

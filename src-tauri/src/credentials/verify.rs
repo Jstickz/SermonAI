@@ -85,10 +85,12 @@ pub async fn test(credentials: &Credentials, service: Service) -> Result<TestOut
 
         // Managed-only. Reaching here means a key was stored for a service
         // that refuses BYOK, which the provider should have prevented.
-        Service::YouVersion | Service::TyndaleNlt => return Ok(TestOutcome::fail(format!(
+        Service::YouVersion | Service::TyndaleNlt => {
+            return Ok(TestOutcome::fail(format!(
             "{} cannot be tested with a key on this machine: it comes with SermonAI activation.",
             service.label()
-        ))),
+        )))
+        }
     };
 
     let response = match request.send().await {

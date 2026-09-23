@@ -179,17 +179,17 @@ fn spawn_capture(
             // still runs: a level test should exercise the real capture path,
             // not a shortcut that could hide a fault in it.
             if let Some(feed) = &feed {
-                // The lag clock starts with the first audio actually sent, not
-                // when capture began: Deepgram times its words from the first
-                // byte it receives, so anchoring earlier charges the handshake
-                // to every measurement.
+                // Send first, then record — including whether it was taken.
+                // Each chunk's send time is what its own results are measured
+                // against, and a refusal is 250 ms of lost speech that has to
+                // be counted rather than logged and forgotten.
+                let accepted = feed.send(chunk);
                 clock_app
                     .state::<AppState>()
                     .session_transcript
                     .lock()
                     .expect("transcript lock")
-                    .mark_stream_start();
-                feed.send(chunk);
+                    .note_chunk_sent(accepted);
             }
         }),
         Box::new(move |peak_dbfs| {

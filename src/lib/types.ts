@@ -88,6 +88,9 @@ export interface LatencySummary {
   /** Non-zero makes the tail suspect: replayed audio is late by construction. */
   reconnects: number;
   excludedCatchUp: number;
+  /** Chunks the transcriber refused, at 250 ms each. This is lost speech, not
+   *  slow speech — a transcript with holes in it reads as complete. */
+  droppedChunks: number;
 }
 
 /** Everything transcribed so far (FR-10). Mirrors `TranscriptSnapshot` in

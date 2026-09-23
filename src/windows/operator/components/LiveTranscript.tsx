@@ -459,6 +459,14 @@ export function LiveTranscript() {
               {latency.reconnects} reconnect{latency.reconnects === 1 ? "" : "s"}
             </span>
           )}
+          {latency && latency.droppedChunks > 0 && (
+            <span
+              className="text-status-danger"
+              title="Audio the transcriber could not accept in time. These words are missing from the transcript and cannot be recovered."
+            >
+              {(latency.droppedChunks * 0.25).toFixed(1)}s of audio lost
+            </span>
+          )}
           <span>not saved yet · M4</span>
         </span>
       </div>
