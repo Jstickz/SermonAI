@@ -234,11 +234,31 @@ as a failed build. It now skips updater artifacts when there is no key and says
 so; CI has the key, so releases are still signed. Nothing about the app binary
 changes either way.
 
-Then run the built app rather than the dev server:
+Then run the built app rather than the dev server — **and keep the log**:
 
 ```powershell
-& ".\src-tauri\target\release\sermonai.exe"
+$env:RUST_LOG = "sermonai_lib=info"
+& ".\src-tauri\target\release\sermonai.exe" *> "$env:TEMP\sermonai-dod.log"
 ```
+
+The release build logs to stdout and nowhere else, so a run started from the
+Start menu or by double-clicking leaves no record behind. That is how the
+60-minute run came to have no answer to "were there any reconnects" — the
+figures were in the footer, and everything behind them went with the window.
+
+Afterwards, the lines worth reading:
+
+```powershell
+$log = "$env:TEMP\sermonai-dod.log"
+Select-String -Path $log -Pattern "lag by minute" | Select-Object -Last 60
+Select-String -Path $log -Pattern "would not accept"
+Select-String -Path $log -Pattern "reconnects during this run|drift_ms_per_hour"
+```
+
+**The per-minute lines are the important ones.** They answer whether lag *grew*
+or stayed *flat*, which the summary percentiles cannot: growing means something
+in our pipeline is backing up, flat means the network is simply that far away
+and no work on our side will move it.
 
 ### Give the release build a key first
 
