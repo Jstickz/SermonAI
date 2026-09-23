@@ -50,7 +50,16 @@ export function Modal({
     );
     (focusable?.[0] ?? cardRef.current)?.focus();
 
-    return () => restoreTo.current?.focus();
+    return () => {
+      // Only back to a real control. The element that had focus may be a
+      // scrollable region rather than something actionable -- the transcript
+      // body is exactly that -- and returning focus there made it draw a
+      // border the moment the dialog closed, which reads as a fault.
+      const target = restoreTo.current;
+      if (target?.isConnected && target.matches("button, a[href], input, select, textarea")) {
+        target.focus();
+      }
+    };
   }, []);
 
   useEffect(() => {

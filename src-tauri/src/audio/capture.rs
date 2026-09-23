@@ -104,7 +104,24 @@ const WATCHDOG_TICK: Duration = Duration::from_millis(250);
 /// `running_for` is `None` while paused, which is the case that matters most —
 /// a paused device is silent on purpose, and reporting every pause as a
 /// disconnection would train the operator to ignore the warning.
-fn device_lost(running_for: Option<Duration>, since_last_data: Duration) -> bool {
+fn device_lost(
+    running_for: Option<Duration>,
+    since_last_data: Duration,
+    is_output_endpoint: bool,
+) -> bool {
+    // A loopback source is exempt, because silence there is normal rather than
+    // evidence. Measured on this machine: of three loopback endpoints, two
+    // deliver *nothing at all* while the system is playing nothing — including
+    // "Speakers (Realtek)", which is what an operator picks to capture a desk
+    // feed. The watchdog called both lost within two seconds of the music
+    // stopping. A church between songs would be told its input had failed.
+    //
+    // Genuine removal of a loopback endpoint — a monitor unplugged — still
+    // raises a cpal stream error, which is handled on its own path.
+    if is_output_endpoint {
+        return false;
+    }
+
     match running_for {
         None => false,
         Some(elapsed) if elapsed < STARTUP_GRACE => false,
@@ -396,7 +413,9 @@ pub fn spawn(
             let report: Arc<ErrorSink> = Arc::new(on_error);
             let stream_report = Arc::clone(&report);
 
+            let mut watch_for_silence = false;
             let opened = devices::find_device(&device_name).and_then(|(device, is_output)| {
+                watch_for_silence = !is_output;
                 open(
                     &device,
                     is_output,
@@ -447,6 +466,7 @@ pub fn spawn(
                         if !device_lost(
                             running_since.map(|since| since.elapsed()),
                             stream.since_last_data(),
+                            !watch_for_silence,
                         ) {
                             continue;
                         }
@@ -542,7 +562,7 @@ mod tests {
         // The case that matters most. A paused device is silent on purpose,
         // and reporting every pause as a disconnection would teach the
         // operator to ignore the one warning that matters.
-        assert!(!device_lost(None, Duration::from_secs(60)));
+        assert!(!device_lost(None, Duration::from_secs(60), false));
     }
 
     #[test]
@@ -551,11 +571,13 @@ mod tests {
         // it lost before it ever has would make it unusable.
         assert!(!device_lost(
             Some(Duration::from_millis(500)),
-            Duration::from_secs(10)
+            Duration::from_secs(10),
+            false
         ));
         assert!(!device_lost(
             Some(STARTUP_GRACE - Duration::from_millis(1)),
-            Duration::from_secs(10)
+            Duration::from_secs(10),
+            false
         ));
     }
 
@@ -564,10 +586,15 @@ mod tests {
         // The Bluetooth case from testing: WASAPI kept the endpoint valid and
         // simply stopped delivering, so no stream error was ever raised and
         // the app carried on believing it was recording.
-        assert!(device_lost(Some(Duration::from_secs(30)), SILENCE_TIMEOUT));
         assert!(device_lost(
             Some(Duration::from_secs(30)),
-            Duration::from_secs(10)
+            SILENCE_TIMEOUT,
+            false
+        ));
+        assert!(device_lost(
+            Some(Duration::from_secs(30)),
+            Duration::from_secs(10),
+            false
         ));
     }
 
@@ -577,11 +604,26 @@ mod tests {
         // gone anywhere, and a false alarm mid-sermon is its own failure.
         assert!(!device_lost(
             Some(Duration::from_secs(30)),
-            SILENCE_TIMEOUT - Duration::from_millis(1)
+            SILENCE_TIMEOUT - Duration::from_millis(1),
+            false
         ));
         assert!(!device_lost(
             Some(Duration::from_secs(30)),
-            Duration::from_millis(250)
+            Duration::from_millis(250),
+            false
+        ));
+    }
+
+    #[test]
+    fn an_idle_loopback_is_not_a_lost_device() {
+        // Measured, not assumed: two of this machine's three loopback
+        // endpoints deliver nothing while the system plays nothing, so the
+        // watchdog reported a healthy sound-desk feed as failed within two
+        // seconds of the music stopping.
+        assert!(!device_lost(
+            Some(Duration::from_secs(30)),
+            Duration::from_secs(600),
+            true
         ));
     }
 

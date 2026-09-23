@@ -308,6 +308,20 @@
   .transcript-body {
     @apply min-h-0 flex-1 overflow-y-auto px-1 py-2 text-[15px] text-content-secondary;
     line-height: 1.8;
+    /*
+     * No focus ring. The panel is focusable so it can be scrolled from the
+     * keyboard with the scrollbar hidden, and the browser drew its default
+     * outline around the transcript whenever focus landed there — including
+     * when a dialog closed and returned focus. An operator reads a box that
+     * suddenly gains a border as something having gone wrong.
+     *
+     * The cost is a focusable element with no visible focus indicator, which
+     * is normally a fault. It is acceptable here only because the element
+     * takes no action: focus exists solely to scroll, and scrolling shows
+     * itself. Nothing is activated from this element, so nobody can be unsure
+     * what Enter would do.
+     */
+    @apply outline-none;
   }
 
   /* Provisional text: muted and italic, so an operator can tell at a glance
