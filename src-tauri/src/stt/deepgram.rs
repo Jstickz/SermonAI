@@ -33,7 +33,53 @@ use crate::audio::{CHANNELS, SAMPLE_RATE_HZ};
 use crate::credentials::{Access, Credentials, Service};
 use crate::error::{Error, Result};
 
-const BASE_URL: &str = "wss://api.deepgram.com/v1/listen";
+/// Which Deepgram region to stream to.
+///
+/// **This is a latency decision, not a compliance one.** `api.deepgram.com`
+/// resolves to `api.sac1.deepgram.com` — Sacramento — for everybody, wherever
+/// they are. Measured from Lagos with real speech at real-time pace, 10 minutes
+/// per region:
+///
+/// | | p50 | p95 | p99 |
+/// |---|---|---|---|
+/// | Sacramento | 313 ms | 586 ms | 799 ms |
+/// | Frankfurt | 172 ms | 459 ms | 666 ms |
+///
+/// The same API keys work on both; only the base URL changes. For a church in
+/// West Africa the EU endpoint is roughly 140 ms per result cheaper and
+/// noticeably steadier, which is most of the difference between meeting the
+/// latency budget and missing it.
+///
+/// Not auto-detected. Guessing from an IP address is wrong often enough to be
+/// worse than a setting an operator can see, and a church that must keep audio
+/// in one jurisdiction needs the choice to be explicit anyway.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Region {
+    /// Frankfurt. The default: nearer to Africa, Europe and the Middle East
+    /// than Sacramento is, and no further for anyone except the Americas and
+    /// the Pacific.
+    #[default]
+    Eu,
+    /// Sacramento. Deepgram's global default, and right for the Americas.
+    Us,
+}
+
+impl Region {
+    pub fn endpoint(self) -> &'static str {
+        match self {
+            Region::Eu => "wss://api.eu.deepgram.com/v1/listen",
+            Region::Us => "wss://api.deepgram.com/v1/listen",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Region::Eu => "Europe (Frankfurt)",
+            Region::Us => "United States (Sacramento)",
+        }
+    }
+}
 
 /// Where to connect, for callers that do not care.
 ///
@@ -43,7 +89,7 @@ const BASE_URL: &str = "wss://api.deepgram.com/v1/listen";
 /// connected to the other's server — which looked exactly like the product bug
 /// they were written to catch.
 pub fn default_endpoint() -> &'static str {
-    BASE_URL
+    Region::default().endpoint()
 }
 
 /// How long a write may block before the socket is presumed dead.
@@ -154,7 +200,7 @@ pub type EventSink = Box<dyn FnMut(TranscriptEvent) + Send + 'static>;
 /// `sample_rate` here produces a connection that succeeds and transcribes
 /// noise, which is far harder to diagnose than a refused connection.
 pub fn stream_url(vocabulary: &[String]) -> String {
-    stream_url_at(BASE_URL, vocabulary)
+    stream_url_at(default_endpoint(), vocabulary)
 }
 
 /// The same, against a given endpoint.
@@ -596,6 +642,32 @@ impl DeepgramSession {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_default_region_is_the_near_one_for_most_of_the_target_markets() {
+        // PRD §4.2 lists Nigeria, Kenya, Ghana, Rwanda, South Africa, UK and
+        // USA. Six of the seven are far closer to Frankfurt than to
+        // Sacramento, and `api.deepgram.com` resolves to Sacramento for
+        // everybody. Measured from Lagos: 313 ms p50 against 172 ms.
+        //
+        // The USA is the exception, which is what the setting is for.
+        assert_eq!(Region::default(), Region::Eu);
+        assert!(Region::Eu.endpoint().contains("api.eu.deepgram.com"));
+        assert_eq!(default_endpoint(), Region::Eu.endpoint());
+    }
+
+    #[test]
+    fn every_region_is_a_secure_websocket_to_the_listen_path() {
+        // A typo here fails at connect time with an error that looks like a
+        // network fault, during a service.
+        for region in [Region::Eu, Region::Us] {
+            let endpoint = region.endpoint();
+            assert!(endpoint.starts_with("wss://"), "{endpoint}");
+            assert!(endpoint.ends_with("/v1/listen"), "{endpoint}");
+            assert!(!region.label().is_empty());
+        }
+        assert_ne!(Region::Eu.endpoint(), Region::Us.endpoint());
+    }
+
     use super::*;
 
     #[test]

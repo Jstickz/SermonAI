@@ -271,11 +271,45 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
     }
 
     {
-        let latency = state
-            .session_transcript
-            .lock()
-            .expect("transcript lock")
-            .latency();
+        let transcript = state.session_transcript.lock().expect("transcript lock");
+        let latency = transcript.latency();
+        let timeline = transcript.latency_timeline();
+        let drift = transcript.clock_drift_ms_per_hour();
+        drop(transcript);
+
+        // Reported beside the lag rather than inside it. Sound cards do not run
+        // at exactly their stated rate, and the difference accumulates against
+        // the wall clock — which is fine, as long as nobody adds it to a
+        // latency budget. Somebody did.
+        if let Some(drift) = drift {
+            tracing::info!(
+                drift_ms_per_hour = drift.round(),
+                "audio timeline against the wall clock — not latency, and no longer counted as any"
+            );
+        }
+
+        // The shape of the run, not just its summary. A lag that climbs minute
+        // by minute means something in our pipeline is backing up; a flat one
+        // means the network is simply this far away. Answering that used to
+        // cost a whole 60-minute re-run.
+        for minute in &timeline {
+            tracing::info!(
+                minute = minute.minute,
+                samples = minute.samples,
+                p50_ms = minute.p50_ms,
+                p95_ms = minute.p95_ms,
+                max_ms = minute.max_ms,
+                "lag by minute"
+            );
+        }
+        if let (Some(first), Some(last)) = (timeline.first(), timeline.last()) {
+            tracing::info!(
+                first_minute_p50_ms = first.p50_ms,
+                last_minute_p50_ms = last.p50_ms,
+                minutes = timeline.len(),
+                "lag trend across the run — flat is the network, climbing is us"
+            );
+        }
 
         if let Some(interim) = &latency.interim {
             tracing::info!(
@@ -298,6 +332,19 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
                 "lag until an utterance is confirmed (settled) — gated by Deepgram endpointing, and what M2 detection will run on"
             );
         }
+        // Said unconditionally, including when it is zero. "No warning" and
+        // "nobody looked" are indistinguishable in a log, and this is the
+        // number that says whether words are missing from the sermon.
+        tracing::info!(
+            dropped_chunks = latency.dropped_chunks,
+            dropped_seconds = latency.dropped_seconds(),
+            "audio the transcriber would not accept — anything above zero is speech missing from the transcript"
+        );
+        tracing::info!(
+            reconnects = latency.reconnects,
+            excluded_catch_up = latency.excluded_catch_up,
+            "reconnects during this run"
+        );
         if latency.reconnects > 0 {
             tracing::warn!(
                 reconnects = latency.reconnects,

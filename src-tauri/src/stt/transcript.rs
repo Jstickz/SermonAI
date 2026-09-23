@@ -155,6 +155,19 @@ impl LatencySummary {
     }
 }
 
+/// Interim lag over one minute of audio.
+///
+/// Mirrored by `MinuteLatency` in `src/lib/types.ts`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MinuteLatency {
+    pub minute: usize,
+    pub samples: usize,
+    pub p50_ms: u64,
+    pub p95_ms: u64,
+    pub max_ms: u64,
+}
+
 /// One chunk of audio, in seconds. Mirrors `CHUNK_SAMPLES` at 16 kHz (FR-03).
 const CHUNK_SECONDS: f64 = 0.25;
 
@@ -210,8 +223,23 @@ pub struct SessionTranscript {
     sent_marks: VecDeque<(f64, Instant)>,
     /// Cumulative seconds of audio accepted for sending.
     audio_sent: f64,
+    /// The very first mark, kept after `sent_marks` has rolled past it, so the
+    /// run's clock drift can still be worked out at the end.
+    first_mark: Option<(f64, Instant)>,
     /// Chunks the transcriber refused. Lost speech, not just a lost sample.
     dropped_chunks: usize,
+    /// Interim lags bucketed by which minute of audio they belong to.
+    ///
+    /// The summary percentiles cannot distinguish a lag that is *high* from one
+    /// that is *growing*, and those have different causes: a growing figure
+    /// means something in our pipeline is backing up, a flat one means the
+    /// network is simply that far away. Answering that was costing a full
+    /// 60-minute re-run each time.
+    interim_by_minute: Vec<Vec<f64>>,
+    /// The last minute reported to the log, so each is logged once as it closes
+    /// rather than only at the end — a run that is killed still leaves its
+    /// shape behind.
+    logged_minute: usize,
     /// Lag per interim result: when words first appeared.
     interim_lags: Vec<f64>,
     /// Lag per settled utterance.
@@ -281,6 +309,7 @@ impl SessionTranscript {
         };
         if let Some(lag) = self.lag_for_at(end, now) {
             self.interim_lags.push(lag);
+            self.bucket_interim(end, lag);
         }
     }
 
@@ -314,6 +343,83 @@ impl SessionTranscript {
         let (_, sent_at) = self.sent_marks.get(idx)?;
 
         Some(now.saturating_duration_since(*sent_at).as_secs_f64())
+    }
+
+    /// File an interim sample under the minute of audio it belongs to, and log
+    /// a minute as soon as it is complete.
+    fn bucket_interim(&mut self, audio_at: f64, lag: f64) {
+        let minute = (audio_at / 60.0) as usize;
+        // Capped so a three-hour service cannot grow this without bound. The
+        // shape is visible long before 600 samples in a minute.
+        const PER_MINUTE_CAP: usize = 600;
+
+        if self.interim_by_minute.len() <= minute {
+            self.interim_by_minute.resize(minute + 1, Vec::new());
+        }
+        let bucket = &mut self.interim_by_minute[minute];
+        if bucket.len() < PER_MINUTE_CAP {
+            bucket.push(lag);
+        }
+
+        while self.logged_minute < minute {
+            let done = self.logged_minute;
+            if let Some(stats) = self.minute_stats(done) {
+                tracing::info!(
+                    minute = done,
+                    samples = stats.samples,
+                    p50_ms = stats.p50_ms,
+                    p95_ms = stats.p95_ms,
+                    max_ms = stats.max_ms,
+                    dropped_chunks = self.dropped_chunks,
+                    "lag by minute — a figure that climbs means something is backing up; a flat one means the network is simply this far away"
+                );
+            }
+            self.logged_minute += 1;
+        }
+    }
+
+    fn minute_stats(&self, minute: usize) -> Option<MinuteLatency> {
+        let bucket = self.interim_by_minute.get(minute)?;
+        if bucket.len() < 3 {
+            return None;
+        }
+        let p = percentiles(bucket)?;
+        Some(MinuteLatency {
+            minute,
+            samples: p.samples,
+            p50_ms: p.p50_ms,
+            p95_ms: p.p95_ms,
+            max_ms: p.max_ms,
+        })
+    }
+
+    /// How far the audio timeline has fallen behind the wall clock, in
+    /// milliseconds per hour. `None` until there is enough of a run to tell.
+    ///
+    /// Positive means we are producing less than a second of audio per second —
+    /// a sound card running slow, or chunks refused. This used to be measured
+    /// *as latency*, which is why an hour-long run read three times a
+    /// 38-second one. It is reported separately now so it can never be
+    /// mistaken for the pipeline being slow again.
+    pub fn clock_drift_ms_per_hour(&self) -> Option<f64> {
+        let (first_audio, first_at) = self.first_mark?;
+        let (last_audio, last_at) = *self.sent_marks.back()?;
+
+        let wall = last_at.saturating_duration_since(first_at).as_secs_f64();
+        let audio = last_audio - first_audio;
+        // Under a minute the answer is noise, and a confident wrong number is
+        // worse than none.
+        if wall < 60.0 {
+            return None;
+        }
+        Some((1.0 - audio / wall) * 3_600_000.0)
+    }
+
+    /// Interim lag per minute of audio, for the log and for the record.
+    pub fn latency_timeline(&self) -> Vec<MinuteLatency> {
+        (0..self.interim_by_minute.len())
+            .filter_map(|m| self.minute_stats(m))
+            .collect()
     }
 
     /// Note that the connection dropped, and that results for the next
@@ -355,6 +461,7 @@ impl SessionTranscript {
         }
 
         self.audio_sent += CHUNK_SECONDS;
+        self.first_mark.get_or_insert((self.audio_sent, now));
         self.sent_marks.push_back((self.audio_sent, now));
         if self.sent_marks.len() > MAX_SEND_MARKS {
             self.sent_marks.pop_front();
