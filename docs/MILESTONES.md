@@ -16,8 +16,8 @@ Update this table first. It is the only place status is recorded.
 | # | Milestone | Phase | Window | Status | Done on |
 |---|---|---|---|---|---|
 | M0 | Foundation & Lightweight Installer | 0 | 8 Sept – 21 Sept 2026 | ✅ Done | 21 Sept 2026 |
-| M1 | Audio In, Transcript Out | 1 | 22 Sept – 5 Oct 2026 | 🟡 In progress | |
-| M2 | Scripture Detection Engine | 1 | 6 Oct – 19 Oct 2026 | ⬜ Not started | |
+| M1 | Audio In, Transcript Out | 1 | 22 Sept – 5 Oct 2026 | ✅ Done (Windows) | 23 Sept 2026 |
+| M2 | Scripture Detection Engine | 1 | 6 Oct – 19 Oct 2026 | 🟡 In progress | |
 | M3 | Staging & Projector Output | 1 | 20 Oct – 2 Nov 2026 | ⬜ Not started | |
 | M4 | Summary PDF & Library (MVP) | 1 | 3 Nov – 16 Nov 2026 | ⬜ Not started | |
 | M5 | Offline Mode & Packs | 2 | 17 Nov – 30 Nov 2026 | ⬜ Not started | |
@@ -31,7 +31,7 @@ Update this table first. It is the only place status is recorded.
 
 Status values: `⬜ Not started` · `🟡 In progress` · `🟠 Blocked` · `✅ Done`
 
-**Current milestone:** M1 — Audio In, Transcript Out
+**Current milestone:** M2 — Scripture Detection Engine
 **Current blocker:** none. **M0 closed on 21 September 2026, on schedule** — twelve of twelve deliverables and six of six Definition of Done lines.
 
 The last line closed on a real Mac: the `.dmg` downloaded through Safari, the unidentified-developer warning appeared as expected for an unsigned build, and SermonAI launched and ran correctly once cleared. Three details of that run are still to be recorded (which Mac, which macOS version, how the warning was cleared) — they do not affect the tick, but they decide whether `docs/INSTALL.md` matches what a tester meets on macOS 15.
@@ -198,7 +198,17 @@ Deliverable 10's note still stands: the pack system has never run against a real
   - *Measured as **private working set** across the whole process tree. Summing `WorkingSet` gave 583 MB at idle, which would have failed the budget: a Tauri app is nine processes here — one Rust, a WebView2 renderer per window and shared Chromium helpers — and `WorkingSet` counts pages shared between them once per process. `scripts/measure-memory.ps1` reports the private figure.*
   - ***Two caveats.** The run was a dev build, which carries an unoptimized Rust binary and a live Vite server, so a release build should read lower rather than higher — but the number of record should still come from one. And macOS is unmeasured.)*
 
-**M1 deliverables: 10 of 10. Definition of Done: 4 of 4 on Windows, 0 of 4 on macOS.**
+**M1 deliverables: 10 of 10. Definition of Done: 4 of 4 on Windows. Closed on Windows 23 September 2026.**
+
+**macOS is parked, deliberately, and it is a real risk rather than a formality.** The milestone's own gate says "on both platforms" and that has not happened. Three things there have never executed at all, not once:
+
+- **Device enumeration.** `audio/devices.rs` branches heavily on platform — output endpoints are not offered on macOS, and virtual cables are recognised by name — and none of that has run outside a CI compile.
+- **The watchdog.** Its premise is that cpal delivers buffers continuously whether or not anyone is speaking. That was verified on Windows and found **false** for two of three loopback endpoints, which is why loopback is exempt. CoreAudio may differ again, in either direction.
+- **The loopback shortcut does not exist there.** CoreAudio cannot capture a render endpoint, so DoD 1 needs BlackHole installed rather than playing a file through the speakers.
+
+The 60-minute stability run has not happened on either platform.
+
+M2 starts against a Windows-only foundation. That is the operator's call, taken knowingly; the cost is that a macOS fault now surfaces during M2 or later, with detection, staging and the summariser built on top of it.
 
 **Do not start M2 until:** transcript is stable for a full 60-minute run on both platforms.
 
@@ -508,6 +518,8 @@ Ideas that came up early but belong to a later milestone. Write the idea and the
 | **The oldest supported macOS is untested.** PRD §9 keeps the floor at macOS 12+ — a support commitment, not a test record, and deliberately not raised to whatever M0's DoD 2 happened to run on: testing one version shows that version works, not that older ones fail. Nothing verifies 12, 13 or 14, and the CI runners only track recent macOS. Needs one run on the oldest supported version before public download. | M11 (release checklist) | 21 Sept 2026 |
 | **WebView2 silent bootstrap is untested.** DoD 1 passed on a Windows 11 VM because no Windows 10 ISO was available, and Windows 11 ships WebView2 with the OS — so the installer never exercised the bootstrap path. Windows 10 (1909+) is a supported target under FR-63 and a realistic church machine. Needs one clean Windows 10 install before public download, either as part of M11's release checklist or sooner if a Windows 10 ISO turns up. | M11 (release checklist) | 21 Sept 2026 |
 | **The SermonAI Gateway is not built.** The hybrid key model is decided and now written into PRD §17 and §11.3, but only the *shape* exists in code: `credentials/` is the abstraction every service client goes through, with a development provider reading `.env`. Phases 3 to 5 of `docs/SermonAI_API_Key_Strategy_Prompt.md` — the Cloudflare Worker, per-installation tokens, keychain storage via the `keyring` crate, BYOK settings UI — are still to do, after M1. One STOP point is the operator's: **the Cloudflare account must be created by them, not by us.** Until the gateway exists an installed release build has no way to reach any vendor, which is correct and safe but means no church build is functional online. That is the gate on M4's first Sunday. | After M1 → M4 | 22 Sept 2026 |
+| **M1's Definition of Done has never run on macOS.** All four lines and the 60-minute stability gate passed on Windows only; the milestone's own gate says both platforms. Device enumeration, the silence watchdog and the capture path have never executed on a Mac outside a CI compile, and DoD 1 needs BlackHole there because CoreAudio cannot capture a render endpoint the way WASAPI loopback can. The watchdog is the sharpest risk: its premise about continuous buffer delivery was found **false** for two of three loopback endpoints on Windows, and CoreAudio may differ again. Needs a Mac, four DoD lines and a 60-minute run. | Before M4's live service | 23 Sept 2026 |
+| **Did a two-minute outage report its dropped audio?** The backlog holds 60 seconds, so an outage twice that should have shown a red banner naming roughly 60 s of speech as lost. The operator's two-minute test recovered and the outage words appeared, but the `AudioDropped` banner was not mentioned. If that path is not reaching the UI, a sermon transcript closes a gap silently — worse than a noisy one, because nobody reading it later knows a minute is missing. Worth confirming on the next outage test. | M1 (verify) | 23 Sept 2026 |
 | **Test with real church hardware before M4.** A USB audio interface or HDMI capture card fed from a sound mixer — the actual signal path a church uses, rather than a laptop microphone. Borrowed from the media team; report what shows up in the device list, which `kind` it is classified as, what sample rate and channel count it declares, and whether the 16 kHz mono conversion holds up on a real desk feed. This is the one configuration that matters most and the one nothing in CI or on a developer machine can stand in for: enumeration is currently verified against a built-in mic array and three loopback endpoints, and the capture path against synthetic signals. Needed before the M4 Phase 1 exit service, ideally before M3 so a problem surfaces with time to fix it. | M1–M3 (before M4's live service) | 21 Sept 2026 |
 | **Starting a new transcription silently discards the previous one.** There is no persistence until M4 (FR-34), so pressing the transcribe switch on after switching it off wipes the sermon with no warning. Consistent with M1 having no persistence at all, and a real hazard the moment M4 saves services. Branding §9.3 requires a confirmation naming what is destroyed for irreversible actions; that confirmation belongs with the service lifecycle rather than bolted onto a switch now. | M4 (service lifecycle) | 22 Sept 2026 |
 | **`BRANDING.md` and `wireframe.html` disagree on button capitalisation.** §9.3 and CLAUDE.md both give Title Case (`Go Live`, `End Service`); the wireframe uses sentence case throughout (`End service`, `Import audio`, `Test with 3-second playback`). The code follows Branding, since CLAUDE.md routes wording to §9 and layout to the wireframe — but the two documents should be reconciled, because it affects every button in the app. Branding §5.1 also defines no **disabled** button state; one was added at 40% opacity and should be written into the doc. | M8 (design pass) | 22 Sept 2026 |
