@@ -77,6 +77,16 @@ M1 produced three figures that were wrong in ways that looked plausible:
 So: state the method beside the number, and check a measurement against
 something it must be bounded by before trusting it.
 
+### Leftover SermonAI instances may be closed without asking (24 Sept 2026)
+
+A `sermonai.exe` left running after one of the operator's tests holds
+`target/release/sermonai.exe`, and `cargo` then fails every build and every
+integration-test run with "failed to remove file … Access is denied (os error
+5)". Close it and carry on — **unless the operator is in the middle of a
+test**, in which case ask. The Live tab has no persistence yet, so closing the
+app discards whatever is on it; that is acceptable for a finished test and not
+for one in progress.
+
 ## Traceability
 
 Every functional requirement is tagged `FR-XX`. Reference the tag in commits,
