@@ -5,10 +5,16 @@ while nothing is playing, so a quiet passage disappears from the audio timeline
 entirely — which breaks the 2.5 s rule that opens paragraphs, and drifts every
 timestamp after it.
 
-The silence here is **digital zero**, which is the hard case. A real room is
-never silent, and a sermon recording's pauses carry room tone that keeps the
-endpoint delivering. Zero is what a stopped media player produces, and it is
-what makes WASAPI stop calling back at all.
+The silence here is **digital zero**. It turned out not to be the trigger on
+the endpoint that fails: Speakers (Realtek) keeps delivering through zeros
+*inside* a playing stream and only stops when the stream itself ends. Measured
+on 24 Sept — the whole 90 s file arrived, and the fix synthesised 9 s only
+after playback finished. That matches the DoD run exactly, where the sermon's
+own pauses survived and the restart gap did not.
+
+So to exercise the bug, **stop playback and start it again** rather than relying
+on the gap in the file. The gap is kept because other endpoints may behave
+differently, and because it is what a real room does.
 
     python scripts/make-pause-test.py
 

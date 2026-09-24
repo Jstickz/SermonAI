@@ -117,6 +117,39 @@ This measurement has now been wrong twice, both times at the anchor. If a
 future run produces a surprising figure, suspect this before suspecting the
 pipeline — and check it against something it cannot exceed.
 
+### The loopback pause test
+
+Windows loopback delivers nothing while nothing is playing, so a quiet spell
+vanished from the audio timeline (the 60-minute run lost 3.2 s at a file
+restart). The capture thread now synthesises silence against the wall clock for
+loopback devices; `synthesised_silence_seconds` in the stop log says how much.
+
+**Trigger it by stopping the stream, not by a silent passage.** On the Speakers
+(Realtek) endpoint, digital silence *inside* a playing file still arrives; the
+endpoint goes quiet only when playback ends. Measured 24 Sept: a 90 s file with
+30 s of zeros in the middle arrived in full, and 9 s were synthesised only after
+it finished. Other endpoints may differ, which is why the test file keeps its
+gap.
+
+Procedure, on the release build with **System audio (Speakers)** selected and
+**Transcribe** on:
+
+1. `python scripts/make-pause-test.py`, then play
+   `%TEMP%\sermonai-pause-speech.wav` (150 s: a minute of sermon, 30 s of
+   zeros, a minute more).
+2. When it ends, **wait about 30 seconds** with nothing playing.
+3. Play it again, let it finish, then turn Transcribe off.
+
+Expected in the log: `synthesised_silence_seconds` close to the length of the
+idle wait (plus whatever the file's own gap needed, if any); `dropped_chunks=0`.
+Expected on screen: a paragraph break between the first playback's last words
+and the second's first — the idle spell reached the timeline. Without the fix
+the two run together as one paragraph and every later timestamp is early by
+the length of the wait.
+
+`examples/capture_rate.rs` gives the same answer without Deepgram: run it on
+the Speakers endpoint for longer than the playback and read `synthesised`.
+
 ### Audio lost
 
 A red **"Ns of audio lost"** appears in the footer if the transcriber refused

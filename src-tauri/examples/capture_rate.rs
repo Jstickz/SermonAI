@@ -39,6 +39,22 @@ fn main() {
     let mut args = std::env::args().skip(1);
     let device = args.next().unwrap_or_else(|| {
         eprintln!("usage: capture_rate <device name> [seconds]");
+
+        // Which endpoint playback actually goes to. A loopback capture of any
+        // other endpoint receives nothing and reports "no audio arrived", which
+        // looks identical to the bug being tested — this run went that way
+        // twice before the question was asked.
+        {
+            use cpal::traits::{DeviceTrait, HostTrait};
+            match cpal::default_host()
+                .default_output_device()
+                .and_then(|d| d.name().ok())
+            {
+                Some(name) => eprintln!("\nSystem default OUTPUT (where playback goes): {name}"),
+                None => eprintln!("\nSystem default OUTPUT: none reported"),
+            }
+        }
+
         eprintln!("\nAvailable devices:");
         for d in sermonai_lib::audio::devices::list_devices().unwrap_or_default() {
             // The native rate matters here. 48 kHz resamples to 16 by an exact
@@ -102,6 +118,11 @@ fn main() {
     let span = *marks.lock().unwrap();
     let total_samples = samples.load(Ordering::Relaxed);
     let total_chunks = chunks.load(Ordering::Relaxed);
+    // Read before the drop. This is the number that separates "the fix
+    // filled the gap" from "this device never stops delivering": a ratio of
+    // 1.000 alone cannot, and on one endpoint here it read 1.000 with the fix
+    // disabled.
+    let synthesised = handle.synthesised_silence();
     drop(handle);
 
     let Some((first, last)) = span else {
@@ -132,6 +153,7 @@ fn main() {
     println!("  ratio             {ratio:.6}  (1.000000 is perfect)");
     println!("  implied drift     {drift_ms_per_hour:+.0} ms per hour");
     println!("  resolution        +/-{resolution_ms_per_hour:.0} ms per hour");
+    println!("  synthesised       {synthesised:.2} s of silence  (0.00 = the device never went quiet)");
 
     // The 60-minute run needs about +2000 ms/hour explained. Sign matters:
     // audio running BEHIND the clock inflates the measured lag, audio running
