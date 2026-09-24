@@ -153,7 +153,9 @@ fn main() {
     println!("  ratio             {ratio:.6}  (1.000000 is perfect)");
     println!("  implied drift     {drift_ms_per_hour:+.0} ms per hour");
     println!("  resolution        +/-{resolution_ms_per_hour:.0} ms per hour");
-    println!("  synthesised       {synthesised:.2} s of silence  (0.00 = the device never went quiet)");
+    println!(
+        "  synthesised       {synthesised:.2} s of silence  (0.00 = the device never went quiet)"
+    );
 
     // The 60-minute run needs about +2000 ms/hour explained. Sign matters:
     // audio running BEHIND the clock inflates the measured lag, audio running

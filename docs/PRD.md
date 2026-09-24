@@ -989,8 +989,14 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 ### 15.3 Anthropic Claude
 - `https://api.anthropic.com/v1/messages`, `claude-sonnet-4-6`. Two uses: live paraphrase detection (short prompts) and summary generation (structured JSON output, one call per sermon plus retries). Estimated $1 to $6 per church per month.
 
-### 15.4 OpenAI Embeddings (build-time only)
-- `text-embedding-3-small` over 31,102 verses, once, ~$2. Reduced to 384 dimensions and quantized to int8 by `build-verse-index.py`; the resulting ~12 MB index ships inside the binary. At runtime the app embeds the spoken phrase with a small on-device sentence encoder bundled in the same asset so semantic search is fully offline.
+### 15.4 Verse Embeddings (build-time index, on-device queries)
+
+*Amended 24 September 2026. This section originally paired an OpenAI-built index (`text-embedding-3-small`, 384 dims) with a different small on-device encoder for queries. That cannot work: vectors from two models are not comparable, so a cosine score between them is meaningless. Resolved in M0, recorded here now.*
+
+- **One model for both sides.** `scripts/build-verse-index.py` embeds all 31,102 verses with a **static embedding model** (model2vec, `minishlab/potion-base-8M`) and ships the *same* model's token matrix as the runtime encoder. A static model is a token lookup plus a mean — no ONNX runtime, no neural inference on the church's machine — which is what keeps it inside the installer gate and under a millisecond per query. No OpenAI call, no build-time API cost.
+- **256 dimensions, int8, unit-normalised.** Rows are L2-normalised before quantising, so the dot product of two int8 rows is cosine scaled by 127². The index is **7.71 MB** and the encoder (matrix plus tokenizer) **7.97 MB**, against the ~12 MB this section budgeted.
+- **Brute force, on purpose.** 31,102 × 256 multiply-adds per query, vectorised, measured at roughly 2.5 ms in a release build against FR-15's 5 ms budget. No index structure that could go stale or corrupt, and nothing to rebuild when a pack is added.
+- **Known limit.** A static bag-of-tokens model does not bridge archaic wording: paraphrase recall on the small hand-labelled set measured top-5 4/8 when the index was built (`tests/vector_search.rs` holds the floor at 3/8). That is why the vector stage is the *first* semantic pass and Claude the second (FR-14, FR-15), and why M2's DoD measures the two together against 100 paraphrases.
 
 ### 15.5 On-Demand Packs (offline)
 - **Offline Speech Pack:** whisper.cpp `base.en` (~75 MB) default; `small.en` (~250 MB) offered as "higher accuracy".

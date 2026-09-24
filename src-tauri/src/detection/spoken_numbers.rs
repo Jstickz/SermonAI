@@ -151,6 +151,16 @@ pub fn read(words: &[&str]) -> Option<(u16, usize)> {
         return None;
     }
 
+    // "one thousand", "two million": the loop stopped after the unit, but the
+    // next word says the number was never a chapter or verse. Returning 1 here
+    // produced "Psalm 23:1" for "Psalm 23 verse one thousand".
+    if matches!(
+        words.get(used).map(|w| clean(w)).as_deref(),
+        Some("thousand" | "million" | "billion")
+    ) {
+        return None;
+    }
+
     in_range(total).map(|v| (v, used))
 }
 

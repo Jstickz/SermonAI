@@ -306,7 +306,10 @@ fn split_book_and_numbers(reference: &str) -> (String, String) {
 
 /// Turn spoken and Roman ordinals into digits: "First John" and "I John"
 /// both become "1john".
-fn normalize_ordinal(reference: &str) -> String {
+///
+/// `pub(crate)` for the regex detection stage, which meets the same spoken
+/// forms mid-sentence and must not grow a second copy of this table.
+pub(crate) fn normalize_ordinal(reference: &str) -> String {
     let lower = reference.trim().to_lowercase();
 
     const ORDINALS: [(&str, &str); 9] = [
@@ -330,19 +333,35 @@ fn normalize_ordinal(reference: &str) -> String {
     lower
 }
 
-fn resolve_book(normalized: &str) -> Option<&'static str> {
+/// Resolve a flattened book name — lowercase, no spaces or periods, leading
+/// ordinal already a digit — to its USFM code.
+///
+/// `pub(crate)` so the detection stage shares one alias table with the parser.
+/// Two tables would drift: a spelling added here and not there is a reference
+/// that parses when typed and is missed when spoken.
+pub(crate) fn resolve_book(normalized: &str) -> Option<&'static str> {
     // Canonical display names first: "song of solomon" -> "songofsolomon".
-    for (code, name) in CANON {
-        let flat: String = name
-            .to_lowercase()
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric())
-            .collect();
-        if flat == normalized {
-            return Some(code);
-        }
-        // USFM code typed directly, e.g. "JHN".
-        if code.to_lowercase() == normalized {
+    // Flattened once, not per call: the detection stage asks this up to four
+    // times per transcript word, and lowercasing 66 names each time put the
+    // regex stage over its 5 ms budget on its own.
+    static FLAT_CANON: once_cell::sync::Lazy<Vec<(String, String, &'static str)>> =
+        once_cell::sync::Lazy::new(|| {
+            CANON
+                .iter()
+                .map(|(code, name)| {
+                    let flat = name
+                        .to_lowercase()
+                        .chars()
+                        .filter(|c| c.is_ascii_alphanumeric())
+                        .collect();
+                    (flat, code.to_lowercase(), *code)
+                })
+                .collect()
+        });
+
+    for (flat, code_lower, code) in FLAT_CANON.iter() {
+        // Display name, or the USFM code typed directly, e.g. "JHN".
+        if flat == normalized || code_lower == normalized {
             return Some(code);
         }
     }
