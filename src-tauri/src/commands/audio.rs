@@ -91,6 +91,14 @@ pub async fn start_capture(
                 &state.credentials,
                 vocabulary::keyterms(),
                 Box::new(move |event| {
+                    // Timed end to end. When a run shows a bad tail, the first
+                    // question is whether the delay is theirs or ours, and the
+                    // lag figure alone cannot answer it: it measures audio sent
+                    // to result recorded, which contains both. This measures
+                    // only our share — the mutex, the transcript update and the
+                    // emit to the window.
+                    let handling_started = std::time::Instant::now();
+
                     // Recorded before it is emitted. The event is how a mounted
                     // panel hears about it; the store is how one that is not
                     // mounted — the operator is in the Library — still has it
@@ -115,6 +123,13 @@ pub async fn start_capture(
                     }
 
                     let _ = event_app.emit("transcript:segment", &event);
+
+                    store_app
+                        .state::<AppState>()
+                        .session_transcript
+                        .lock()
+                        .expect("transcript lock")
+                        .note_handling(handling_started.elapsed().as_secs_f64());
                 }),
                 Box::new(move |status| {
                     // A reconnect makes the latency tail meaningless: replayed
@@ -171,6 +186,25 @@ fn spawn_capture(
     let clock_app = app.clone();
     let level_app = app.clone();
     let error_app = app.clone();
+
+    // Which input, and what it says its native rate is. A DoD run afterwards
+    // could not say which device produced its figures, and it matters: a 48 kHz
+    // source resamples to 16 by an exact 3:1, while 44.1 kHz is 441:160, and
+    // the loopback endpoints on one machine here are a mix of both.
+    if let Ok(listed) = devices::list_devices() {
+        match listed.iter().find(|d| d.name == device_name) {
+            Some(device) => tracing::info!(
+                device = %device.name,
+                kind = ?device.kind,
+                native_rate_hz = device.default_sample_rate,
+                channels = device.channels,
+                "capturing from this input"
+            ),
+            None => {
+                tracing::warn!(device = %device_name, "capturing from an input that is no longer listed")
+            }
+        }
+    }
 
     capture::spawn(
         device_name,
@@ -258,6 +292,18 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
     // thread, and holding the mutex across that would block every other
     // command that touches capture until the thread finishes.
     let running = state.capture.lock().expect("capture lock").take();
+
+    // Read before the drop, and reported unconditionally. This is audio
+    // SermonAI invented to cover a device that delivered nothing, and an
+    // operator diagnosing a transcript with holes in it needs to tell "the
+    // room was quiet" from "the capture path was quiet".
+    if let Some(handle) = &running {
+        tracing::info!(
+            synthesised_silence_seconds = handle.synthesised_silence(),
+            "silence synthesised to keep the timeline on the clock (loopback devices only)"
+        );
+    }
+
     // Dropped before the session closes, and that order matters: the drop
     // flushes the converter's tail into the sink, which feeds it to Deepgram.
     // Closing first would discard the last words of the service.
@@ -323,6 +369,19 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
                 budget_p95_ms = 900,
                 budget_p99_ms = 1300,
                 "lag until words appear (interim) — this is the DoD line's measure"
+            );
+        }
+        // Ours, measured separately so a bad tail can be attributed rather than
+        // argued about. If this is microseconds while the lag figure spikes to
+        // seconds, the delay arrived from outside.
+        if let Some(handling) = &latency.handling {
+            tracing::info!(
+                samples = handling.samples,
+                p50_ms = handling.p50_ms,
+                p95_ms = handling.p95_ms,
+                p99_ms = handling.p99_ms,
+                max_ms = handling.max_ms,
+                "our own time handling each result — everything above this is network and Deepgram"
             );
         }
         if let Some(settled) = &latency.settled {

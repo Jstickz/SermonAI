@@ -140,6 +140,9 @@ pub struct LatencySummary {
     /// reconnect. Reported rather than silently dropped, so the percentiles
     /// can be read as covering less than the whole run.
     pub excluded_catch_up: usize,
+    /// Our own time handling each result. Expected to be microseconds; if it
+    /// is not, the delay is ours and the network is exonerated.
+    pub handling: Option<Percentiles>,
     /// Chunks the transcriber would not accept, each 250 ms of speech that no
     /// one will ever read.
     ///
@@ -244,6 +247,13 @@ pub struct SessionTranscript {
     interim_lags: Vec<f64>,
     /// Lag per settled utterance.
     settled_lags: Vec<f64>,
+    /// Our own time handling each result: the mutex, the update, the emit.
+    ///
+    /// Kept apart from the lag figures so a bad tail can be *attributed*. Lag
+    /// measures audio-sent to result-recorded and contains both our share and
+    /// the vendor's; this is only ours, so the subtraction is available instead
+    /// of an argument.
+    handling: Vec<f64>,
     /// Reconnects so far, which make the tail suspect.
     reconnects: usize,
     /// While set, results are catch-up from a replay rather than live, and are
@@ -255,6 +265,16 @@ pub struct SessionTranscript {
 impl SessionTranscript {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Record how long we spent handling one result.
+    pub fn note_handling(&mut self, seconds: f64) {
+        // Bounded: a long service produces tens of thousands of results, and
+        // this is diagnostic rather than something anyone reads per-sample.
+        const CAP: usize = 20_000;
+        if self.handling.len() < CAP {
+            self.handling.push(seconds);
+        }
     }
 
     /// Record a settled utterance.
@@ -473,6 +493,7 @@ impl SessionTranscript {
         LatencySummary {
             interim: percentiles(&self.interim_lags),
             settled: percentiles(&self.settled_lags),
+            handling: percentiles(&self.handling),
             reconnects: self.reconnects,
             excluded_catch_up: self.excluded_catch_up,
             dropped_chunks: self.dropped_chunks,

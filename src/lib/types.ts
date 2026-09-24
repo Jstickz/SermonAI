@@ -85,6 +85,11 @@ export interface Percentiles {
 export interface LatencySummary {
   interim: Percentiles | null;
   settled: Percentiles | null;
+  /** Our own time handling each result — the mutex, the update, the emit.
+   *  Expected to be microseconds. Kept apart from the lag figures so a bad tail
+   *  can be attributed rather than argued about: everything above this is
+   *  network and Deepgram. */
+  handling: Percentiles | null;
   /** Non-zero makes the tail suspect: replayed audio is late by construction. */
   reconnects: number;
   excludedCatchUp: number;

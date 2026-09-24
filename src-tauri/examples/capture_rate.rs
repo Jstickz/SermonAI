@@ -41,7 +41,14 @@ fn main() {
         eprintln!("usage: capture_rate <device name> [seconds]");
         eprintln!("\nAvailable devices:");
         for d in sermonai_lib::audio::devices::list_devices().unwrap_or_default() {
-            eprintln!("  {:?}  {}", d.kind, d.name);
+            // The native rate matters here. 48 kHz resamples to 16 by an exact
+            // 3:1; 44.1 kHz is 441:160, and a resampler that handles the ratio
+            // imprecisely at chunk boundaries loses a little audio on every
+            // one — which would show up as "drift" and accumulate.
+            eprintln!(
+                "  {:?}  {}  ({} Hz, {} ch)",
+                d.kind, d.name, d.default_sample_rate, d.channels
+            );
         }
         std::process::exit(2);
     });

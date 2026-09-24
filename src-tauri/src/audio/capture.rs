@@ -24,7 +24,7 @@ use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
 
-use super::convert::CaptureConverter;
+use super::convert::{CaptureConverter, CHUNK_SAMPLES};
 use super::devices;
 use super::meter::LevelMeter;
 use crate::error::{Error, Result};
@@ -95,6 +95,25 @@ const STARTUP_GRACE: Duration = Duration::from_secs(3);
 /// has arrived.
 const WATCHDOG_TICK: Duration = Duration::from_millis(250);
 
+/// One chunk, in milliseconds. Mirrors `CHUNK_SAMPLES` at 16 kHz (FR-03), and
+/// deliberately equal to `WATCHDOG_TICK`: the watchdog then tops up at most one
+/// chunk of silence per wake, so it paces itself instead of bursting.
+const CHUNK_MS: u64 = 250;
+
+/// How many chunks of silence are owed, given how long the timeline has been
+/// running and how many chunks it has produced.
+///
+/// Pure so it can be tested without a sound card. The three ways to get it
+/// wrong are injecting silence into continuous speech, never catching up at
+/// all, and catching up so fast that a gap is filled in one burst.
+fn silence_chunks_due(elapsed_ms: u64, produced: u64) -> u64 {
+    let due = elapsed_ms / CHUNK_MS;
+    // One chunk of slack. A device delivering normally is always a fraction of
+    // a chunk behind the clock, and synthesising into that gap would inject
+    // silence in the middle of speech.
+    due.saturating_sub(produced + 1)
+}
+
 /// Whether a running device should be treated as lost.
 ///
 /// Extracted so the decision can be tested without hardware: the three ways to
@@ -157,6 +176,19 @@ pub struct CaptureStream {
     /// Milliseconds since `epoch` at the last data callback, for the watchdog.
     last_data_ms: Arc<AtomicU64>,
     epoch: Instant,
+    /// Chunks handed to the sink, real and synthesised.
+    chunks_out: Arc<AtomicU64>,
+    /// When the timeline started or was restarted, in ms since `epoch`, and
+    /// the chunk count at that moment. Reset on the first chunk and on resume,
+    /// so a deliberate pause is never backfilled with silence.
+    ///
+    /// `u64::MAX` means "not started": no audio has arrived yet, and there is
+    /// no timeline to keep aligned.
+    timeline_ms: Arc<AtomicU64>,
+    chunks_at_timeline: Arc<AtomicU64>,
+    /// Chunks of silence synthesised because a loopback device delivered
+    /// nothing. Reported so a run can say how much of its audio was invented.
+    silence_chunks: Arc<AtomicU64>,
     /// What the device actually gave us, which is rarely what was asked for.
     pub source_rate: u32,
     pub source_channels: u16,
@@ -173,6 +205,75 @@ impl CaptureStream {
         self.stream
             .pause()
             .map_err(|e| Error::Audio(format!("could not pause capture: {e}")))
+    }
+
+    /// Start or restart the wall-clock timeline that silence is measured
+    /// against. Called on the first chunk and on resume.
+    fn reset_timeline(&self) {
+        self.timeline_ms
+            .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+        self.chunks_at_timeline
+            .store(self.chunks_out.load(Ordering::Relaxed), Ordering::Relaxed);
+    }
+
+    /// Emit silence for audio a loopback device never delivered, so the
+    /// timeline keeps pace with the clock. Returns how many chunks were added.
+    ///
+    /// **Windows loopback delivers nothing while nothing is playing.** Not
+    /// silence — nothing at all. So every quiet moment in a service, a prayer,
+    /// a pause between songs, simply vanishes from the audio timeline, and
+    /// every timestamp after it is early by the length of the quiet.
+    ///
+    /// That is not only a measurement problem. Paragraph breaks are decided by
+    /// a 2.5-second gap between utterances (`stt::transcript`), and a gap that
+    /// never reaches the timeline can never open a paragraph — so the one
+    /// feature that makes a transcript readable would fail exactly where the
+    /// preacher paused for effect. M4's summary timestamps would drift the same
+    /// way, a little further every time the room went quiet.
+    ///
+    /// A microphone has never had this problem: it delivers buffers of near
+    /// silence continuously, and everything downstream is built for that. This
+    /// makes loopback behave the same way rather than making everything
+    /// downstream cope with two kinds of timeline.
+    ///
+    /// The silence is real audio and goes wherever real audio goes, Deepgram
+    /// included. That is deliberate: our chunk counter and Deepgram's word
+    /// timestamps have to count the same seconds, and they stopped doing so
+    /// once before — see `stt::transcript`. It costs nothing extra against a
+    /// microphone, which streams its own silence already.
+    fn top_up_silence(&self) -> usize {
+        let timeline = self.timeline_ms.load(Ordering::Relaxed);
+        if timeline == u64::MAX {
+            return 0;
+        }
+
+        let elapsed = (self.epoch.elapsed().as_millis() as u64).saturating_sub(timeline);
+        let produced = self
+            .chunks_out
+            .load(Ordering::Relaxed)
+            .saturating_sub(self.chunks_at_timeline.load(Ordering::Relaxed));
+
+        let missing = silence_chunks_due(elapsed, produced);
+        if missing == 0 {
+            return 0;
+        }
+
+        let Ok(mut state) = self.shared.lock() else {
+            return 0;
+        };
+        for _ in 0..missing {
+            (state.sink)(vec![0i16; CHUNK_SAMPLES]);
+        }
+        drop(state);
+
+        self.chunks_out.fetch_add(missing, Ordering::Relaxed);
+        self.silence_chunks.fetch_add(missing, Ordering::Relaxed);
+        missing as usize
+    }
+
+    /// Seconds of silence synthesised so far.
+    pub fn synthesised_silence(&self) -> f64 {
+        self.silence_chunks.load(Ordering::Relaxed) as f64 * CHUNK_MS as f64 / 1000.0
     }
 
     /// How long since the device last delivered audio.
@@ -220,6 +321,9 @@ pub fn open(
     sink: ChunkSink,
     mut on_level: LevelSink,
     on_error: ErrorSink,
+    // Shared with the caller so a running service can be asked how much of its
+    // audio was invented, without reaching into the capture thread.
+    silence_chunks: Arc<AtomicU64>,
 ) -> Result<CaptureStream> {
     let supported = if is_output_endpoint {
         device.default_output_config()
@@ -252,6 +356,16 @@ pub fn open(
     let last_data_ms = Arc::new(AtomicU64::new(0));
     let heartbeat = Arc::clone(&last_data_ms);
 
+    let chunks_out = Arc::new(AtomicU64::new(0));
+    // u64::MAX is "no audio yet": there is no timeline to keep aligned until
+    // the device has spoken once, and starting the clock at `open` would
+    // synthesise silence to cover the device warming up.
+    let timeline_ms = Arc::new(AtomicU64::new(u64::MAX));
+    let chunks_at_timeline = Arc::new(AtomicU64::new(0));
+
+    let callback_chunks = Arc::clone(&chunks_out);
+    let callback_timeline = Arc::clone(&timeline_ms);
+
     let mut deliver = move |samples: &[f32]| {
         heartbeat.store(epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
 
@@ -274,8 +388,18 @@ pub fn open(
         let Shared { converter, sink } = &mut *state;
         match converter.push(samples) {
             Ok(chunks) => {
+                let n = chunks.len() as u64;
                 for chunk in chunks {
                     sink(chunk);
+                }
+                if n > 0 {
+                    let before = callback_chunks.fetch_add(n, Ordering::Relaxed);
+                    // The timeline starts at the first chunk the device
+                    // actually produced, not at `open`.
+                    if before == 0 {
+                        callback_timeline
+                            .store(epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+                    }
                 }
             }
             Err(err) => tracing::error!(%err, "dropping an audio buffer"),
@@ -317,6 +441,10 @@ pub fn open(
         shared,
         last_data_ms,
         epoch,
+        chunks_out,
+        timeline_ms,
+        chunks_at_timeline,
+        silence_chunks,
         source_rate,
         source_channels,
     })
@@ -335,10 +463,23 @@ pub struct CaptureHandle {
     /// it. `AtomicU8` because `CaptureState` is three values and a lock here
     /// would be read far more often than written.
     state: Arc<AtomicU8>,
+    /// Chunks of silence the capture thread had to invent because a loopback
+    /// device delivered nothing. Shared so a running service can be asked.
+    silence_chunks: Arc<AtomicU64>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl CaptureHandle {
+    /// Seconds of silence synthesised so far because the device delivered
+    /// nothing (see `CaptureStream::top_up_silence`).
+    ///
+    /// Worth reporting rather than hiding: it is audio SermonAI invented, and
+    /// an operator diagnosing a transcript with gaps in it should be able to
+    /// tell "the room was quiet" from "the capture path was quiet".
+    pub fn synthesised_silence(&self) -> f64 {
+        self.silence_chunks.load(Ordering::Relaxed) as f64 * CHUNK_MS as f64 / 1000.0
+    }
+
     /// Stop delivering audio without releasing the device (FR-06).
     ///
     /// The device stays open deliberately. Closing and reopening risks the OS
@@ -401,6 +542,8 @@ pub fn spawn(
     on_error: ErrorSink,
 ) -> Result<CaptureHandle> {
     let state = Arc::new(AtomicU8::new(CaptureState::Stopped as u8));
+    let silence_chunks = Arc::new(AtomicU64::new(0));
+    let thread_silence = Arc::clone(&silence_chunks);
     let (command_tx, command_rx) = mpsc::channel::<Command>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<()>>();
 
@@ -422,6 +565,7 @@ pub fn spawn(
                     sink,
                     on_level,
                     Box::new(move |err| stream_report(err)),
+                    thread_silence,
                 )
             });
 
@@ -452,6 +596,11 @@ pub fn spawn(
                             }
                             Command::Resume => {
                                 running_since = Some(Instant::now());
+                                // Before playing, so the pause is not
+                                // backfilled with silence on the next tick. A
+                                // pause is deliberate: those seconds did not
+                                // happen as far as the service is concerned.
+                                stream.reset_timeline();
                                 stream.play()
                             }
                             Command::Stop => break,
@@ -463,6 +612,21 @@ pub fn spawn(
                     }
 
                     Err(mpsc::RecvTimeoutError::Timeout) => {
+                        // Loopback only, and only while running. An input
+                        // device delivers continuously, so a gap there is a
+                        // real fault and the watchdog below must see it —
+                        // filling it with silence would hide a lost
+                        // microphone for the rest of the service.
+                        if !watch_for_silence && running_since.is_some() {
+                            let added = stream.top_up_silence();
+                            if added > 0 {
+                                tracing::debug!(
+                                    chunks = added,
+                                    "loopback delivered nothing; synthesising silence to keep the timeline on the clock"
+                                );
+                            }
+                        }
+
                         if !device_lost(
                             running_since.map(|since| since.elapsed()),
                             stream.since_last_data(),
@@ -508,6 +672,7 @@ pub fn spawn(
             Ok(CaptureHandle {
                 commands: command_tx,
                 state,
+                silence_chunks,
                 thread: Some(thread),
             })
         }
@@ -553,6 +718,75 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_device_keeping_up_is_left_alone() {
+        // The failure that would matter most: injecting silence into the
+        // middle of continuous speech. A device delivering normally is always
+        // a fraction of a chunk behind the clock, so this must stay at zero
+        // across the whole range of normal jitter.
+        for produced in 0..200u64 {
+            let exactly = produced * CHUNK_MS;
+            assert_eq!(silence_chunks_due(exactly, produced), 0);
+            // A little ahead of the clock, and a little behind.
+            assert_eq!(silence_chunks_due(exactly + CHUNK_MS - 1, produced), 0);
+            assert_eq!(silence_chunks_due(exactly.saturating_sub(10), produced), 0);
+        }
+    }
+
+    #[test]
+    fn a_silent_loopback_is_topped_up_to_the_clock() {
+        // Windows loopback delivers nothing — not silence, nothing — while
+        // nothing is playing. Thirty seconds of quiet must come back as 30
+        // seconds of timeline, or the pause never reaches the transcript and
+        // no paragraph can break on it.
+        let thirty_seconds = 30_000;
+        let owed = silence_chunks_due(thirty_seconds, 0);
+        // 120 chunks in 30 s, less the one chunk of slack.
+        assert_eq!(owed, 119);
+        assert!((owed as f64 * CHUNK_MS as f64 / 1000.0 - 29.75).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_top_up_paces_itself_rather_than_bursting() {
+        // The watchdog ticks every 250 ms, which is exactly one chunk, so a
+        // device that goes quiet is topped up one chunk at a time. A burst
+        // would send a block of audio to Deepgram faster than real time —
+        // the same effect that makes reconnect catch-up unusable as a
+        // measurement.
+        assert_eq!(WATCHDOG_TICK.as_millis() as u64, CHUNK_MS);
+
+        // The clock advances one tick per iteration regardless of what the
+        // device does; only `produced` responds. Deriving elapsed from
+        // `produced` instead — as the first version of this test did — models
+        // a clock that stops whenever the device does, which is the opposite
+        // of the situation being tested.
+        const BASE: u64 = 40;
+        let mut produced = BASE;
+        for tick in 1..=20u64 {
+            let elapsed = (BASE + tick) * CHUNK_MS;
+            let owed = silence_chunks_due(elapsed, produced);
+            assert!(owed <= 1, "tick {tick} wanted {owed} chunks at once");
+            produced += owed;
+        }
+
+        // And it did keep pace: the timeline is level with the clock, not
+        // lagging a chunk further behind on every tick.
+        assert_eq!(produced, BASE + 19);
+    }
+
+    #[test]
+    fn a_long_gap_is_filled_completely_rather_than_partly() {
+        // If the watchdog missed its ticks — a busy machine, a suspended
+        // laptop — the whole gap is still owed. Filling only part of it would
+        // leave the timeline permanently short, which is the bug being fixed.
+        let mut produced = 0u64;
+        let elapsed = 60_000;
+        produced += silence_chunks_due(elapsed, produced);
+        assert_eq!(produced, 239);
+        // And once filled, nothing further is owed.
+        assert_eq!(silence_chunks_due(elapsed, produced), 0);
+    }
+
     use super::*;
     use crate::audio::convert::CHUNK_SAMPLES;
     use std::sync::mpsc;

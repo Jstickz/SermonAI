@@ -345,6 +345,20 @@ impl Credentials {
     }
 }
 
+/// Serialises tests that touch the OS credential store.
+///
+/// The store is one process-wide resource shared with the developer's real
+/// machine, and Windows Credential Manager does not enjoy several threads
+/// creating and deleting entries at once: a write would occasionally read back
+/// as absent, which looks exactly like the product bug where a pasted key does
+/// not stick. Per-test namespaces are not enough — they stop tests seeing each
+/// other's *entries*, not each other's contention.
+#[cfg(test)]
+pub(crate) fn credential_store_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

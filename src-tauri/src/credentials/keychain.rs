@@ -144,6 +144,7 @@ mod tests {
 
     #[test]
     fn a_key_round_trips_and_can_be_removed() {
+        let _store_lock = super::super::credential_store_lock();
         let store = scratch("roundtrip");
 
         assert!(
@@ -171,6 +172,7 @@ mod tests {
         // They are stored under one namespace and differ only by slug, so a
         // slug collision would silently let one service's key answer for
         // another's — and the symptom would be a 401 from the wrong vendor.
+        let _store_lock = super::super::credential_store_lock();
         let store = scratch("isolation");
         store
             .set(Service::Deepgram, "dg_one_aaaaaaaa")
@@ -203,6 +205,7 @@ mod tests {
         // Pasting from a browser or a password manager routinely carries a
         // trailing newline, and a key with one produces a 401 that reads as a
         // wrong key rather than a stray character.
+        let _store_lock = super::super::credential_store_lock();
         let store = scratch("whitespace");
 
         store

@@ -168,6 +168,7 @@ mod tests {
         // that this test never stored.
         let _lock = env_lock();
         let _guard = EnvGuard::set("DEEPGRAM_API_KEY", None);
+        let _store_lock = super::super::credential_store_lock();
         let provider = scratch("pasted");
         provider
             .set_byok(Service::Deepgram, "dg_pasted_wxyz")
@@ -199,6 +200,7 @@ mod tests {
         // the rule holds for any caller. A church's YouVersion key would
         // authenticate and then return nothing it is licensed to display,
         // which looks like our bug.
+        let _store_lock = super::super::credential_store_lock();
         let provider = scratch("managed-only");
 
         for service in [Service::YouVersion, Service::TyndaleNlt] {
@@ -216,6 +218,7 @@ mod tests {
         // two tests race and this one finds the other's key.
         let _lock = env_lock();
         let _guard = EnvGuard::set("DEEPGRAM_API_KEY", None);
+        let _store_lock = super::super::credential_store_lock();
         let provider = scratch("missing");
 
         // The exact strings, not a substring check. The Live tab decides
@@ -249,6 +252,7 @@ mod tests {
         // has to be able to say which is in use.
         let _lock = env_lock();
         let _guard = EnvGuard::set("DEEPGRAM_API_KEY", Some("dg_from_env_1111"));
+        let _store_lock = super::super::credential_store_lock();
         let provider = scratch("precedence");
 
         assert_eq!(
