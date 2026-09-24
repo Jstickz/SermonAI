@@ -611,7 +611,11 @@ mod tests {
         // leaves nothing to record. Visible with `--nocapture`.
         eprintln!(
             "regex stage: {per_scan:?} per ~150-word window ({} profile)",
-            if cfg!(debug_assertions) { "debug" } else { "release" }
+            if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "release"
+            }
         );
         // The 5 ms is a budget for the shipped build. A debug build is an
         // order of magnitude slower and is not what the PRD is about; the
