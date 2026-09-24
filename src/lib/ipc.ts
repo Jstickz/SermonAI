@@ -157,6 +157,9 @@ interface EventMap {
   "audio:error": { message: string };
   "stt:status": SttStatus;
   "detection:new": Detection;
+  /** A provisional candidate the settled text did not support. Remove the
+   *  card with this id, quietly. */
+  "detection:withdraw": { id: number };
   "output:changed": OutputState;
   "summary:progress": { sermonId: number; step: string; percent: number };
   "pack:progress": PackProgress;

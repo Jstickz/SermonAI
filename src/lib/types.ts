@@ -22,14 +22,31 @@ export interface Verse {
   text: string;
 }
 
-/** A candidate scripture surfaced by the detection pipeline (PRD §13.3). */
+/**
+ * A candidate scripture surfaced by the detection pipeline (PRD §13.3).
+ * Mirrors `Candidate` in `src-tauri/src/detection/pipeline.rs`.
+ *
+ * Two-stage detection (PRD §18.1, §13.5): a candidate raised from interim
+ * text arrives with `provisional: true` and must be shown marked unconfirmed
+ * and never be promoted, staged live or auto-lived. When the settled text
+ * confirms it, the same `id` arrives again with `provisional: false`. If the
+ * settled text does not support it, a `detection:withdraw` carries the id and
+ * the card is removed — silently, with nothing announcing the retraction.
+ */
 export interface Detection {
-  id: string;
+  id: number;
+  /** USFM passage id, e.g. "JER.29.11". The key for lookups and dedupe. */
+  passageId: string;
+  /** Operator-facing, e.g. "Jeremiah 29:11". */
   reference: string;
-  verse: Verse;
-  confidence: number; // 0..1
   source: DetectionSource;
+  confidence: number; // 0..1, comparable across sources
+  provisional: boolean;
+  /** The transcript words that suggested it, where the stage knows them. */
+  evidence: string | null;
   detectedAtMs: number;
+  /** Null until the Bible cache has the text; the card shows the reference. */
+  verse: Verse | null;
 }
 
 /**

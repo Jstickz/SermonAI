@@ -6,14 +6,18 @@ function segment(id: number, text: string, isFinal: boolean): TranscriptSegment 
   return { id, startTimeMs: id * 1000, endTimeMs: id * 1000 + 900, text, confidence: 0.9, isFinal };
 }
 
-function detection(id: string): Detection {
+function detection(id: number, provisional = false): Detection {
   return {
     id,
+    passageId: "JHN.3.16",
     reference: "John 3:16",
-    verse: { reference: "John 3:16", translation: "KJV", text: "For God so loved the world…" },
-    confidence: 0.98,
     source: "regex",
+    confidence: 0.98,
+    provisional,
+    evidence: null,
     detectedAtMs: 0,
+    // Null until the Bible cache has the text (M2 deliverable 5).
+    verse: null,
   };
 }
 
@@ -48,21 +52,46 @@ describe("serviceStore", () => {
   it("stacks detections newest first and never drops one", () => {
     const { addDetection } = useServiceStore.getState();
 
-    for (let i = 0; i < 10; i += 1) addDetection(detection(`d${i}`));
+    for (let i = 0; i < 10; i += 1) addDetection(detection(i));
 
     const { detections } = useServiceStore.getState();
     expect(detections).toHaveLength(10);
-    expect(detections[0]?.id).toBe("d9");
+    expect(detections[0]?.id).toBe(9);
   });
 
   it("dismisses only the named detection", () => {
     const { addDetection, dismissDetection } = useServiceStore.getState();
 
-    addDetection(detection("a"));
-    addDetection(detection("b"));
-    dismissDetection("a");
+    addDetection(detection(1));
+    addDetection(detection(2));
+    dismissDetection(1);
 
-    expect(useServiceStore.getState().detections.map((d) => d.id)).toEqual(["b"]);
+    expect(useServiceStore.getState().detections.map((d) => d.id)).toEqual([2]);
+  });
+
+  // Two-stage detection (PRD §18.1): the same id arrives twice, first
+  // provisional then confirmed. One card, changing state, in place.
+  it("firms up a provisional card under its id without moving it", () => {
+    const { addDetection } = useServiceStore.getState();
+
+    addDetection(detection(1, true));
+    addDetection(detection(2, false)); // a newer card above it
+    addDetection(detection(1, false)); // the first one confirms
+
+    const { detections } = useServiceStore.getState();
+    expect(detections).toHaveLength(2);
+    expect(detections.map((d) => d.id)).toEqual([2, 1]);
+    expect(detections[1]?.provisional).toBe(false);
+  });
+
+  it("withdraws a provisional card the settled text dropped", () => {
+    const { addDetection, withdrawDetection } = useServiceStore.getState();
+
+    addDetection(detection(1, true));
+    addDetection(detection(2));
+    withdrawDetection(1);
+
+    expect(useServiceStore.getState().detections.map((d) => d.id)).toEqual([2]);
   });
 
   it("clears live state on reset so the next service starts clean", () => {
@@ -70,7 +99,7 @@ describe("serviceStore", () => {
     store.setSermonId(7);
     store.setCapturing(true);
     store.upsertSegment(segment(1, "text", true));
-    store.addDetection(detection("a"));
+    store.addDetection(detection(99));
 
     store.reset();
 

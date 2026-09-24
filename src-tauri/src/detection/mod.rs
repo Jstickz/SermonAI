@@ -10,6 +10,7 @@
 //! Milestone: M2, except the vector stage's assets and search, built in M0.
 
 pub mod llm;
+pub mod pipeline;
 pub mod regex;
 pub mod spoken_numbers;
 pub mod vector;
