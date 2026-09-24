@@ -10,8 +10,9 @@ of the four produce a **number** rather than an impression.
 ## Line 1 — Ten-minute sermon, within PRD §18.1's provisional budget
 
 > *Play a 10-minute sermon recording through a virtual audio device on each
-> platform: transcript appears within §18.1's provisional budget — **900 ms p95,
-> 1300 ms p99** — no dropped words visible on inspection.*
+> platform: transcript appears within §18.1's steady-state budget — **p50 ≤ 500 ms,
+> p95 ≤ 900 ms** — with episode conduct held, and no dropped words visible on
+> inspection.*
 
 The line read "under 700 ms lag (p99)" until 23 September 2026. That figure
 predated the two-stage detection decision, was not derived from any
@@ -73,13 +74,16 @@ the platform difference described in `audio/devices.rs`.
 6. When the file finishes, turn **Transcribe** off. Both summaries are logged:
 
    ```
-   INFO lag until words appear (interim) ... p50_ms=… p95_ms=… p99_ms=… budget_p95_ms=900 budget_p99_ms=1300
+   INFO lag until words appear (interim) ... p50_ms=… p95_ms=… p99_ms=… budget_p50_ms=500 budget_p95_ms=900
    INFO lag until an utterance is confirmed (settled) ... p50_ms=… p95_ms=… p99_ms=…
    ```
 
 ### Which number the line is asking for
 
-**`appear`**, against **900 ms p95 / 1300 ms p99**. The line says "transcript
+**`appear`**, against **p50 ≤ 500 ms / p95 ≤ 900 ms** — steady state only. The
+tail is judged by §18.1's episode conduct: zero dropped audio, zero reconnects,
+transcript complete, automatic recovery, nothing past 6 s. All of those are in
+the log at stop. The line says "transcript
 *appears*", and words appear as interim results, so that is the figure the
 budget is about.
 

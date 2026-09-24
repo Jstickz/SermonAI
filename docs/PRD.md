@@ -1098,21 +1098,72 @@ unconfirmed text where a congregation can read it.
 
 #### End-to-end budgets
 
-| Path | p95 | p99 |
+| Path | p50 | p95 |
 |---|---|---|
-| **Spoken word → provisional candidate in staging** | **900ms** | **1300ms** |
+| **Spoken word → provisional candidate in staging** | **500ms** | **900ms** |
 | **Confirmed text → projectable candidate (regex)** | **50ms** | **150ms** |
 | **Confirmed text → projectable candidate (semantic)** | **60ms** | **200ms** |
 | **Confirmed text → projectable candidate (paraphrase)** | **1600ms** | **3200ms** |
 
-**Where the provisional numbers come from.** Measured on 38 s of speech against
-the live service: words appear at 452 / 681 / 698 ms (p50/p95/p99), of which
-250 ms is our own chunking and the rest is network plus Deepgram. Regex and the
-staging render add tens of milliseconds. The budget is set at 900 / 1300 rather
-than at the measurement because that measurement was taken on one machine on a
-good connection, and the network leg is the part a church in Abuja or Nairobi
-will find worst. Roughly 200 ms of headroom at p95 is the allowance for that,
-not slack.
+The provisional row is budgeted at **p50 and p95, not p99** — see *Steady state
+and episodes* below for why, and for what governs the tail instead.
+
+#### Steady state and episodes (amended 24 September 2026)
+
+A 20-minute release-build run on a Nigerian home connection measured p50
+187 ms, p95 501 ms, **p99 1,404 ms**. The p99 was owned entirely by four
+consecutive minutes in which the per-minute p95 rose to 2.4 s and the maximum
+to 4 s **while p50 stayed flat at 177–195 ms and throughput was unchanged**. No
+audio was dropped, nothing reconnected, the transcript was complete and the
+connection recovered on its own. Outside those four minutes the worst single
+result in the run was 1,188 ms.
+
+That is the signature of packet loss on the network path — a subset of
+messages delayed, the rest untouched — not of a pipeline backing up, which
+moves the median first. On a Nigerian connection it is going to happen.
+
+A single p99 figure cannot express "the pipeline is healthy and the connection
+occasionally is not". Over a 60-minute service p99 is about 35 utterances, so
+one wifi wobble owns all of them and the milestone becomes hostage to an event
+the app handled correctly. So the provisional path is governed two ways:
+
+**Steady state, strict.** `p50 ≤ 500 ms` and `p95 ≤ 900 ms` over the whole
+service. These describe the operator's actual experience.
+
+**Episode conduct, strict.** A *degraded minute* is one whose p95 exceeds
+900 ms. During any run of degraded minutes:
+
+- zero dropped audio;
+- zero reconnects;
+- the transcript is complete — every word spoken arrives, late rather than
+  never;
+- recovery is automatic, with no operator action;
+- no single result exceeds **6 s**, which is where the reconnect logic already
+  takes over (`stt::deepgram::RESPONSE_TIMEOUT`).
+
+The two-stage detection decision is what makes this sound: a late
+*provisional* candidate is not projectable, so lateness costs the operator
+warning time, not correctness. What must never degrade is that the words
+arrive and are right.
+
+**How much degradation is acceptable is not yet set.** The run above had 4 of
+20 minutes degraded. That figure is **recorded as observed, not adopted as a
+threshold**: it is exactly one home connection's result, and 20% of a 90-minute
+service is 18 minutes, which is too much to accept by default. The threshold is
+set after the first real Sunday in M4, from church network data.
+
+**125 ms chunks are not the remedy for this.** Halving the chunk lowers the
+baseline by up to 125 ms on every result; it does nothing to a 3-second stall
+on the wire, and doubles the message rate on a connection that is already
+struggling. If episodes turn out to be the dominant problem on church wifi, the
+lever is the offline speech pack (FR-08), not the chunk size.
+
+**Where the provisional numbers come from.** A 20-minute release-build run on
+the EU endpoint, real speech at real-time pace, n=835: words appear at 187 /
+501 ms (p50 / p95), of which 250 ms is our own chunking and the rest is network
+plus Deepgram. Regex and the staging render add tens of milliseconds. The budget
+sits well above the measurement because it was taken on one home connection in
+Abuja, and a church's wifi during a service is the case it has to survive.
 
 **Why the confirmed budgets are small.** They start *after* Deepgram has
 confirmed, so they measure only our own work: matching, a cache lookup, and

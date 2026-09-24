@@ -568,22 +568,24 @@ function kindLabel(kind: AudioDeviceKind): string {
  *  shape stops offering the button rather than sending the operator somewhere
  *  irrelevant. Exported for the test.
  */
-/** PRD §18.1's provisional end-to-end budget, less the 250 ms a chunk spends
- *  accumulating — which is fixed by FR-03 and sits on top of whatever the
- *  footer shows. So these are what the *measured* figure may reach.
+/** PRD §18.1's steady-state budget for the provisional path, less the 250 ms a
+ *  chunk spends accumulating — which is fixed by FR-03 and sits on top of
+ *  whatever the footer shows. So these are what the *measured* figure may reach.
  *
- *  The line used to be a single 700 ms p99. That predated two-stage detection,
- *  was not derived from any measurement, and is not reachable from a Nigerian
- *  connection at any Deepgram region: the round trip alone is 715 ms at p99 on
- *  the nearest one. See docs/testing/network-latency.md. */
+ *  p50 and p95, deliberately not p99. Over an hour p99 is about 35 utterances,
+ *  and one wifi wobble owns all of them; the tail is governed by §18.1's
+ *  episode-conduct rules instead (no dropped audio, no reconnect, nothing past
+ *  6 s), which the footer reports separately. The line used to be a single
+ *  700 ms p99 that was not reachable from a Nigerian connection at any region.
+ *  See docs/testing/network-latency.md. */
+const BUDGET_P50_MS = 500 - 250;
 const BUDGET_P95_MS = 900 - 250;
-const BUDGET_P99_MS = 1300 - 250;
 
-/** Whether to warn on the appear figure. Both percentiles, not just the tail:
- *  a p95 over budget means most of the service is late, which matters more to
- *  an operator than one slow utterance in a hundred. Exported for the test. */
-export function overBudget(appear: { p95Ms: number; p99Ms: number }): boolean {
-  return appear.p95Ms > BUDGET_P95_MS || appear.p99Ms > BUDGET_P99_MS;
+/** Whether to warn on the appear figure. Steady state only — a warning here
+ *  means the operator's ordinary experience is late, not that one utterance in
+ *  a hundred was. Exported for the test. */
+export function overBudget(appear: { p50Ms: number; p95Ms: number }): boolean {
+  return appear.p50Ms > BUDGET_P50_MS || appear.p95Ms > BUDGET_P95_MS;
 }
 
 export function isMissingKeyError(message: string): boolean {

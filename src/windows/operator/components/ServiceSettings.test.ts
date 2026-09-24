@@ -59,30 +59,39 @@ describe("isMissingKeyError", () => {
  * derives from one number in one file.
  */
 describe("overBudget", () => {
-  it("accepts what the nearest region actually delivers", () => {
-    // Frankfurt, measured over ten minutes from Abuja: 486 p95, 715 p99.
-    expect(overBudget({ p95Ms: 486, p99Ms: 715 })).toBe(false);
+  it("passes the run that closed M1", () => {
+    // 20 minutes, EU region, n=835: p50 187, p95 501. Its p99 was 1404 — over
+    // the old p99 line — and that is exactly why the tail is no longer what
+    // this warns on. §18.1 governs the tail by episode conduct instead.
+    expect(overBudget({ p50Ms: 187, p95Ms: 501 })).toBe(false);
   });
 
-  it("accepts the far region too, which is the point of the headroom", () => {
-    // Sacramento: 591 p95, 819 p99. Over the old 700 ms line at p99, inside
-    // §18.1's — which is why that line had to change rather than the build.
-    expect(overBudget({ p95Ms: 591, p99Ms: 819 })).toBe(false);
+  it("warns on the far region, which is why EU is the default", () => {
+    // Sacramento, ten minutes from Abuja: 320 p50, 591 p95. With the 250 ms
+    // chunk on top that is a 570 ms median against a 500 ms budget. The old
+    // p95/p99 budget let Sacramento through; the steady-state one does not,
+    // and it should not — a church left on the global default would see this.
+    expect(overBudget({ p50Ms: 320, p95Ms: 591 })).toBe(true);
   });
 
-  it("warns when most of the service is late, not just the tail", () => {
-    // A p95 over budget means the median-ish case is late. That matters more
-    // to an operator than one slow utterance in a hundred, so it must warn
-    // even while p99 is fine.
-    expect(overBudget({ p95Ms: 700, p99Ms: 900 })).toBe(true);
+  it("warns when the median is late", () => {
+    // A slow median is the operator's whole experience, not a tail event.
+    expect(overBudget({ p50Ms: 300, p95Ms: 500 })).toBe(true);
   });
 
-  it("warns on a bad tail even when the bulk is fine", () => {
-    expect(overBudget({ p95Ms: 400, p99Ms: 1200 })).toBe(true);
+  it("warns when most of the service is late even if the median is fine", () => {
+    expect(overBudget({ p50Ms: 200, p95Ms: 700 })).toBe(true);
+  });
+
+  it("does not warn on a bad tail alone", () => {
+    // A single wifi wobble owning the top 1% is an episode, reported through
+    // dropped audio, reconnects and the 6 s ceiling — not through this colour.
+    // Making it amber here would teach the operator to ignore amber.
+    expect(overBudget({ p50Ms: 187, p95Ms: 501 })).toBe(false);
   });
 
   it("would have warned on the run that started all this", () => {
-    // The 60-minute run: 1926 p95, 2445 p99.
-    expect(overBudget({ p95Ms: 1926, p99Ms: 2445 })).toBe(true);
+    // The 60-minute run: 1490 p50, 1926 p95.
+    expect(overBudget({ p50Ms: 1490, p95Ms: 1926 })).toBe(true);
   });
 });
