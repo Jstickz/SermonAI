@@ -334,7 +334,7 @@ Anthropic is not needed for these two lines — nothing in M1 calls it.
 
 | Line | State on Windows |
 |---|---|
-| 1 — words appear inside §18.1's 900/1300 ms | **needs re-running.** The 60-minute run read 2,445 ms p99, but the metric was accumulating dropped audio and clock drift. Fixed 23 Sept, along with the budget itself: 700 ms was never reachable from here. See `m1-latency-baseline.md` and `network-latency.md` |
+| 1 — words appear inside §18.1's steady state, episode conduct held | **passed** 24 Sept — 20-minute release build, EU region: p50 187 / p95 501 ms, 0 dropped, 0 reconnects, max 3,952 ms. The loopback timeline fix verified the same day: 30.25 s synthesised across a ~30 s idle, paragraph break present. See `m1-latency-baseline.md` and `network-latency.md` |
 | 2 — device lost | **passed** 23 Sept, Bluetooth headset |
 | 3 — internet drops | **passed** 23 Sept, real network, including a two-minute outage |
 | 4 — RAM under 300 MB | **passed** 23 Sept — 212 MB on a release build over 60 minutes, measured by PID across the whole process tree |
