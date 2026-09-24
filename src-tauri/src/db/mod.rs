@@ -34,6 +34,13 @@ pub fn init(data_dir: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
+/// Run the migrations against any connection. For unit tests elsewhere in
+/// the crate that need the real schema on an in-memory database.
+#[cfg(test)]
+pub(crate) fn migrate_for_tests(conn: &Connection) -> Result<()> {
+    migrate(conn)
+}
+
 fn migrate(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_migrations (

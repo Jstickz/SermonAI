@@ -157,6 +157,37 @@ fn log_file_path() -> Option<std::path::PathBuf> {
     Some(base.join("logs").join("sermonai.log"))
 }
 
+/// Where the bundled assets live for this build.
+///
+/// A release build ships `assets/**/*` as Tauri resources and finds them under
+/// the resource directory. `tauri dev` does not copy resources, so a debug
+/// build falls back to the source tree — compiled in under `debug_assertions`
+/// only, so no developer path is embedded in a shipped binary.
+fn resolve_assets_dir(app: &tauri::App) -> std::path::PathBuf {
+    if let Ok(resources) = app.path().resource_dir() {
+        let candidate = resources.join("assets");
+        if candidate.join("translations").is_dir() {
+            return candidate;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        let dev = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
+        if dev.join("translations").is_dir() {
+            tracing::info!(path = %dev.display(), "using assets from the source tree (dev build)");
+            return dev;
+        }
+    }
+
+    // Nothing found: return where they should have been, so the error that
+    // follows names the path.
+    app.path()
+        .resource_dir()
+        .map(|r| r.join("assets"))
+        .unwrap_or_else(|_| std::path::PathBuf::from("assets"))
+}
+
 pub fn run() {
     // Taken before anything else so the cold-start figure covers the whole of
     // our startup, not just the part after logging is up.
@@ -172,7 +203,29 @@ pub fn run() {
         .setup(move |app| {
             // Migrations run before any window can issue a command (M0 deliverable).
             let data_dir = app.path().app_data_dir()?;
-            let conn = db::init(&data_dir)?;
+            let mut conn = db::init(&data_dir)?;
+
+            // Bundled translations into the verse cache (FR-19), checked
+            // against their manifests (FR-22). One COUNT(*) per translation
+            // once seeded; a few seconds the first time. Done before the
+            // window opens so the first detection card has text to show.
+            let assets_dir = resolve_assets_dir(app);
+            match bible::cache::seed_bundled(&mut conn, &assets_dir) {
+                Ok(report) => {
+                    for (code, rows) in &report.seeded {
+                        tracing::info!(translation = %code, rows, "seeded bundled translation");
+                    }
+                    if !report.verified.is_empty() {
+                        tracing::info!(verified = ?report.verified, "bundled translations already cached and intact");
+                    }
+                    for code in &report.refused {
+                        tracing::error!(translation = %code, "a bundled translation failed its integrity check and was not loaded");
+                    }
+                }
+                // Startup continues: the app is usable without cached verses,
+                // and the operator is better served by a window that says so.
+                Err(err) => tracing::error!(%err, "could not seed the verse cache"),
+            }
 
             // Pack catalog location is overridable for testing against a local
             // bucket; production points at the Pack CDN (PRD §15.5).
@@ -193,7 +246,7 @@ pub fn run() {
             // credential is available, rather than failing startup.
             let bible = bible::youversion::YouVersionClient::from_credentials(&credentials);
 
-            app.manage(state::AppState::new(conn, packs, bible, credentials));
+            app.manage(state::AppState::new(conn, packs, bible, credentials, assets_dir));
 
             // The projector and alternate windows are created from Rust so we can
             // place them on the operator's chosen monitors (PRD §10.3).

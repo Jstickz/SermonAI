@@ -1,11 +1,16 @@
 //! Bible text: a local `rusqlite` cache seeded from bundled packs, API.Bible
 //! downloads, and church-supplied imports (PRD §8.4).
 //!
-//! Planned files:
-//!   cache.rs      verse lookup and pre-caching into SQLite (FR-19, M2)
-//!   api_bible.rs  API.Bible client for the licensed catalog (FR-18, M2/M6)
+//! Files:
+//!   cache.rs      the verse cache: seeded from bundled packs at first start
+//!                 with a SHA-256 and verse-count check (FR-19, FR-22), looked
+//!                 up by USFM, filled from YouVersion on a miss (FR-18). M2.
+//!   youversion.rs the licensed source (FR-18)
+//!   reference.rs  spoken or written references to USFM ids
+//!   sanitize.rs   vendor markup to projector text
+//!   books.rs      the 66-book canon and chapter counts
+//! Planned:
 //!   importer.rs   USFM, OSIS, JSON and CSV parsers (FR-47, M6)
-//!   integrity.rs  startup checksum of every installed translation (FR-22)
 //!
 //! KJV, WEB and ASV ship inside the binary; everything else is a pack.
 
@@ -13,6 +18,7 @@
 pub const BUNDLED_TRANSLATIONS: [&str; 3] = ["KJV", "WEB", "ASV"];
 
 pub mod books;
+pub mod cache;
 
 pub mod reference;
 

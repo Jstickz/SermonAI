@@ -1,6 +1,7 @@
 //! Process-wide state, registered with Tauri's manager at setup and reachable
 //! from any command via `tauri::State<AppState>`.
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use rusqlite::Connection;
@@ -42,6 +43,11 @@ pub struct AppState {
     /// transcription on. Owned rather than shared: stopping consumes it to
     /// send `CloseStream` and collect the final results.
     pub transcript: Mutex<Option<ResilientStream>>,
+    /// Where the bundled assets are: translation packs, the verse index, the
+    /// encoder. Resolved once at startup (see `lib.rs`), because the release
+    /// build finds them under Tauri's resource directory and a dev build under
+    /// the source tree, and nothing else should have to know which.
+    pub assets_dir: PathBuf,
     /// Everything transcribed since capture started.
     ///
     /// Here rather than in the operator window because every tab unmounts when
@@ -57,9 +63,11 @@ impl AppState {
         packs: PackManager,
         bible: YouVersionClient,
         credentials: Credentials,
+        assets_dir: PathBuf,
     ) -> Self {
         Self {
             db: Mutex::new(db),
+            assets_dir,
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
             bible,

@@ -4176,6 +4176,7 @@ dependencies = [
  "chrono",
  "cpal",
  "dotenvy",
+ "flate2",
  "futures-util",
  "hex",
  "keyring",

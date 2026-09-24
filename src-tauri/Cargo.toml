@@ -49,6 +49,12 @@ axum = { version = "0.7", features = ["ws"] }
 # ONNX runtime: the encoder is a token lookup plus a mean.
 tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
 
+# Reading the bundled translation packs (`assets/translations/*.jsonl.gz`)
+# into the Bible cache at first start (FR-19). Pure-Rust backend only: no C
+# zlib, no build step, and about 100 KB against the 40 MB gate — far less than
+# shipping the packs uncompressed would cost (3.9 MB gzipped vs ~13 MB plain).
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
 # Pack integrity (FR-61).
 sha2 = "0.10"
 hex = "0.4"
