@@ -246,7 +246,36 @@ pub fn run() {
             // credential is available, rather than failing startup.
             let bible = bible::youversion::YouVersionClient::from_credentials(&credentials);
 
-            app.manage(state::AppState::new(conn, packs, bible, credentials, assets_dir));
+            // The vector stage's assets: 7.7 MB index plus 8 MB encoder, in
+            // memory for the service. Headroom was measured at about 88 MB
+            // before this (MILESTONES, Parked), so the load is logged with its
+            // time and the next memory run says what it cost.
+            let vector = {
+                let started = std::time::Instant::now();
+                match detection::vector::SemanticSearch::load(&assets_dir) {
+                    Ok(search) => {
+                        tracing::info!(
+                            verses = search.index().len(),
+                            dims = search.index().dims(),
+                            elapsed_ms = started.elapsed().as_millis() as u64,
+                            "loaded the verse index and encoder"
+                        );
+                        Some(search)
+                    }
+                    // Regex still works without it; semantic detection does
+                    // not, and the operator is better told than surprised.
+                    Err(err) => {
+                        tracing::error!(%err, "semantic detection is off: the verse index did not load");
+                        None
+                    }
+                }
+            };
+            let llm = llm::LlmConfig::load();
+            let pipeline = detection::pipeline::Pipeline::new(vector, llm.gate.clone());
+
+            app.manage(state::AppState::new(
+                conn, packs, bible, credentials, assets_dir, pipeline, llm,
+            ));
 
             // The projector and alternate windows are created from Rust so we can
             // place them on the operator's chosen monitors (PRD §10.3).
@@ -302,6 +331,9 @@ pub fn run() {
             commands::credentials::set_service_key,
             commands::credentials::remove_service_key,
             commands::credentials::test_service_key,
+            commands::detection::accept_detection,
+            commands::detection::reject_detection,
+            commands::detection::edit_detection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SermonAI");

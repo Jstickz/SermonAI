@@ -9,6 +9,9 @@ use rusqlite::Connection;
 use crate::audio::capture::CaptureHandle;
 use crate::bible::youversion::YouVersionClient;
 use crate::credentials::Credentials;
+use crate::detection::llm::ParaphraseStage;
+use crate::detection::pipeline::Pipeline;
+use crate::llm::LlmConfig;
 use crate::packs::PackManager;
 use crate::stt::reconnect::ResilientStream;
 use crate::stt::transcript::SessionTranscript;
@@ -43,6 +46,19 @@ pub struct AppState {
     /// transcription on. Owned rather than shared: stopping consumes it to
     /// send `CloseStream` and collect the final results.
     pub transcript: Mutex<Option<ResilientStream>>,
+    /// The three detection stages and the queue between them and the cards
+    /// (PRD §10.2 layer 3). Fed from the transcript event handler; drained
+    /// there too, so a card is on its way to the window before the next
+    /// utterance arrives.
+    pub pipeline: Mutex<Pipeline>,
+    /// The Claude stage, built when transcription starts and the Anthropic
+    /// credential resolves; `None` offline or without a key (FR-14 is online
+    /// only). A tokio mutex because the call inside is awaited.
+    pub paraphrase: tokio::sync::Mutex<Option<ParaphraseStage>>,
+    pub llm: LlmConfig,
+    /// The translation a card's text is fetched in. KJV until the picker
+    /// (M2 deliverable 7) gives the operator the choice.
+    pub default_translation: Mutex<String>,
     /// Where the bundled assets are: translation packs, the verse index, the
     /// encoder. Resolved once at startup (see `lib.rs`), because the release
     /// build finds them under Tauri's resource directory and a dev build under
@@ -64,10 +80,16 @@ impl AppState {
         bible: YouVersionClient,
         credentials: Credentials,
         assets_dir: PathBuf,
+        pipeline: Pipeline,
+        llm: LlmConfig,
     ) -> Self {
         Self {
             db: Mutex::new(db),
             assets_dir,
+            pipeline: Mutex::new(pipeline),
+            paraphrase: tokio::sync::Mutex::new(None),
+            llm,
+            default_translation: Mutex::new("KJV".to_string()),
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
             bible,

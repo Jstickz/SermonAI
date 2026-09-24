@@ -15,5 +15,6 @@
 pub mod audio;
 pub mod bible;
 pub mod credentials;
+pub mod detection;
 pub mod display;
 pub mod packs;

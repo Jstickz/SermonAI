@@ -356,4 +356,82 @@
   .stack-header h3 {
     @apply text-sm font-semibold text-content-primary;
   }
+
+  /*
+   * Detection cards (wireframe.html §detection, PRD §13.3). Source dot colours
+   * follow the wireframe: regex is the success green, the semantic match the
+   * info blue, Claude the accent. `manual` is ours and takes the secondary
+   * text colour — an edit is not a detection stage.
+   *
+   * A provisional card (PRD §13.5) is dimmed and has no Stage button; the
+   * dimming says "not yet" without a word, and the 200 ms entry keeps under
+   * the 300 ms booth limit (CLAUDE.md).
+   */
+  .detection {
+    @apply flex flex-col gap-3 rounded-lg bg-bg-raised p-5;
+    animation: cardIn 200ms var(--ease-brand-out, ease-out);
+  }
+  .detection.provisional {
+    @apply opacity-70;
+  }
+  @keyframes cardIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .detection .top {
+    @apply flex items-center gap-2.5 text-xs text-content-muted;
+  }
+  .detection .top .src-letter {
+    @apply mono font-semibold text-content-secondary;
+  }
+  .detection .dot {
+    @apply inline-block h-2 w-2 rounded-full;
+  }
+  .detection .dot.regex {
+    @apply bg-status-success;
+  }
+  .detection .dot.vector {
+    @apply bg-status-info;
+  }
+  .detection .dot.llm {
+    @apply bg-accent-500;
+  }
+  .detection .dot.manual {
+    @apply bg-content-secondary;
+  }
+  .detection .ref {
+    @apply text-base font-semibold text-content-primary;
+  }
+  .detection .verse-text {
+    @apply font-serif text-[15px] leading-relaxed text-content-secondary;
+    max-height: 4.8em;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+  }
+  .confidence-bar {
+    @apply h-[3px] overflow-hidden rounded-sm bg-bg-sunken;
+  }
+  .confidence-bar > div {
+    @apply h-full rounded-sm bg-accent-500;
+  }
+  .detection .actions {
+    @apply flex gap-2;
+  }
+  .detection .actions button {
+    @apply min-h-[40px] rounded-md px-3.5 text-[13px];
+  }
+  .detection .actions button.accept {
+    @apply btn-primary;
+  }
+  .detection .actions button.reject,
+  .detection .actions button.edit {
+    @apply btn-secondary;
+  }
 }

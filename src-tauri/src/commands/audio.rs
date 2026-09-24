@@ -12,6 +12,8 @@ use crate::stt::reconnect::{ResilientStream, SttStatus};
 use crate::stt::transcript::{LatencySummary, TranscriptSnapshot};
 use crate::stt::vocabulary;
 
+use super::detection::{emit_cards, emit_withdrawals, unix_ms};
+
 /// Every audio source the operator can pick (FR-01).
 ///
 /// The frontend calls this on mount and again whenever the operator asks, so
@@ -82,10 +84,39 @@ pub async fn start_capture(
             .expect("transcript lock")
             .reset();
 
+        // The Claude stage, if the credential resolves. Built here rather than
+        // at startup because a key pasted in Settings mid-session should count
+        // at the next Start, and because FR-14 is online only: without it the
+        // regex and vector stages carry the service and the log says so once.
+        {
+            let stage = crate::llm::anthropic::AnthropicClient::from_credentials(
+                &state.credentials,
+                state.llm.workspace_id.clone(),
+            )
+            .map(|client| {
+                crate::detection::llm::ParaphraseStage::new(
+                    client,
+                    state.llm.models.paraphrase.clone(),
+                    state.llm.gate.clone(),
+                )
+            });
+            match stage {
+                Ok(stage) => {
+                    tracing::info!(model = %state.llm.models.paraphrase, "paraphrase stage online");
+                    *state.paraphrase.lock().await = Some(stage);
+                }
+                Err(err) => {
+                    tracing::warn!(%err, "paraphrase stage offline for this service; regex and vector stages only");
+                    *state.paraphrase.lock().await = None;
+                }
+            }
+        }
+
         let event_app = app.clone();
         // The handle, not the State guard: the closure outlives this call.
         let store_app = app.clone();
         let status_app = app.clone();
+        let detect_app = app.clone();
         Some(
             ResilientStream::connect(
                 &state.credentials,
@@ -123,6 +154,12 @@ pub async fn start_capture(
                     }
 
                     let _ = event_app.emit("transcript:segment", &event);
+
+                    // Detection, after the transcript has the words. The
+                    // pipeline is synchronous and drained here, so a card is
+                    // on its way before the next utterance; only the Claude
+                    // call leaves this thread, and it goes to a task.
+                    run_detection(&detect_app, &event);
 
                     store_app
                         .state::<AppState>()
@@ -317,11 +354,17 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
     }
 
     {
-        let transcript = state.session_transcript.lock().expect("transcript lock");
-        let latency = transcript.latency();
-        let timeline = transcript.latency_timeline();
-        let drift = transcript.clock_drift_ms_per_hour();
-        drop(transcript);
+        // In its own block, not `drop()`ped: the guard must be out of scope
+        // before the `.await` on the paraphrase stage below, and the
+        // compiler's Send analysis follows lexical scope, not the drop.
+        let (latency, timeline, drift) = {
+            let transcript = state.session_transcript.lock().expect("transcript lock");
+            (
+                transcript.latency(),
+                transcript.latency_timeline(),
+                transcript.clock_drift_ms_per_hour(),
+            )
+        };
 
         // Reported beside the lag rather than inside it. Sound cards do not run
         // at exactly their stated rate, and the difference accumulates against
@@ -373,6 +416,29 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
                 "lag until words appear (interim) — this is the DoD line's measure"
             );
         }
+        // What detection did this service, and what Claude cost. The call
+        // count and tokens are the numbers that set the gate thresholds from
+        // real services rather than from eight sentences.
+        {
+            let stats = state.pipeline.lock().expect("pipeline lock").stats();
+            tracing::info!(?stats, "detection pipeline this service");
+            if let Some(stage) = state.paraphrase.lock().await.as_ref() {
+                let usage = stage.usage();
+                tracing::info!(
+                    model = stage.model(),
+                    calls = usage.calls,
+                    input_tokens = usage.input_tokens,
+                    cached_read_tokens = usage.cached_read_tokens,
+                    output_tokens = usage.output_tokens,
+                    estimated_cost_usd = format!("{:.4}", usage.estimated_cost_usd(stage.model())),
+                    accepted_vector = usage.accepted_vector,
+                    skipped = usage.skipped,
+                    cooled_down = usage.cooled_down,
+                    "paraphrase stage this service — cost is estimated from counted tokens at the prices in llm::Pricing"
+                );
+            }
+        }
+
         // Ours, measured separately so a bad tail can be attributed rather than
         // argued about. If this is microseconds while the lag figure spikes to
         // seconds, the delay arrived from outside.
@@ -506,4 +572,68 @@ pub fn transcript_latency(state: State<'_, AppState>) -> LatencySummary {
         .lock()
         .expect("transcript lock")
         .latency()
+}
+
+/// Run the detection pipeline for one transcript event and send what it
+/// produced to the window.
+///
+/// Holds the transcript lock only to read the rolling buffer and the pipeline
+/// lock only for the pipeline's own work; neither is held across the emit,
+/// and never both at once in the other order.
+fn run_detection(app: &AppHandle, event: &TranscriptEvent) {
+    let state = app.state::<AppState>();
+    let now_ms = unix_ms();
+
+    let rolling = state
+        .session_transcript
+        .lock()
+        .expect("transcript lock")
+        .rolling();
+
+    let (cards, withdrawn, request) = {
+        let mut pipeline = state.pipeline.lock().expect("pipeline lock");
+        let request = match event {
+            TranscriptEvent::Interim { text, .. } => {
+                pipeline.on_interim(&rolling, text, now_ms);
+                None
+            }
+            TranscriptEvent::Final { text, .. } => pipeline.on_final(&rolling, text, now_ms),
+            TranscriptEvent::Closed { .. } => None,
+        };
+        (pipeline.drain(), pipeline.take_withdrawn(), request)
+    };
+
+    emit_withdrawals(app, &withdrawn);
+    emit_cards(app, cards);
+
+    let Some(request) = request else {
+        return;
+    };
+
+    // The one network stage, off this thread. If the stage is offline the
+    // request is dropped: the gate already counted it, and the regex and
+    // vector stages have had their turn.
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<AppState>();
+        let hits = {
+            let mut guard = state.paraphrase.lock().await;
+            let Some(stage) = guard.as_mut() else {
+                return;
+            };
+            match stage.detect(&request.rolling_buffer).await {
+                Ok(hits) => hits,
+                Err(err) => {
+                    tracing::warn!(%err, "paraphrase call failed; the transcript carries on");
+                    return;
+                }
+            }
+        };
+        let cards = {
+            let mut pipeline = state.pipeline.lock().expect("pipeline lock");
+            pipeline.on_paraphrase(hits, unix_ms());
+            pipeline.drain()
+        };
+        emit_cards(&app, cards);
+    });
 }

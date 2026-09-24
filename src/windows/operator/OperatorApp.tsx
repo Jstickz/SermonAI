@@ -1,4 +1,5 @@
 import { LevelMeter } from "./components/LevelMeter";
+import { DetectionStack } from "./components/DetectionStack";
 import { LiveTranscript } from "./components/LiveTranscript";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { TabPanel } from "./components/TabPanel";
@@ -76,15 +77,7 @@ export function OperatorApp() {
         </div>
 
         <div className="op-col">
-          <div className="stack-header">
-            <h3>Detections</h3>
-            <span className="text-xs text-content-muted">M2</span>
-          </div>
-          <section className="scroll-hidden min-h-0 flex-1 overflow-y-auto rounded-lg bg-bg-surface p-5">
-            <p className="text-[13px] text-content-muted">
-              Scripture detected in the transcript will appear here as cards.
-            </p>
-          </section>
+          <DetectionStack />
         </div>
       </TabPanel>
 
