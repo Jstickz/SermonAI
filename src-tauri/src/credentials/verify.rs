@@ -78,10 +78,21 @@ pub async fn test(credentials: &Credentials, service: Service) -> Result<TestOut
 
         // Model list rather than a one-token message: it authenticates the
         // same way and costs nothing, where even `max_tokens: 1` is billed.
-        Service::Anthropic => client
-            .get("https://api.anthropic.com/v1/models?limit=1")
-            .header("x-api-key", key.expose())
-            .header("anthropic-version", "2023-06-01"),
+        //
+        // A key not scoped to a workspace is refused without the workspace
+        // header — a 400 whose body names the header, which `interpret` below
+        // cannot see. The same header the live client sends is sent here, so
+        // Test and the real call agree about whether the key works.
+        Service::Anthropic => {
+            let request = client
+                .get("https://api.anthropic.com/v1/models?limit=1")
+                .header("x-api-key", key.expose())
+                .header("anthropic-version", "2023-06-01");
+            match crate::llm::LlmConfig::load().workspace_id {
+                Some(ws) => request.header("anthropic-workspace-id", ws),
+                None => request,
+            }
+        }
 
         // Managed-only. Reaching here means a key was stored for a service
         // that refuses BYOK, which the provider should have prevented.
@@ -128,6 +139,9 @@ fn interpret(service: Service, status: u16) -> TestOutcome {
         )),
         403 => TestOutcome::fail(format!(
             "{label} recognised this key but refused it. Check the key's permissions in your {label} account."
+        )),
+        400 => TestOutcome::fail(format!(
+            "{label} refused the request. If your key is not scoped to a workspace, set ANTHROPIC_WORKSPACE_ID (see Settings help)."
         )),
         402 => TestOutcome::fail(format!(
             "{label} accepted this key but the account has no credit. Add billing in your {label} account."

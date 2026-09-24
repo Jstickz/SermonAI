@@ -381,7 +381,7 @@ SermonAI wins on four things:
 
 - **FR-12:** Apply a compiled regex to every transcript chunk for direct references.
 - **FR-13:** Recognize standard ("John 3:16"), spoken ("John chapter three verse sixteen"), and shorthand ("third chapter of John") forms.
-- **FR-14:** Send the rolling buffer to Claude API for paraphrase detection when no direct match has appeared for 10 seconds (online mode).
+- **FR-14:** Send the rolling buffer to Claude API for paraphrase detection **when the vector stage is unsure** (online mode). *Amended 24 September 2026; it was "when no direct match has appeared for 10 seconds".* A timer calls Claude whether or not anything resembled scripture. Instead the vector stage's top cosine score gates the call: at or above **0.80** its match is accepted without asking (every verbatim quote measured scored ≥ 0.808 and no unquoted sentence above 0.696); below **0.55** nothing is asked (plainly not scripture); between them — where paraphrases and plain preaching overlap — Claude is called, at most once per **10 s** cooldown, since one call reads the whole buffer. All three are configuration (`llm::ParaphraseGate`), set on eight paraphrases and fifteen sentences and **to be validated on the 100-paraphrase DoD set**. The known cost of the floor: an NIV-worded Jeremiah 29:11 paraphrase scores 0.339 against the KJV index and is skipped. Calls and tokens are counted per service and priced, so cost per service is measured rather than estimated.
 - **FR-15:** Use an in-binary vector index of all 31,102 verse embeddings (quantized, about 12 MB, brute-force cosine search under 5 ms) for semantic detection **in offline mode and as the first semantic pass in online mode**. No external vector library.
 - **FR-16:** Compute and display a confidence score for every detection.
 - **FR-17:** Queue multiple detections without dropping any.
@@ -679,7 +679,7 @@ sermonai/
 
 - **Deepgram** Nova-3 streaming STT.
 - **YouVersion Platform** licensed scripture text (over 1,000 versions including NIV, NKJV, NLT, AMP, MSG). REST API base `https://api.youversion.com/v1`, authenticated with the app-scoped `X-YVP-App-Key` header. Attribution metadata returned with every version and shown wherever the text is displayed.
-- **Anthropic Claude API** paraphrase detection and summary generation.
+- **Anthropic Claude API** paraphrase detection and summary generation. One client (`llm/anthropic.rs`) serves both layers 3 and 7 of §10.2, built from the credentials layer like every other vendor client; the module is justified by this section rather than by a layer, the way `credentials/` is by §17.
 - **Tyndale NLT API** the New Living Translation, which YouVersion does not license to us. Managed-only, like YouVersion: the licence is SermonAI's, not the church's.
 - **OpenAI Embeddings** one-time build job to embed all verses (never called from the app).
 - **Pack CDN** (object storage + CDN) hosting translation, speech, intelligence and theme packs with a signed manifest.
@@ -987,7 +987,12 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
 - **License scope.** Availability of a given version to a given app key is governed by YouVersion's per-version license agreements accepted through the platform portal. SermonAI accepts these once per version, at the point the church chooses to install that translation pack. The app blocks installation of a version whose license has not been accepted for the current app key.
 
 ### 15.3 Anthropic Claude
-- `https://api.anthropic.com/v1/messages`, `claude-sonnet-4-6`. Two uses: live paraphrase detection (short prompts) and summary generation (structured JSON output, one call per sermon plus retries). Estimated $1 to $6 per church per month.
+- `https://api.anthropic.com/v1/messages`. Two uses, **two models** (amended 24 September 2026; was `claude-sonnet-4-6` for both):
+  - **Paraphrase detection — Haiku 4.5** (`claude-haiku-4-5-20251001`). A short prompt fired many times a service with a 1.5 s p95 budget; latency and per-call cost dominate. The system prompt is identical every call and is marked for prompt caching, so most of its tokens bill at the cached-read rate.
+  - **Summary generation — Sonnet 5** (`claude-sonnet-5`). One long structured call per service plus retries; quality dominates.
+- Model IDs are **configuration** (`llm::Models`), read once at startup, not literals in code; M8's settings become their source.
+- Prices as read from <https://claude.com/pricing> on 24 September 2026, per million tokens: Haiku 4.5 $1 in / $5 out / $0.10 cached read; Sonnet 5 $2 in / $10 out / $0.20 cached read. Recorded with the date because they change. Cost per service is **measured** from counted tokens (`detection::llm::Usage`) rather than estimated; the earlier "$1 to $6 per church per month" is superseded by whatever real services log.
+- Keys that are not scoped to a workspace need an `anthropic-workspace-id` header; the client sends it when configured.
 
 ### 15.4 Verse Embeddings (build-time index, on-device queries)
 

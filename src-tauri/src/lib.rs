@@ -11,6 +11,7 @@ pub mod detection;
 pub mod error;
 pub mod export;
 pub mod intelligence;
+pub mod llm;
 pub mod output;
 pub mod packs;
 pub mod remote;
