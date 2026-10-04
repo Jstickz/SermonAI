@@ -33,13 +33,27 @@ struct Seen {
 /// Serves `reply` for every call after the first `fail_first` calls, which
 /// get a 429.
 async fn serve(reply: &'static str, fail_first: usize) -> (SocketAddr, Arc<Seen>) {
+    serve_with_status(reply, fail_first, StatusCode::OK).await
+}
+
+/// `status` is what every call after the first `fail_first` gets.
+async fn serve_with_status(
+    reply: &'static str,
+    fail_first: usize,
+    status: StatusCode,
+) -> (SocketAddr, Arc<Seen>) {
     let seen = Arc::new(Seen::default());
-    let state = (Arc::clone(&seen), reply, fail_first);
+    let state = (Arc::clone(&seen), reply, fail_first, status);
 
     let app = Router::new().route(
         "/v1/messages",
         post(
-            |State((seen, reply, fail_first)): State<(Arc<Seen>, &'static str, usize)>,
+            |State((seen, reply, fail_first, status)): State<(
+                Arc<Seen>,
+                &'static str,
+                usize,
+                StatusCode,
+            )>,
              headers: HeaderMap,
              body: Bytes| async move {
                 let n = seen.calls.fetch_add(1, Ordering::SeqCst);
@@ -52,7 +66,7 @@ async fn serve(reply: &'static str, fail_first: usize) -> (SocketAddr, Arc<Seen>
                         r#"{"type":"error","error":{"type":"rate_limit_error","message":"slow down"}}"#,
                     );
                 }
-                (StatusCode::OK, reply)
+                (status, reply)
             },
         ),
     );
@@ -190,4 +204,63 @@ async fn the_gate_keeps_a_sermon_from_calling_on_every_utterance() {
     assert_eq!(usage.calls, 1);
     assert_eq!(usage.cooled_down, 12);
     assert_eq!(seen.calls.load(Ordering::SeqCst), 1);
+}
+
+const WORKSPACE_400: &str = r#"{"type":"error","error":{"type":"invalid_request_error","message":"This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use."}}"#;
+
+#[tokio::test]
+async fn a_configuration_error_disables_the_stage_for_the_service() {
+    // The first live run: 57 calls, every one this 400, zero tokens. A
+    // configuration error cannot be fixed by asking again ten seconds later,
+    // so the first one has to be the last one until the next Start.
+    let (addr, seen) = serve_with_status(WORKSPACE_400, 0, StatusCode::BAD_REQUEST).await;
+    let mut stage = stage_at(addr, None);
+
+    stage.consider(0.70);
+    let err = stage
+        .detect("plans to prosper you")
+        .await
+        .expect_err("a 400 is an error");
+    assert!(err.to_string().contains("anthropic-workspace-id"), "{err}");
+
+    // Disabled, with the vendor's own sentence as the reason.
+    assert!(stage.disabled_reason().is_some());
+    assert_eq!(stage.usage().calls, 1);
+    assert_eq!(stage.usage().failed, 1);
+
+    // A second request does not reach the network at all.
+    stage.consider(0.70);
+    stage
+        .detect("more words")
+        .await
+        .expect_err("still disabled");
+    assert_eq!(
+        seen.calls.load(Ordering::SeqCst),
+        1,
+        "no second call was made"
+    );
+    assert_eq!(
+        stage.usage().calls,
+        1,
+        "a refused call is not counted as an attempt"
+    );
+}
+
+#[tokio::test]
+async fn a_rate_limit_that_persists_does_not_disable_the_stage() {
+    // 429 is the vendor asking for a moment, not a misconfiguration. The call
+    // fails after its retries, is counted as failed, and the stage stays
+    // available for the next window.
+    let (addr, _seen) = serve_with_status(TWO_REFERENCES, 99, StatusCode::OK).await;
+    let mut stage = stage_at(addr, None);
+    stage.consider(0.70);
+    stage
+        .detect("anything")
+        .await
+        .expect_err("exhausted retries");
+    assert_eq!(stage.usage().failed, 1);
+    assert!(
+        stage.disabled_reason().is_none(),
+        "a 429 must not disable the stage"
+    );
 }

@@ -246,36 +246,52 @@ pub fn run() {
             // credential is available, rather than failing startup.
             let bible = bible::youversion::YouVersionClient::from_credentials(&credentials);
 
-            // The vector stage's assets: 7.7 MB index plus 8 MB encoder, in
-            // memory for the service. Headroom was measured at about 88 MB
-            // before this (MILESTONES, Parked), so the load is logged with its
-            // time and the next memory run says what it cost.
-            let vector = {
-                let started = std::time::Instant::now();
-                match detection::vector::SemanticSearch::load(&assets_dir) {
-                    Ok(search) => {
-                        tracing::info!(
-                            verses = search.index().len(),
-                            dims = search.index().dims(),
-                            elapsed_ms = started.elapsed().as_millis() as u64,
-                            "loaded the verse index and encoder"
-                        );
-                        Some(search)
-                    }
-                    // Regex still works without it; semantic detection does
-                    // not, and the operator is better told than surprised.
-                    Err(err) => {
-                        tracing::error!(%err, "semantic detection is off: the verse index did not load");
-                        None
-                    }
-                }
-            };
+            // The pipeline starts with the regex stage only. The vector
+            // index and encoder — 7.7 MB plus 8 MB, 400–740 ms from disk —
+            // load on a thread below and join once ready, so the window opens
+            // inside PRD §9.1's one-second cold start. Until they join, a
+            // final with no direct reference gets regex alone, and the stop
+            // log counts how many that was.
             let llm = llm::LlmConfig::load();
-            let pipeline = detection::pipeline::Pipeline::new(vector, llm.gate.clone());
+            let pipeline = detection::pipeline::Pipeline::new(None, llm.gate.clone());
+            let vector_assets = assets_dir.clone();
 
             app.manage(state::AppState::new(
                 conn, packs, bible, credentials, assets_dir, pipeline, llm,
             ));
+
+            let handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("sermonai-vector-load".to_string())
+                .spawn(move || {
+                    let started = std::time::Instant::now();
+                    match detection::vector::SemanticSearch::load(&vector_assets) {
+                        Ok(search) => {
+                            let verses = search.index().len();
+                            let dims = search.index().dims();
+                            handle
+                                .state::<state::AppState>()
+                                .pipeline
+                                .lock()
+                                .expect("pipeline lock")
+                                .attach_vector(search);
+                            tracing::info!(
+                                verses,
+                                dims,
+                                elapsed_ms = started.elapsed().as_millis() as u64,
+                                "vector stage joined the pipeline"
+                            );
+                        }
+                        // Regex still works without it; semantic detection
+                        // does not, and the operator is better told than
+                        // surprised.
+                        Err(err) => tracing::error!(
+                            %err,
+                            "semantic detection is off: the verse index did not load"
+                        ),
+                    }
+                })
+                .map_err(|e| std::io::Error::new(e.kind(), format!("could not start the index loader: {e}")))?;
 
             // The projector and alternate windows are created from Rust so we can
             // place them on the operator's chosen monitors (PRD §10.3).

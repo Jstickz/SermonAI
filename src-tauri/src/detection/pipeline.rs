@@ -123,6 +123,10 @@ pub struct Stats {
     pub skipped: u64,
     pub cooled_down: u64,
     pub deduplicated: u64,
+    /// Finals with no direct hit that arrived before the vector index had
+    /// finished loading (it joins in the background after the window opens).
+    /// Regex ran; the semantic stages did not. Says what the warm-up cost.
+    pub finals_before_vector_ready: u64,
 }
 
 struct Recent {
@@ -263,7 +267,10 @@ impl Pipeline {
         }
 
         // Nothing direct in this utterance: ask the semantic stages.
-        let vector = self.vector.as_ref()?;
+        let Some(vector) = self.vector.as_ref() else {
+            self.stats.finals_before_vector_ready += 1;
+            return None;
+        };
         let matches = vector.search(final_text, 5).ok()?;
         let top1 = matches.first()?.score;
 
@@ -381,8 +388,49 @@ impl Pipeline {
     /// Forget passages not seen for a minute, so a verse returned to later in
     /// the sermon is a new card rather than a suppressed duplicate.
     fn expire(&mut self, now_ms: u64) {
-        self.recent
-            .retain(|_, r| now_ms.saturating_sub(r.seen_at_ms) < DEDUPE_MS);
+        // A provisional entry that ages out is withdrawn, not forgotten. The
+        // first run in front of an operator left a dimmed card on screen for
+        // good: its interim never got a final, `retain` dropped the entry, and
+        // nothing told the window.
+        let mut expired = Vec::new();
+        self.recent.retain(|_, r| {
+            let keep = now_ms.saturating_sub(r.seen_at_ms) < DEDUPE_MS;
+            if !keep && r.provisional {
+                expired.push(r.id);
+            }
+            keep
+        });
+        for id in expired {
+            self.withdrawn.push(id);
+            self.stats.withdrawn += 1;
+        }
+    }
+
+    /// The transcript stream closed, or capture stopped. Every provisional
+    /// candidate is withdrawn: no final is coming to confirm it.
+    pub fn on_closed(&mut self) {
+        let orphaned: Vec<(String, u64)> = self
+            .recent
+            .iter()
+            .filter(|(_, r)| r.provisional)
+            .map(|(p, r)| (p.clone(), r.id))
+            .collect();
+        for (passage, id) in orphaned {
+            self.recent.remove(&passage);
+            self.withdrawn.push(id);
+            self.stats.withdrawn += 1;
+        }
+    }
+
+    /// The vector index finished loading. It is loaded off the startup path
+    /// so the window opens first; until this is called the regex stage runs
+    /// alone and `finals_before_vector_ready` counts what that cost.
+    pub fn attach_vector(&mut self, search: SemanticSearch) {
+        self.vector = Some(search);
+    }
+
+    pub fn vector_ready(&self) -> bool {
+        self.vector.is_some()
     }
 }
 
@@ -539,6 +587,46 @@ mod tests {
         assert!(p.drain().is_empty(), "a withdrawal emits no card");
         assert_eq!(p.take_withdrawn(), vec![id]);
         assert_eq!(p.stats().withdrawn, 1);
+    }
+
+    #[test]
+    fn a_provisional_card_whose_final_never_comes_is_still_withdrawn() {
+        // What the operator saw: a dimmed card that stayed dimmed. The last
+        // interim of a run has no final after it. Two things now catch it —
+        // the stream closing, and the entry ageing out — and both must tell
+        // the window.
+        let mut p = pipeline();
+        p.on_interim("", "turn to John 3:16", 1_000);
+        let id = p.drain()[0].id;
+
+        // Stream closes with nothing settled after it.
+        p.on_closed();
+        assert_eq!(p.take_withdrawn(), vec![id]);
+        assert!(p.drain().is_empty(), "withdrawal is silent: no card");
+
+        // And the other path: nothing closes, but a minute passes with finals
+        // that never mention it. (A final that does not re-find it withdraws
+        // it sooner; this is the backstop for a final that never arrives at
+        // all, e.g. a provisional raised in the last second before a pause.)
+        let mut p = pipeline();
+        p.on_interim("", "turn to John 3:16", 1_000);
+        let id = p.drain()[0].id;
+        p.on_interim("unrelated words", "more unrelated words", 62_000);
+        assert_eq!(p.take_withdrawn(), vec![id]);
+        assert_eq!(p.stats().withdrawn, 1);
+    }
+
+    #[test]
+    fn finals_before_the_vector_index_is_ready_are_counted() {
+        // The index loads after the window opens. Until it joins, a final with
+        // no direct reference gets regex only, and the stop log must be able
+        // to say how many that was.
+        let mut p = pipeline();
+        assert!(!p.vector_ready());
+        p.on_final("just preaching here", "just preaching here", 1_000);
+        p.on_final("and more of it", "and more of it", 2_000);
+        p.on_final("John 3:16", "John 3:16", 3_000); // direct hit: not counted
+        assert_eq!(p.stats().finals_before_vector_ready, 2);
     }
 
     #[test]

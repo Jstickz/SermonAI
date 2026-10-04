@@ -91,7 +91,12 @@ pub struct ParaphraseHit {
 /// Calls and tokens so far, for the stop log and the cost estimate.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Usage {
+    /// Attempts. `calls - failed` answered.
     pub calls: u64,
+    /// Attempts that returned an error. Tokens are counted only for answers,
+    /// so a run of failures shows as calls with zero tokens — which is what
+    /// the first live service logged: 57 calls, 0 tokens, all 400s.
+    pub failed: u64,
     pub input_tokens: u64,
     pub cached_read_tokens: u64,
     pub output_tokens: u64,
@@ -117,6 +122,11 @@ pub struct ParaphraseStage {
     gate: ParaphraseGate,
     last_call: Option<Instant>,
     usage: Usage,
+    /// Set after a configuration error — a rejected key, a missing workspace
+    /// header. Retrying every ten seconds for a whole service cannot fix
+    /// those, and the first live run did exactly that 57 times. Once set the
+    /// stage answers no more calls until the next Start.
+    disabled: Option<String>,
 }
 
 impl ParaphraseStage {
@@ -127,7 +137,13 @@ impl ParaphraseStage {
             gate,
             last_call: None,
             usage: Usage::default(),
+            disabled: None,
         }
+    }
+
+    /// Why this stage has stopped calling, if it has.
+    pub fn disabled_reason(&self) -> Option<&str> {
+        self.disabled.as_deref()
     }
 
     /// Apply the gate to one utterance's vector score, and count the outcome.
@@ -145,10 +161,13 @@ impl ParaphraseStage {
     /// Ask Claude about the rolling buffer. Call only after [`consider`]
     /// returned [`Decision::Call`]; this does not re-check the gate.
     pub async fn detect(&mut self, rolling_buffer: &str) -> Result<Vec<ParaphraseHit>> {
+        if let Some(reason) = &self.disabled {
+            return Err(crate::error::Error::Detection(reason.clone()));
+        }
         self.last_call = Some(Instant::now());
         self.usage.calls += 1;
 
-        let completion = self
+        let completion = match self
             .client
             .message(
                 &self.model,
@@ -157,7 +176,21 @@ impl ParaphraseStage {
                 MAX_REPLY_TOKENS,
                 DEADLINE,
             )
-            .await?;
+            .await
+        {
+            Ok(c) => c,
+            Err(err) => {
+                self.usage.failed += 1;
+                // A configuration error will not change by asking again.
+                // Stop for the service and say so once; the operator fixes
+                // it in Settings and the next Start tries afresh.
+                if matches!(err, crate::error::Error::Config(_)) {
+                    tracing::warn!(%err, "paraphrase stage disabled for this service after a configuration error");
+                    self.disabled = Some(err.to_string());
+                }
+                return Err(err);
+            }
+        };
 
         self.usage.input_tokens += completion.input_tokens;
         self.usage.cached_read_tokens += completion.cached_read_tokens;

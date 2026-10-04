@@ -424,16 +424,18 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
             tracing::info!(?stats, "detection pipeline this service");
             if let Some(stage) = state.paraphrase.lock().await.as_ref() {
                 let usage = stage.usage();
+                // The gate's own counts are on the pipeline stats line above;
+                // this line is the network: how many calls, how many failed,
+                // what the answered ones cost.
                 tracing::info!(
                     model = stage.model(),
                     calls = usage.calls,
+                    failed = usage.failed,
                     input_tokens = usage.input_tokens,
                     cached_read_tokens = usage.cached_read_tokens,
                     output_tokens = usage.output_tokens,
                     estimated_cost_usd = format!("{:.4}", usage.estimated_cost_usd(stage.model())),
-                    accepted_vector = usage.accepted_vector,
-                    skipped = usage.skipped,
-                    cooled_down = usage.cooled_down,
+                    disabled = stage.disabled_reason().unwrap_or("no"),
                     "paraphrase stage this service — cost is estimated from counted tokens at the prices in llm::Pricing"
                 );
             }
@@ -598,7 +600,11 @@ fn run_detection(app: &AppHandle, event: &TranscriptEvent) {
                 None
             }
             TranscriptEvent::Final { text, .. } => pipeline.on_final(&rolling, text, now_ms),
-            TranscriptEvent::Closed { .. } => None,
+            TranscriptEvent::Closed { .. } => {
+                // No final is coming for anything still provisional.
+                pipeline.on_closed();
+                None
+            }
         };
         (pipeline.drain(), pipeline.take_withdrawn(), request)
     };
@@ -621,6 +627,10 @@ fn run_detection(app: &AppHandle, event: &TranscriptEvent) {
             let Some(stage) = guard.as_mut() else {
                 return;
             };
+            // Disabled after a configuration error: nothing to ask.
+            if stage.disabled_reason().is_some() {
+                return;
+            }
             match stage.detect(&request.rolling_buffer).await {
                 Ok(hits) => hits,
                 Err(err) => {
