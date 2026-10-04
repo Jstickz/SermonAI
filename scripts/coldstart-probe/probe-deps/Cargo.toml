@@ -1,0 +1,45 @@
+[package]
+name = "probe-deps"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-opener = "2"
+
+# SermonAI's dependency set, linked but never called, to see whether linking
+# them changes the time from run() entry to setup.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+cpal = "0.15"
+rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+axum = { version = "0.7", features = ["ws"] }
+tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+sha2 = "0.10"
+hex = "0.4"
+keyring = { version = "3", default-features = false, features = [
+    "windows-native",
+    "apple-native",
+] }
+dotenvy = "0.15"
+once_cell = "1"
+regex = "1"
+rubato = "0.16"
+chrono = "0.4"
+
+[profile.release]
+# Mirror SermonAI's release profile only where it exists; defaults otherwise.

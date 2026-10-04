@@ -11,10 +11,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 
 // Two frames after the root is scheduled: the first commits, the second has
-// painted. That moment is the cold start PRD §9.1 budgets, and the backend
-// logs it against the clock it started in run().
+// painted. That moment is the cold start PRD §9.1 budgets. The reading is
+// taken here, not when the call lands, because the call may wait behind
+// other commands on the main thread.
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
-    void display.operatorReady().catch(() => undefined);
+    void display.operatorReady(Date.now()).catch(() => undefined);
   });
 });

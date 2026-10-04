@@ -1,0 +1,4 @@
+# tauri-build writes ACL schemas here on every build; they are derived, not source.
+*/gen/
+# Only if someone builds without CARGO_TARGET_DIR; the README says to reuse src-tauri/target.
+*/target/

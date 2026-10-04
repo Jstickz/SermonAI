@@ -20,9 +20,16 @@ use super::detection::{emit_cards, emit_withdrawals, unix_ms};
 /// that plugging in an interface mid-setup does not need a restart. Enumeration
 /// is cheap enough to do on demand — it is a CoreAudio or WASAPI endpoint walk,
 /// not a device open.
+///
+/// Async, on a blocking worker: Tauri runs synchronous commands on the main
+/// thread, and the Live tab asks for this list the moment it mounts. A WASAPI
+/// endpoint walk there sat between the operator window's first paint and the
+/// event loop for up to 700 ms on the development laptop (4 Oct 2026).
 #[tauri::command]
-pub fn list_audio_devices() -> Result<Vec<AudioDevice>> {
-    devices::list_devices()
+pub async fn list_audio_devices() -> Result<Vec<AudioDevice>> {
+    tokio::task::spawn_blocking(devices::list_devices)
+        .await
+        .map_err(|e| Error::Audio(format!("device enumeration did not complete: {e}")))?
 }
 
 /// Check that a device is still there before committing to it (FR-02).

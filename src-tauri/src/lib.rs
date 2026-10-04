@@ -192,6 +192,7 @@ pub fn run() {
     // Taken before anything else so the cold-start figure covers the whole of
     // our startup, not just the part after logging is up.
     let started = std::time::Instant::now();
+    let started_wall = std::time::SystemTime::now();
 
     load_dev_env();
     let log_path = init_logging();
@@ -202,10 +203,34 @@ pub fn run() {
         "logging ready"
     );
 
-    tauri::Builder::default()
+    // Startup is timed in stages (docs/testing/cold-start.md). The probes in
+    // scripts/coldstart-probe reach setup in ~580 ms; this binary took
+    // ~1275 ms on 4 Oct 2026, so the span before setup is split here.
+    let context = tauri::generate_context!();
+    tracing::info!(
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "context generated"
+    );
+    let stage_clock = started;
+
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
+        // Registered last: Tauri initialises plugins in order, before it
+        // creates any window, so this fires when plugin init is over and
+        // window creation is about to begin.
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry, ()>::new("coldstart-marks")
+                .setup(move |_app, _api| {
+                    tracing::info!(
+                        elapsed_ms = stage_clock.elapsed().as_millis() as u64,
+                        "plugins initialised"
+                    );
+                    Ok(())
+                })
+                .build(),
+        )
         .setup(move |app| {
             // Everything before this line is Tauri's: plugin init and the
             // operator window from tauri.conf.json, which Tauri creates
@@ -282,7 +307,15 @@ pub fn run() {
             let vector_assets = assets_dir.clone();
 
             app.manage(state::AppState::new(
-                conn, packs, bible, credentials, assets_dir, pipeline, llm, started,
+                conn,
+                packs,
+                bible,
+                credentials,
+                assets_dir,
+                pipeline,
+                llm,
+                started,
+                started_wall,
             ));
 
             let handle = app.handle().clone();
@@ -380,6 +413,10 @@ pub fn run() {
             commands::detection::reject_detection,
             commands::detection::edit_detection,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running SermonAI");
+        ;
+    tracing::info!(
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "builder assembled"
+    );
+    builder.run(context).expect("error while running SermonAI");
 }

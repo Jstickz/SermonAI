@@ -1,0 +1,10 @@
+{
+  "identifier": "default",
+  "description": "probe",
+  "windows": [
+    "operator"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

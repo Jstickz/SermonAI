@@ -75,14 +75,18 @@ pub struct AppState {
     /// painted, and the difference is the cold start PRD §9.1 budgets —
     /// measured to the thing itself rather than to the end of setup.
     pub started: std::time::Instant,
+    /// The same moment on the wall clock, so a timestamp the operator window
+    /// takes itself (`Date.now()` at first paint) can be placed on our
+    /// timeline without passing through the IPC queue first.
+    pub started_wall: std::time::SystemTime,
     /// The operator window reports ready once per process; StrictMode and a
     /// reload would otherwise log it twice.
     pub operator_ready_logged: std::sync::atomic::AtomicBool,
 }
 
 impl AppState {
-    // Eight long-lived services, each built in `run()` and owned here; a
-    // struct of the same eight fields would only move the list.
+    // Nine long-lived services, each built in `run()` and owned here; a
+    // struct of the same nine fields would only move the list.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         db: Connection,
@@ -93,9 +97,11 @@ impl AppState {
         pipeline: Pipeline,
         llm: LlmConfig,
         started: std::time::Instant,
+        started_wall: std::time::SystemTime,
     ) -> Self {
         Self {
             started,
+            started_wall,
             operator_ready_logged: std::sync::atomic::AtomicBool::new(false),
             db: Mutex::new(db),
             assets_dir,

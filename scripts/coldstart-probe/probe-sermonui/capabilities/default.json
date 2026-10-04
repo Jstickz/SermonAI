@@ -1,0 +1,15 @@
+{
+  "identifier": "default",
+  "description": "probe",
+  "windows": [
+    "operator",
+    "projector",
+    "alternate"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "opener:default",
+    "fs:default"
+  ]
+}
