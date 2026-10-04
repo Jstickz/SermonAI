@@ -6,6 +6,28 @@ use crate::error::Result;
 use crate::state::AppState;
 use crate::windows::{self, MonitorInfo, OutputAssignments, ALTERNATE_LABEL, PROJECTOR_LABEL};
 
+/// The operator window has painted its first frame.
+///
+/// Called once by the operator window's entry script. The elapsed time since
+/// `run()` began is the cold start PRD §9.1 budgets at one second, measured to
+/// the operator seeing the app rather than to the end of our setup, which
+/// finishes well before WebView2 has rendered anything. The same log line is
+/// what `scripts/measure-cold-start.ps1` and the CI smoke job read.
+#[tauri::command]
+pub fn operator_window_ready(state: State<'_, AppState>) {
+    use std::sync::atomic::Ordering;
+    if state
+        .operator_ready_logged
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+    {
+        tracing::info!(
+            elapsed_ms = state.started.elapsed().as_millis() as u64,
+            "operator window ready"
+        );
+    }
+}
+
 #[tauri::command]
 pub fn list_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>> {
     windows::list_monitors(&app)

@@ -71,9 +71,19 @@ pub struct AppState {
     /// transcript held in React would come back empty mid-sermon, which reads
     /// as a crash and invites the one action that actually loses the recording.
     pub session_transcript: Mutex<SessionTranscript>,
+    /// When `run()` began. The operator window reports back once it has
+    /// painted, and the difference is the cold start PRD §9.1 budgets —
+    /// measured to the thing itself rather than to the end of setup.
+    pub started: std::time::Instant,
+    /// The operator window reports ready once per process; StrictMode and a
+    /// reload would otherwise log it twice.
+    pub operator_ready_logged: std::sync::atomic::AtomicBool,
 }
 
 impl AppState {
+    // Eight long-lived services, each built in `run()` and owned here; a
+    // struct of the same eight fields would only move the list.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         db: Connection,
         packs: PackManager,
@@ -82,8 +92,11 @@ impl AppState {
         assets_dir: PathBuf,
         pipeline: Pipeline,
         llm: LlmConfig,
+        started: std::time::Instant,
     ) -> Self {
         Self {
+            started,
+            operator_ready_logged: std::sync::atomic::AtomicBool::new(false),
             db: Mutex::new(db),
             assets_dir,
             pipeline: Mutex::new(pipeline),

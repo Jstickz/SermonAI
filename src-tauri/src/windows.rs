@@ -3,6 +3,13 @@
 //! Both output windows are created hidden and frameless, so nothing ever
 //! flashes on the congregation's screen before the operator sends it there.
 //! They are shown only when assigned to a monitor (M0 deliverable, PRD §10.3).
+//!
+//! They are also created only when first assigned (4 Oct 2026). Creating
+//! them at startup cost 1.4 s of a 2.6 s cold start on the release build —
+//! two WebView2 instances brought up while the operator window was still
+//! painting — against PRD §9.1's one-second budget. The booth assigns
+//! displays before the service, so the cost moves to a moment nobody is
+//! waiting on, and a laptop that never projects never pays it at all.
 
 use serde::{Deserialize, Serialize};
 use tauri::{
@@ -29,32 +36,35 @@ pub struct MonitorInfo {
     pub is_primary: bool,
 }
 
-pub fn create_output_windows(app: &AppHandle) -> Result<()> {
+/// The output window with this label, created hidden on first use.
+///
+/// Idempotent: a second call finds the existing window. The page loads
+/// asynchronously after `build()` returns; the window's background colour is
+/// the projector's own dark, so a show that races the load paints dark, not
+/// white.
+fn ensure_output_window(app: &AppHandle, label: &str) -> Result<WebviewWindow> {
+    if let Some(existing) = app.get_webview_window(label) {
+        return Ok(existing);
+    }
+    let (url, title) = match label {
+        PROJECTOR_LABEL => ("projector.html", "SermonAI — Projector"),
+        ALTERNATE_LABEL => ("alternate.html", "SermonAI — Confidence Monitor"),
+        other => return Err(Error::Window(format!("'{other}' is not an output window"))),
+    };
+    let started = std::time::Instant::now();
     let dark = tauri::window::Color(0x0F, 0x0F, 0x10, 0xFF);
-
-    WebviewWindowBuilder::new(
-        app,
-        PROJECTOR_LABEL,
-        WebviewUrl::App("projector.html".into()),
-    )
-    .title("SermonAI — Projector")
-    .decorations(false)
-    .visible(false)
-    .background_color(dark)
-    .build()?;
-
-    WebviewWindowBuilder::new(
-        app,
-        ALTERNATE_LABEL,
-        WebviewUrl::App("alternate.html".into()),
-    )
-    .title("SermonAI — Confidence Monitor")
-    .decorations(false)
-    .visible(false)
-    .background_color(dark)
-    .build()?;
-
-    Ok(())
+    let created = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
+        .title(title)
+        .decorations(false)
+        .visible(false)
+        .background_color(dark)
+        .build()?;
+    tracing::info!(
+        label,
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "output window created on first assignment"
+    );
+    Ok(created)
 }
 
 fn window(app: &AppHandle, label: &str) -> Result<WebviewWindow> {
@@ -102,7 +112,7 @@ pub fn list_monitors(app: &AppHandle) -> Result<Vec<MonitorInfo>> {
 /// take the app down mid-service, so an unknown name falls back to the primary
 /// display rather than failing (M0 DoD: "unplug: app does not crash").
 pub fn place_on_monitor(app: &AppHandle, label: &str, monitor_name: Option<&str>) -> Result<()> {
-    let target = window(app, label)?;
+    let target = ensure_output_window(app, label)?;
     let monitors = target.available_monitors()?;
 
     let chosen = monitor_name
@@ -139,8 +149,13 @@ pub fn place_on_monitor(app: &AppHandle, label: &str, monitor_name: Option<&str>
 }
 
 /// Hide an output window without destroying it, so its webview state survives.
+///
+/// A window that was never assigned was never created; hiding it is a no-op
+/// rather than an error, so clearing an assignment always succeeds.
 pub fn hide_output(app: &AppHandle, label: &str) -> Result<()> {
-    let target = window(app, label)?;
+    let Some(target) = app.get_webview_window(label) else {
+        return Ok(());
+    };
     target.set_fullscreen(false)?;
     target.hide()?;
     Ok(())

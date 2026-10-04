@@ -19,6 +19,9 @@ export function DisplaySettings() {
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const [outputs, setOutputs] = useState<OutputAssignments>(NO_OUTPUTS);
   const [error, setError] = useState<string | null>(null);
+  // The first assignment of each output creates its window, which takes the
+  // better part of a second on a booth laptop. The buttons say so meanwhile.
+  const [pending, setPending] = useState<Role | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -39,6 +42,8 @@ export function DisplaySettings() {
   }, [refresh]);
 
   async function assign(monitor: MonitorInfo, role: Role) {
+    if (pending) return;
+    setPending(role);
     try {
       // A display carries one output, so clear the other role from it first.
       if (role === "projector" && outputs.alternate === monitor.name) {
@@ -55,6 +60,8 @@ export function DisplaySettings() {
     } catch (e) {
       setError(String(e));
       void refresh();
+    } finally {
+      setPending(null);
     }
   }
 
@@ -131,14 +138,24 @@ export function DisplaySettings() {
                   <button
                     className={role === "projector" ? "btn-primary !px-4 !py-2" : "btn-secondary !px-4 !py-2"}
                     onClick={() => void assign(monitor, "projector")}
+                    disabled={pending !== null}
                   >
-                    {role === "projector" ? "Projecting" : "Use as Projector"}
+                    {pending === "projector"
+                      ? "Preparing display…"
+                      : role === "projector"
+                        ? "Projecting"
+                        : "Use as Projector"}
                   </button>
                   <button
                     className={role === "alternate" ? "btn-primary !px-4 !py-2" : "btn-secondary !px-4 !py-2"}
                     onClick={() => void assign(monitor, "alternate")}
+                    disabled={pending !== null}
                   >
-                    {role === "alternate" ? "On Stage" : "Use for Stage"}
+                    {pending === "alternate"
+                      ? "Preparing display…"
+                      : role === "alternate"
+                        ? "On Stage"
+                        : "Use for Stage"}
                   </button>
                 </div>
               </div>

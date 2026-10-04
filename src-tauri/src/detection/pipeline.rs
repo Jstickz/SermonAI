@@ -277,7 +277,24 @@ impl Pipeline {
         let since_last = self
             .last_call_ms
             .map(|t| std::time::Duration::from_millis(now_ms.saturating_sub(t)));
-        match decide(&self.gate, top1, since_last) {
+        let decision = decide(&self.gate, top1, since_last);
+        // One line per scored final so a real service yields the score
+        // distribution the gate thresholds are tuned from (FR-14). Scores and
+        // the decision only: the words spoken do not belong in a log.
+        tracing::info!(
+            top1 = format_args!("{top1:.3}"),
+            top2 = format_args!("{:.3}", matches.get(1).map(|m| m.score).unwrap_or(0.0)),
+            words = final_text.split_whitespace().count(),
+            since_last_call_ms = since_last.map(|d| d.as_millis() as u64),
+            decision = match decision {
+                Decision::AcceptVector => "accept",
+                Decision::Call => "call",
+                Decision::Cooldown => "cooldown",
+                Decision::Skip => "skip",
+            },
+            "vector stage scored a final"
+        );
+        match decision {
             Decision::AcceptVector => {
                 self.stats.vector_accepted += 1;
                 let reference = to_usfm(&matches[0]);

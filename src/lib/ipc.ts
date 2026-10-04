@@ -75,6 +75,8 @@ export const display = {
     invoke<OutputAssignments>("set_projector_monitor", { monitorName }),
   setAlternate: (monitorName: string | null) =>
     invoke<OutputAssignments>("set_alternate_monitor", { monitorName }),
+  /** The operator window has painted; the backend logs the cold start (PRD §9.1). */
+  operatorReady: () => invoke<void>("operator_window_ready"),
 };
 
 export const bible = {

@@ -546,7 +546,7 @@ SermonAI is a single-machine desktop application built with **Tauri 2**. One com
 ### 10.3 Process Topology
 
 - **One process.** The Tauri binary owns everything.
-- **Three webview windows:** operator, projector, alternate. Created and positioned by Rust using the Tauri window and monitor APIs.
+- **Three webview windows:** operator, projector, alternate. Created and positioned by Rust using the Tauri window and monitor APIs. The operator window is created at launch; the projector and alternate windows are created hidden the first time a display is assigned to them (amended 4 October 2026: creating both at startup cost 1.4 s of a 2.6 s release cold start against §9.1's one second, and a laptop that never projects should not pay for two WebView2 instances at all). The cost of creating one moves to the moment the operator assigns a screen, before the service, and is logged.
 - **Two optional LAN listeners**, both inside the same process and off by default: `0.0.0.0:8002` for the phone remote (only while enabled), `localhost:8001` for the OBS Browser Source overlay.
 - **Background tasks** on the `tokio` runtime: audio capture, STT stream, detection pipeline, pack downloader, summary jobs, updater.
 
@@ -992,7 +992,7 @@ CREATE VIRTUAL TABLE summary_fts USING fts5(summary_text, content='sermon_summar
   - **Summary generation — Sonnet 5** (`claude-sonnet-5`). One long structured call per service plus retries; quality dominates.
 - Model IDs are **configuration** (`llm::Models`), read once at startup, not literals in code; M8's settings become their source.
 - Prices as read from <https://claude.com/pricing> on 24 September 2026, per million tokens: Haiku 4.5 $1 in / $5 out / $0.10 cached read; Sonnet 5 $2 in / $10 out / $0.20 cached read. Recorded with the date because they change. Cost per service is **measured** from counted tokens (`detection::llm::Usage`) rather than estimated; the earlier "$1 to $6 per church per month" is superseded by whatever real services log.
-- Keys that are not scoped to a workspace need an `anthropic-workspace-id` header; the client sends it when configured.
+- Keys that are not scoped to a workspace need an `anthropic-workspace-id` header; the client sends it when configured. A key created for a single workspace needs no header at all (official docs, "Select a workspace", read 4 October 2026). Only a development `.env` can configure the header, so the operator-facing fix for a refused key is a workspace-scoped key, and the Settings Test message says so. A workspace field in Settings is not planned unless a real operator needs a multi-workspace key.
 
 ### 15.4 Verse Embeddings (build-time index, on-device queries)
 

@@ -195,15 +195,36 @@ pub fn run() {
 
     load_dev_env();
     let log_path = init_logging();
+    // Everything between here and "setup entered" is Tauri's: plugin init
+    // and the operator window, which it creates before setup runs.
+    tracing::info!(
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "logging ready"
+    );
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
+            // Everything before this line is Tauri's: plugin init and the
+            // operator window from tauri.conf.json, which Tauri creates
+            // before setup runs. Logged so the cold-start figure separates
+            // what is ours from what is the framework's.
+            tracing::info!(
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                "setup entered"
+            );
+
             // Migrations run before any window can issue a command (M0 deliverable).
             let data_dir = app.path().app_data_dir()?;
             let mut conn = db::init(&data_dir)?;
+            // Startup is attributed stage by stage so a missed cold-start
+            // budget names its cause. Same clock as "startup complete".
+            tracing::info!(
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                "database ready"
+            );
 
             // Bundled translations into the verse cache (FR-19), checked
             // against their manifests (FR-22). One COUNT(*) per translation
@@ -216,7 +237,11 @@ pub fn run() {
                         tracing::info!(translation = %code, rows, "seeded bundled translation");
                     }
                     if !report.verified.is_empty() {
-                        tracing::info!(verified = ?report.verified, "bundled translations already cached and intact");
+                        tracing::info!(
+                            verified = ?report.verified,
+                            elapsed_ms = started.elapsed().as_millis() as u64,
+                            "bundled translations already cached and intact"
+                        );
                     }
                     for code in &report.refused {
                         tracing::error!(translation = %code, "a bundled translation failed its integrity check and was not loaded");
@@ -257,7 +282,7 @@ pub fn run() {
             let vector_assets = assets_dir.clone();
 
             app.manage(state::AppState::new(
-                conn, packs, bible, credentials, assets_dir, pipeline, llm,
+                conn, packs, bible, credentials, assets_dir, pipeline, llm, started,
             ));
 
             let handle = app.handle().clone();
@@ -293,15 +318,18 @@ pub fn run() {
                 })
                 .map_err(|e| std::io::Error::new(e.kind(), format!("could not start the index loader: {e}")))?;
 
-            // The projector and alternate windows are created from Rust so we can
-            // place them on the operator's chosen monitors (PRD §10.3).
-            windows::create_output_windows(app.handle())?;
+            // The projector and alternate windows are created from Rust so we
+            // can place them on the operator's chosen monitors (PRD §10.3) —
+            // but not here. Creating two WebView2 windows at startup cost
+            // 1.4 s of a 2.6 s cold start on the release build (4 Oct 2026);
+            // `windows::place_on_monitor` creates each on first assignment.
 
             // Cold start marker. PRD §9.1 budgets one second from launch to
             // ready, and M0's DoD line measures it. Emitting it here rather
             // than timing with a stopwatch means CI can check the budget on
             // every build, and means the number covers the same work on both
-            // platforms: migrations, pack manager, Bible client, windows.
+            // platforms: migrations, pack manager, Bible client, operator
+            // window. The output windows are created on first assignment.
             //
             // Needs RUST_LOG to be set, since the filter comes from the
             // environment and is empty by default.
@@ -335,6 +363,7 @@ pub fn run() {
             commands::display::set_projector_monitor,
             commands::display::set_alternate_monitor,
             commands::display::get_output_assignments,
+            commands::display::operator_window_ready,
             commands::packs::refresh_pack_catalog,
             commands::packs::list_packs,
             commands::packs::download_pack,

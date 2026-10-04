@@ -82,7 +82,11 @@ pub async fn test(credentials: &Credentials, service: Service) -> Result<TestOut
         // A key not scoped to a workspace is refused without the workspace
         // header — a 400 whose body names the header, which `interpret` below
         // cannot see. The same header the live client sends is sent here, so
-        // Test and the real call agree about whether the key works.
+        // Test and the real call agree about whether the key works. Only a
+        // development `.env` can set that header; a release operator's fix is
+        // a workspace-scoped key, which the API accepts with no header
+        // (platform.claude.com/docs/en/manage-claude/authentication, read
+        // 4 Oct 2026).
         Service::Anthropic => {
             let request = client
                 .get("https://api.anthropic.com/v1/models?limit=1")
@@ -141,7 +145,7 @@ fn interpret(service: Service, status: u16) -> TestOutcome {
             "{label} recognised this key but refused it. Check the key's permissions in your {label} account."
         )),
         400 => TestOutcome::fail(format!(
-            "{label} refused the request. If your key is not scoped to a workspace, set ANTHROPIC_WORKSPACE_ID (see Settings help)."
+            "{label} refused this key because it is not scoped to a workspace. In the Claude Console, create a key scoped to one workspace (Settings, API keys, Create key) and paste that key instead."
         )),
         402 => TestOutcome::fail(format!(
             "{label} accepted this key but the account has no credit. Add billing in your {label} account."
