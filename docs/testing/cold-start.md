@@ -141,7 +141,9 @@ fits every number is that OneDrive was uploading build output during the
 earlier runs. It cannot be proven after the fact; it can be prevented, by
 moving the target directory out of OneDrive (`.cargo/config.toml`
 `build.target-dir`, or excluding the folder in OneDrive's settings). That is a
-machine decision for the operator.
+machine decision for the operator. *(Taken on 4 October 2026: the
+whole project, build output included, now lives at `C:ProjectsSermonAI`,
+outside any sync root.)*
 
 The tail to 1.4 s in four launches of ten was then traced and removed. Tauri
 runs synchronous commands on the main thread, and the Live tab asks for the
@@ -192,6 +194,8 @@ Two things the day also taught, kept here so they are not re-learned:
   vanished between the 16:40 and 17:38 builds coincided with OneDrive not
   running; it is the only variable that moved. Moving the target directory out
   of OneDrive is recommended for every measurement, and for the disk.
+  *(Done 4 October 2026 — the project moved to `C:ProjectsSermonAI`; later
+  measurements are not subject to this.)*
 - **Synchronous Tauri commands block the main thread.** Anything that walks
   devices, reads the credential store or touches the network must be `async`
   (or on `spawn_blocking`) if the window may call it while painting.
