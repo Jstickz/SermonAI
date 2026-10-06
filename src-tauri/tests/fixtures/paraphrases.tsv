@@ -1,0 +1,213 @@
+# phrase	expected USFM verse (or - for a line that quotes nothing)	population
+#
+# DRAFT, 6 October 2026 — written by the code agent, NOT YET HAND-LABELLED.
+# The M2 Definition of Done asks for 100 hand-labelled paraphrases. Each line
+# below needs a human to confirm (a) the expected verse is the one a preacher
+# would mean, and (b) the wording is a paraphrase a preacher would actually
+# say, not a quotation. Strike any line you would not stand behind; there are
+# more than 100 so that striking leaves enough.
+#
+# Populations:
+#   verbatim   — KJV wording as indexed; the stage must catch these (floor)
+#   paraphrase — modern wording of a known verse, in the agent's own words
+#   heldout    — real sermon phrasings supplied by the operator (none yet)
+#   preaching  — the preacher's own words quoting nothing (from the 24 Sept
+#                Nova-3 transcript); false accepts here must be zero
+#
+# Wording is original; nothing is copied from a licensed translation. A
+# range (ROM.8.38-39) resolves to its first verse. Read by
+# examples/measure_vector.rs.
+
+For God so loved the world, that he gave his only begotten Son	JHN.3.16	verbatim
+For I know the thoughts that I think toward you, saith the LORD, thoughts of peace	JER.29.11	verbatim
+The LORD is my shepherd; I shall not want	PSA.23.1	verbatim
+In the beginning God created the heaven and the earth	GEN.1.1	verbatim
+And we know that all things work together for good to them that love God	ROM.8.28	verbatim
+I can do all things through Christ which strengtheneth me	PHP.4.13	verbatim
+Trust in the LORD with all thine heart; and lean not unto thine own understanding	PRO.3.5	verbatim
+Now faith is the substance of things hoped for, the evidence of things not seen	HEB.11.1	verbatim
+
+God loved everyone so much he sent his only son	JHN.3.16	paraphrase
+the Lord takes care of me like a shepherd looks after sheep	PSA.23.1	paraphrase
+all things work together for good for those who love God	ROM.8.28	paraphrase
+I can do everything through Christ who strengthens me	PHP.4.13	paraphrase
+I know the plans I have for you, plans to prosper you	JER.29.11	paraphrase
+trust in the Lord with all your heart	PRO.3.5	paraphrase
+be strong and courageous, do not be afraid	JOS.1.9	paraphrase
+faith is being sure of what we hope for	HEB.11.1	paraphrase
+in the beginning God made the heavens and the earth	GEN.1.1	paraphrase
+God's word is a lamp for my feet and a light on my path	PSA.119.105	paraphrase
+everyone has sinned and falls short of God's glory	ROM.3.23	paraphrase
+the wages of sin is death but God's gift is eternal life	ROM.6.23	paraphrase
+come to me all who are tired and carrying heavy loads and I will give you rest	MAT.11.28	paraphrase
+I am the way the truth and the life nobody comes to the Father except through me	JHN.14.6	paraphrase
+don't be anxious about anything but bring everything to God in prayer	PHP.4.6	paraphrase
+God is our refuge and strength always ready to help in trouble	PSA.46.1	paraphrase
+those who wait on the Lord will get new strength and soar like eagles	ISA.40.31	paraphrase
+love is patient love is kind it doesn't envy or boast	1CO.13.4	paraphrase
+the Lord is my light and my salvation so who should I fear	PSA.27.1	paraphrase
+seek first God's kingdom and his righteousness and everything else will be added	MAT.6.33	paraphrase
+cast all your worries on him because he cares about you	1PE.5.7	paraphrase
+be still and know that I am God	PSA.46.10	paraphrase
+if we confess our sins he is faithful and just to forgive us	1JN.1.9	paraphrase
+you are saved by grace through faith not by your own works	EPH.2.8	paraphrase
+my grace is enough for you my power is made perfect in weakness	2CO.12.9	paraphrase
+greater love has no one than to lay down his life for his friends	JHN.15.13	paraphrase
+the joy of the Lord is your strength	NEH.8.10	paraphrase
+don't let your heart be troubled you believe in God believe also in me	JHN.14.1	paraphrase
+I have fought the good fight I have finished the race I have kept the faith	2TI.4.7	paraphrase
+God gave us a spirit not of fear but of power love and a sound mind	2TI.1.7	paraphrase
+he heals the broken hearted and binds up their wounds	PSA.147.3	paraphrase
+draw near to God and he will draw near to you	JAS.4.8	paraphrase
+the Lord will fight for you you only need to be still	EXO.14.14	paraphrase
+no weapon formed against you will succeed	ISA.54.17	paraphrase
+ask and it will be given seek and you will find knock and the door opens	MAT.7.7	paraphrase
+the Lord is close to the broken hearted	PSA.34.18	paraphrase
+nothing can separate us from the love of God	ROM.8.38-39	paraphrase
+your word have I hidden in my heart that I might not sin against you	PSA.119.11	paraphrase
+I was young and now I'm old but I've never seen the righteous forsaken	PSA.37.25	paraphrase
+this is the day the Lord has made let's rejoice and be glad	PSA.118.24	paraphrase
+whoever believes in me will live even though he dies	JHN.11.25	paraphrase
+he who began a good work in you will carry it on to completion	PHP.1.6	paraphrase
+the Lord bless you and keep you and make his face shine on you	NUM.6.24-25	paraphrase
+as for me and my house we will serve the Lord	JOS.24.15	paraphrase
+don't worry about tomorrow tomorrow will take care of itself	MAT.6.34	paraphrase
+what good is it to gain the whole world and lose your soul	MRK.8.36	paraphrase
+it's more blessed to give than to receive	ACT.20.35	paraphrase
+the fear of the Lord is the beginning of wisdom	PRO.9.10	paraphrase
+train up a child in the way he should go and he won't depart from it	PRO.22.6	paraphrase
+a soft answer turns away anger	PRO.15.1	paraphrase
+pride comes before a fall	PRO.16.18	paraphrase
+iron sharpens iron and one person sharpens another	PRO.27.17	paraphrase
+where two or three gather in my name I'm there with them	MAT.18.20	paraphrase
+you are the light of the world a city on a hill can't be hidden	MAT.5.14	paraphrase
+blessed are the peacemakers for they will be called children of God	MAT.5.9	paraphrase
+go and make disciples of all nations baptising them	MAT.28.19	paraphrase
+I am with you always to the very end of the age	MAT.28.20	paraphrase
+the Spirit of the Lord is on me because he has anointed me to preach good news to the poor	LUK.4.18	paraphrase
+he is not here he has risen just as he said	MAT.28.6	paraphrase
+unless a grain of wheat falls to the ground and dies it stays alone	JHN.12.24	paraphrase
+I am the good shepherd the good shepherd lays down his life for the sheep	JHN.10.11	paraphrase
+I have come that they may have life and have it to the full	JHN.10.10	paraphrase
+you will know the truth and the truth will set you free	JHN.8.32	paraphrase
+I am the bread of life whoever comes to me will never go hungry	JHN.6.35	paraphrase
+in this world you will have trouble but take heart I have overcome the world	JHN.16.33	paraphrase
+there is now no condemnation for those who are in Christ Jesus	ROM.8.1	paraphrase
+if God is for us who can be against us	ROM.8.31	paraphrase
+offer your bodies as a living sacrifice holy and pleasing to God	ROM.12.1	paraphrase
+don't conform to the pattern of this world but be transformed by renewing your mind	ROM.12.2	paraphrase
+faith comes by hearing and hearing by the word of God	ROM.10.17	paraphrase
+if you confess with your mouth Jesus is Lord and believe God raised him you will be saved	ROM.10.9	paraphrase
+the fruit of the Spirit is love joy peace patience kindness	GAL.5.22	paraphrase
+I've been crucified with Christ and I no longer live but Christ lives in me	GAL.2.20	paraphrase
+don't get tired of doing good because in due season we'll reap if we don't give up	GAL.6.9	paraphrase
+put on the full armour of God so you can stand against the devil's schemes	EPH.6.11	paraphrase
+be kind and compassionate to one another forgiving each other as God forgave you	EPH.4.32	paraphrase
+rejoice in the Lord always and again I say rejoice	PHP.4.4	paraphrase
+whatever is true noble right pure lovely think about such things	PHP.4.8	paraphrase
+my God will meet all your needs according to his riches in glory	PHP.4.19	paraphrase
+whatever you do work at it with all your heart as working for the Lord	COL.3.23	paraphrase
+give thanks in all circumstances for this is God's will for you	1TH.5.18	paraphrase
+all scripture is God breathed and useful for teaching	2TI.3.16	paraphrase
+Jesus Christ is the same yesterday today and forever	HEB.13.8	paraphrase
+let us not give up meeting together as some are in the habit of doing	HEB.10.25	paraphrase
+let us run with perseverance the race marked out for us	HEB.12.1	paraphrase
+without faith it's impossible to please God	HEB.11.6	paraphrase
+if any of you lacks wisdom ask God who gives generously	JAS.1.5	paraphrase
+faith without works is dead	JAS.2.26	paraphrase
+be quick to listen slow to speak and slow to get angry	JAS.1.19	paraphrase
+resist the devil and he will flee from you	JAS.4.7	paraphrase
+you are a chosen people a royal priesthood a holy nation	1PE.2.9	paraphrase
+by his wounds you have been healed	1PE.2.24	paraphrase
+the Lord isn't slow about his promise he's patient not wanting anyone to perish	2PE.3.9	paraphrase
+perfect love drives out fear	1JN.4.18	paraphrase
+behold I stand at the door and knock	REV.3.20	paraphrase
+God will wipe every tear from their eyes there will be no more death	REV.21.4	paraphrase
+create in me a clean heart O God and renew a right spirit in me	PSA.51.10	paraphrase
+the earth is the Lord's and everything in it	PSA.24.1	paraphrase
+taste and see that the Lord is good	PSA.34.8	paraphrase
+delight yourself in the Lord and he will give you the desires of your heart	PSA.37.4	paraphrase
+weeping may last for the night but joy comes in the morning	PSA.30.5	paraphrase
+I lift my eyes to the hills where does my help come from	PSA.121.1	paraphrase
+unless the Lord builds the house the builders work in vain	PSA.127.1	paraphrase
+you knit me together in my mother's womb	PSA.139.13	paraphrase
+though I walk through the valley of the shadow of death I will fear no evil	PSA.23.4	paraphrase
+the heavens declare the glory of God	PSA.19.1	paraphrase
+my sheep hear my voice and I know them and they follow me	JHN.10.27	paraphrase
+he was pierced for our transgressions and crushed for our iniquities	ISA.53.5	paraphrase
+though your sins are like scarlet they will be as white as snow	ISA.1.18	paraphrase
+for to us a child is born to us a son is given	ISA.9.6	paraphrase
+the grass withers and the flowers fall but the word of our God stands forever	ISA.40.8	paraphrase
+fear not for I am with you don't be dismayed for I am your God	ISA.41.10	paraphrase
+when you pass through the waters I will be with you	ISA.43.2	paraphrase
+his mercies are new every morning great is your faithfulness	LAM.3.23	paraphrase
+do justice love mercy and walk humbly with your God	MIC.6.8	paraphrase
+the righteous will live by faith	HAB.2.4|ROM.1.17|GAL.3.11|HEB.10.38	paraphrase
+bring the whole tithe into the storehouse and test me in this	MAL.3.10	paraphrase
+he will rejoice over you with singing	ZEP.3.17	paraphrase
+man shall not live by bread alone but by every word from God's mouth	MAT.4.4	paraphrase
+love the Lord your God with all your heart soul and mind	MAT.22.37	paraphrase
+you can't serve both God and money	MAT.6.24	paraphrase
+the harvest is plentiful but the workers are few	MAT.9.37	paraphrase
+with God all things are possible	MAT.19.26	paraphrase
+whoever wants to be first must be the servant of all	MRK.9.35	paraphrase
+everything is possible for the one who believes	MRK.9.23	paraphrase
+the Son of Man came to seek and to save the lost	LUK.19.10	paraphrase
+nothing is impossible with God	LUK.1.37	paraphrase
+Father forgive them for they don't know what they're doing	LUK.23.34	paraphrase
+the Word became flesh and lived among us	JHN.1.14	paraphrase
+in the beginning was the Word and the Word was with God	JHN.1.1	paraphrase
+you will receive power when the Holy Spirit comes on you and you will be my witnesses	ACT.1.8	paraphrase
+in him we live and move and have our being	ACT.17.28	paraphrase
+believe in the Lord Jesus and you will be saved	ACT.16.31	paraphrase
+no temptation has overtaken you except what's common to man and God is faithful	1CO.10.13	paraphrase
+now these three remain faith hope and love but the greatest is love	1CO.13.13	paraphrase
+if anyone is in Christ he's a new creation the old has gone	2CO.5.17	paraphrase
+we walk by faith not by sight	2CO.5.7	paraphrase
+God loves a cheerful giver	2CO.9.7	paraphrase
+we are his workmanship created in Christ Jesus for good works	EPH.2.10	paraphrase
+husbands love your wives as Christ loved the church	EPH.5.25	paraphrase
+every knee will bow and every tongue confess that Jesus is Lord	PHP.2.10-11	paraphrase
+I press on toward the goal to win the prize	PHP.3.14	paraphrase
+set your minds on things above not on earthly things	COL.3.2	paraphrase
+the word of God is living and active sharper than any double edged sword	HEB.4.12	paraphrase
+let us come boldly to the throne of grace	HEB.4.16	paraphrase
+consider it pure joy when you face trials of many kinds	JAS.1.2	paraphrase
+every good and perfect gift is from above	JAS.1.17	paraphrase
+the prayer of a righteous person is powerful and effective	JAS.5.16	paraphrase
+love covers a multitude of sins	1PE.4.8	paraphrase
+the devil prowls around like a roaring lion looking for someone to devour	1PE.5.8	paraphrase
+we love because he first loved us	1JN.4.19	paraphrase
+to live is Christ and to die is gain	PHP.1.21	paraphrase
+where the Spirit of the Lord is there is freedom	2CO.3.17	paraphrase
+the Lord disciplines those he loves	HEB.12.6	paraphrase
+humble yourselves before the Lord and he will lift you up	JAS.4.10	paraphrase
+a cord of three strands isn't quickly broken	ECC.4.12	paraphrase
+there's a time for everything a season for every activity under heaven	ECC.3.1	paraphrase
+the name of the Lord is a strong tower the righteous run to it and are safe	PRO.18.10	paraphrase
+commit your work to the Lord and your plans will succeed	PRO.16.3	paraphrase
+a cheerful heart is good medicine	PRO.17.22	paraphrase
+above all else guard your heart for everything you do flows from it	PRO.4.23	paraphrase
+many are the plans in a man's heart but it's the Lord's purpose that prevails	PRO.19.21	paraphrase
+God looks at the heart while people look at the outside	1SA.16.7	paraphrase
+obedience is better than sacrifice	1SA.15.22	paraphrase
+the battle is the Lord's	1SA.17.47	paraphrase
+you meant it for evil but God meant it for good	GEN.50.20	paraphrase
+it's not good for the man to be alone	GEN.2.18	paraphrase
+God made man in his own image	GEN.1.27	paraphrase
+
+Good morning church. Thank you for being here today.	-	preaching
+I want us to open our Bibles this morning	-	preaching
+And I want you to receive this word not as history	-	preaching
+But as a promise God is speaking over your life today	-	preaching
+Because before we can walk into what God has for us	-	preaching
+we have to first trust the one who wrote our story	-	preaching
+Paul understood this.	-	preaching
+And I know some of us are in a season where it does not look good	-	preaching
+God is not surprised by your situation	-	preaching
+The prophet asked the same question we ask	-	preaching
+So I want to leave you with this	-	preaching
+Beloved, hear that again	-	preaching
+please stand as we sing the closing hymn together	-	preaching
+the offering baskets are at the back of the hall	-	preaching
+our youth camp registration closes this Friday	-	preaching
