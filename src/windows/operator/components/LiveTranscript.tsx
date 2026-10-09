@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { audio, on } from "@/lib/ipc";
 import { Modal } from "./Modal";
+import { TranslationPicker } from "./TranslationPicker";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { useNavStore } from "@/stores/navStore";
 import { FONT_SIZES, useTranscriptViewStore } from "@/stores/transcriptViewStore";
@@ -294,8 +295,8 @@ export function LiveTranscript() {
       <div className="transcript-header">
         <div className="min-w-0">
           <div className="text-sm font-semibold">Live transcript</div>
-          {/* Preacher and translation join this line once service metadata
-              exists (M4) and the translation picker lands (M2). */}
+          {/* The preacher joins this line once service metadata exists (M4);
+              the translation is the picker in the cluster to the right. */}
           <div className="mt-0.5 truncate text-xs text-content-muted">
             {/* Moving the switch optimistically hides the wait; saying what
                 the wait is for explains it. Branding §9.3: a loading verb
@@ -312,6 +313,8 @@ export function LiveTranscript() {
             having to read a verb and work out whether it describes what is
             happening now or what pressing it would do. */}
         <div className="flex shrink-0 items-center gap-3">
+          {/* Which translation the next card's text is fetched in (FR-32). */}
+          <TranslationPicker />
           {/* The wireframe's "Aa" control (§transcript-header). Cycles three
               steps rather than opening a menu: a booth volunteer wants bigger
               or smaller, not a value to tune. */}

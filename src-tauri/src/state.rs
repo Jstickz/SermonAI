@@ -56,9 +56,15 @@ pub struct AppState {
     /// only). A tokio mutex because the call inside is awaited.
     pub paraphrase: tokio::sync::Mutex<Option<ParaphraseStage>>,
     pub llm: LlmConfig,
-    /// The translation a card's text is fetched in. KJV until the picker
-    /// (M2 deliverable 7) gives the operator the choice.
+    /// The translation a card's text is fetched in. Read from `settings` at
+    /// startup, changed by the picker (FR-32); KJV until the operator picks.
     pub default_translation: Mutex<String>,
+    /// The `sermons` row the running service writes under, and when it
+    /// started, for the duration at stop. `None` between services.
+    pub current_sermon: Mutex<Option<(i64, std::time::Instant)>>,
+    /// Candidate id → `detected_scriptures.id`, so an Accept or Reject that
+    /// arrives by candidate id finds its row. Cleared at each Start.
+    pub detection_rows: Mutex<std::collections::HashMap<u64, i64>>,
     /// Where the bundled assets are: translation packs, the verse index, the
     /// encoder. Resolved once at startup (see `lib.rs`), because the release
     /// build finds them under Tauri's resource directory and a dev build under
@@ -99,6 +105,11 @@ impl AppState {
         started: std::time::Instant,
         started_wall: std::time::SystemTime,
     ) -> Self {
+        // The operator's last pick, or the built-in default on a fresh install.
+        let default_translation = crate::bible::translations::default(&db)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| crate::bible::translations::BUILT_IN_DEFAULT.to_string());
         Self {
             started,
             started_wall,
@@ -108,7 +119,9 @@ impl AppState {
             pipeline: Mutex::new(pipeline),
             paraphrase: tokio::sync::Mutex::new(None),
             llm,
-            default_translation: Mutex::new("KJV".to_string()),
+            default_translation: Mutex::new(default_translation),
+            current_sermon: Mutex::new(None),
+            detection_rows: Mutex::new(std::collections::HashMap::new()),
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
             bible,

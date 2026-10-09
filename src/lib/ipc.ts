@@ -8,6 +8,7 @@ import type {
   AudioDevice,
   CaptureState,
   BibleVersion,
+  TranslationChoice,
   Detection,
   MonitorInfo,
   OutputAssignments,
@@ -102,6 +103,14 @@ export const bible = {
     invoke<Verse>("lookup_passage", { passageId, versionId }),
   search: (query: string, versionId: number) =>
     invoke<Verse[]>("search_verses", { query, versionId }),
+};
+
+export const translations = {
+  /** Every translation a card can be shown in, bundled first (FR-32). */
+  list: () => invoke<TranslationChoice[]>("list_translations"),
+  getDefault: () => invoke<string>("get_default_translation"),
+  /** Persisted; the next card is fetched in it. Cards on screen keep theirs. */
+  setDefault: (code: string) => invoke<void>("set_default_translation", { code }),
 };
 
 export const service = {

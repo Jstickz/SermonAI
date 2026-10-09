@@ -3,6 +3,7 @@
 use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::bible::translations::{self, TranslationChoice};
 use crate::bible::youversion::{BibleVersion, PORTAL_URL};
 use crate::error::{Error, Result};
 use crate::state::AppState;
@@ -41,4 +42,33 @@ pub async fn refresh_bible_licenses(state: State<'_, AppState>) -> Result<Vec<Bi
 #[tauri::command]
 pub fn is_bible_online(state: State<'_, AppState>) -> bool {
     state.bible.is_online_enabled()
+}
+
+/// Every translation a card can be shown in (FR-32, PRD §13.4).
+#[tauri::command]
+pub fn list_translations(state: State<'_, AppState>) -> Result<Vec<TranslationChoice>> {
+    let db = state.db.lock().expect("db lock");
+    translations::list(&db)
+}
+
+#[tauri::command]
+pub fn get_default_translation(state: State<'_, AppState>) -> String {
+    state
+        .default_translation
+        .lock()
+        .expect("translation lock")
+        .clone()
+}
+
+/// Persist the operator's pick and use it for the next card. Cards already
+/// on screen keep the translation they were fetched in (FR-32).
+#[tauri::command]
+pub fn set_default_translation(state: State<'_, AppState>, code: String) -> Result<()> {
+    {
+        let db = state.db.lock().expect("db lock");
+        translations::set_default(&db, &code)?;
+    }
+    *state.default_translation.lock().expect("translation lock") = code.clone();
+    tracing::info!(translation = %code, "default translation set");
+    Ok(())
 }

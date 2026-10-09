@@ -258,6 +258,18 @@ export type PackStatus =
   | "failed";
 
 /** A Bible version as YouVersion Platform reports it. */
+/** One entry in the translation picker (FR-32). Mirrors `TranslationChoice`
+ *  in `src-tauri/src/bible/translations.rs`. */
+export interface TranslationChoice {
+  code: string;
+  name: string;
+  language: string;
+  /** The whole text is on disk (a bundled pack). Otherwise each lookup
+   *  goes to YouVersion, and the picker says so. */
+  cached: boolean;
+  source: "bundled" | "youversion" | string;
+}
+
 export interface BibleVersion {
   id: number;
   name: string;

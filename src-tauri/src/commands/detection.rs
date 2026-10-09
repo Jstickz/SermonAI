@@ -2,17 +2,54 @@
 //! them (PRD §13.3, §13.5).
 //!
 //! Thin, like every handler here. The pipeline decides what is a candidate;
-//! these send candidates to the window with their verse text, and record the
-//! operator's Accept, Reject and Edit. Persistence of those decisions to
-//! `detected_scriptures` is M2 deliverable 8; until then they are logged.
+//! these send candidates to the window with their verse text, write each
+//! confirmed one to `detected_scriptures`, and record the operator's Accept,
+//! Reject and Edit against that row (M2 deliverable 8).
 
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::bible::{cache, reference};
-use crate::db::models::DetectionSource;
+use crate::db::{detections, models::DetectionSource};
 use crate::detection::pipeline::Candidate;
 use crate::error::{Error, Result};
 use crate::state::AppState;
+
+/// Write a confirmed card under the running service and remember its row.
+/// Without a service (a Settings device test, say) there is nothing to write
+/// under, and that is not an error.
+fn persist(state: &AppState, card: &Candidate, translation: &str) {
+    let Some((sermon_id, _)) = *state.current_sermon.lock().expect("sermon lock") else {
+        return;
+    };
+    let db = state.db.lock().expect("db lock");
+    match detections::record(&db, sermon_id, card, translation) {
+        Ok(row_id) => {
+            state
+                .detection_rows
+                .lock()
+                .expect("rows lock")
+                .insert(card.id, row_id);
+        }
+        Err(err) => tracing::warn!(%err, id = card.id, "could not record a detection"),
+    }
+}
+
+/// Apply an operator decision to the card's row, if it has one.
+fn decide(state: &AppState, id: u64, accepted: bool) {
+    let row = state
+        .detection_rows
+        .lock()
+        .expect("rows lock")
+        .get(&id)
+        .copied();
+    let Some(row_id) = row else {
+        return;
+    };
+    let db = state.db.lock().expect("db lock");
+    if let Err(err) = detections::mark_accepted(&db, row_id, accepted) {
+        tracing::warn!(%err, id, "could not record the operator's decision");
+    }
+}
 
 /// Milliseconds since the Unix epoch, for `detectedAtMs`.
 pub fn unix_ms() -> u64 {
@@ -52,6 +89,9 @@ pub fn emit_cards(app: &AppHandle, cards: Vec<Candidate>) {
                 Err(err) => tracing::warn!(%err, passage = %card.passage_id, "verse lookup failed"),
             }
         }
+        if !card.provisional {
+            persist(&state, &card, &translation);
+        }
         let _ = app.emit("detection:new", &card);
     }
 }
@@ -63,17 +103,26 @@ pub fn emit_withdrawals(app: &AppHandle, ids: &[u64]) {
     }
 }
 
-/// The operator accepted a card. Staging it is M3; recording it is
-/// deliverable 8. Today: logged, so a service's decisions are in the log.
+/// The operator accepted a card. Staging it is M3; here it is recorded.
 #[tauri::command]
-pub fn accept_detection(id: u64, passage_id: String) -> Result<()> {
+pub fn accept_detection(
+    state: tauri::State<'_, AppState>,
+    id: u64,
+    passage_id: String,
+) -> Result<()> {
     tracing::info!(id, passage = %passage_id, "operator accepted a detection");
+    decide(&state, id, true);
     Ok(())
 }
 
 #[tauri::command]
-pub fn reject_detection(id: u64, passage_id: String) -> Result<()> {
+pub fn reject_detection(
+    state: tauri::State<'_, AppState>,
+    id: u64,
+    passage_id: String,
+) -> Result<()> {
     tracing::info!(id, passage = %passage_id, "operator rejected a detection");
+    decide(&state, id, false);
     Ok(())
 }
 
@@ -109,6 +158,10 @@ pub fn edit_detection(
         verse,
     };
     tracing::info!(id, passage = %card.passage_id, "operator edited a detection");
+    // A new row, not an update: the operator named a different verse, and
+    // the one the stage proposed stays on record as what it proposed.
+    persist(&state, &card, &translation);
+    decide(&state, id, true);
     let _ = app.emit("detection:new", &card);
     Ok(card)
 }

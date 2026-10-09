@@ -19,6 +19,7 @@ pub const BUNDLED_TRANSLATIONS: [&str; 3] = ["KJV", "WEB", "ASV"];
 
 pub mod books;
 pub mod cache;
+pub mod translations;
 
 pub mod reference;
 

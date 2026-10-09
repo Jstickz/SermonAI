@@ -91,6 +91,24 @@ pub async fn start_capture(
             .expect("transcript lock")
             .reset();
 
+        // The service's row, so detections have something to be written
+        // under (M2 deliverable 8). Opened after the transcript reset and
+        // before Deepgram, so a connection failure leaves a row with no
+        // detections rather than detections with no row.
+        {
+            let translation = state
+                .default_translation
+                .lock()
+                .expect("translation lock")
+                .clone();
+            let db = state.db.lock().expect("db lock");
+            let sermon_id = crate::db::sermons::start(&db, &translation)?;
+            *state.current_sermon.lock().expect("sermon lock") =
+                Some((sermon_id, std::time::Instant::now()));
+            state.detection_rows.lock().expect("rows lock").clear();
+            tracing::info!(sermon_id, %translation, "service opened");
+        }
+
         // The Claude stage, if the credential resolves. Built here rather than
         // at startup because a key pasted in Settings mid-session should count
         // at the next Start, and because FR-14 is online only: without it the
@@ -358,6 +376,23 @@ pub async fn stop_capture(app: AppHandle, state: State<'_, AppState>) -> Result<
         // Sends CloseStream and waits, so the final results for the last
         // utterance arrive rather than being cut off.
         session.finish().await;
+    }
+
+    // Close the service's row. After the stream has finished, so the last
+    // utterance's detections are written under it.
+    let closing = state.current_sermon.lock().expect("sermon lock").take();
+    if let Some((sermon_id, started)) = closing {
+        let recorded = state.detection_rows.lock().expect("rows lock").len();
+        let db = state.db.lock().expect("db lock");
+        match crate::db::sermons::finish(&db, sermon_id, started.elapsed().as_secs()) {
+            Ok(()) => tracing::info!(
+                sermon_id,
+                duration_s = started.elapsed().as_secs(),
+                detections_recorded = recorded,
+                "service closed"
+            ),
+            Err(err) => tracing::warn!(%err, sermon_id, "could not close the service's row"),
+        }
     }
 
     {
