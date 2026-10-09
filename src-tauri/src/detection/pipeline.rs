@@ -59,7 +59,7 @@ use serde::{Deserialize, Serialize};
 
 use super::llm::{decide, Decision, ParaphraseHit};
 use super::regex::{self, Form};
-use super::vector::{Match, SemanticSearch};
+use super::vector::{Match, SearchOptions, SemanticSearch, SynonymMode};
 use crate::bible::reference::UsfmRef;
 use crate::db::models::{DetectionSource, Verse};
 use crate::llm::ParaphraseGate;
@@ -271,7 +271,16 @@ impl Pipeline {
             self.stats.finals_before_vector_ready += 1;
             return None;
         };
-        let matches = vector.search(final_text, 5).ok()?;
+        // Searched with the KJV-vocabulary variants blended into one query
+        // (encoder upgrade Phase 1, measured 9 Oct 2026: paraphrase catch@3
+        // 70% → 79% on the labelled set, preaching false accepts still 0, one
+        // search either way). Neighbouring-verse passages were measured too
+        // and not kept: +0.6% alone, −1.2% combined.
+        let options = SearchOptions {
+            synonyms: SynonymMode::Blend,
+            neighbours: false,
+        };
+        let matches = vector.search_with(final_text, 5, &options).ok()?;
         let top1 = matches.first()?.score;
 
         let since_last = self

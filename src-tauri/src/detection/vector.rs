@@ -56,6 +56,43 @@ pub struct Match {
     pub verse: VerseRef,
     /// Cosine similarity in 0.0..=1.0.
     pub score: f32,
+    /// Set when the hit is a two-verse passage (`verse` and the next), from
+    /// the neighbouring-verse search. `None` for a single verse.
+    pub end_verse: Option<u8>,
+}
+
+impl Match {
+    /// Whether `want` is this verse or inside this passage.
+    pub fn covers(&self, want: &VerseRef) -> bool {
+        self.verse.book == want.book
+            && self.verse.chapter == want.chapter
+            && self.verse.verse <= want.verse
+            && want.verse <= self.end_verse.unwrap_or(self.verse.verse)
+    }
+}
+
+/// How the synonym variants of a query are searched (encoder upgrade
+/// Phase 1). Measured in `examples/measure_vector.rs`; the pipeline uses
+/// whichever the measurement kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SynonymMode {
+    /// The query as spoken.
+    #[default]
+    Off,
+    /// Embed every variant, average the vectors, one search. Costs one
+    /// search however many variants there are.
+    Blend,
+    /// Search every variant, keep each verse's best score. Costs a search
+    /// per variant.
+    Max,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SearchOptions {
+    pub synonyms: SynonymMode,
+    /// Also search two-verse passages, so a paraphrase that runs across a
+    /// verse boundary scores against both verses together.
+    pub neighbours: bool,
 }
 
 /// The bundled static sentence encoder.
@@ -169,6 +206,12 @@ pub struct VerseIndex {
     dims: usize,
     refs: Vec<VerseRef>,
     vectors: Vec<i8>,
+    /// Row `i` of `vectors` averaged with row `i + 1` when that is the next
+    /// verse of the same chapter, re-normalised and quantized: a two-verse
+    /// passage in the same space. `pair_rows[j]` is the first verse's row.
+    /// Built in memory at load, about 7.7 MB; nothing new ships.
+    pair_vectors: Vec<i8>,
+    pair_rows: Vec<usize>,
 }
 
 impl VerseIndex {
@@ -194,7 +237,7 @@ impl VerseIndex {
             )));
         }
 
-        let refs = bytes[refs_start..vectors_start]
+        let refs: Vec<VerseRef> = bytes[refs_start..vectors_start]
             .chunks_exact(4)
             .map(|c| VerseRef {
                 book: c[0],
@@ -203,16 +246,50 @@ impl VerseIndex {
             })
             .collect();
 
-        let vectors = bytes[vectors_start..expected]
+        let vectors: Vec<i8> = bytes[vectors_start..expected]
             .iter()
             .map(|&b| b as i8)
             .collect();
+
+        let (pair_vectors, pair_rows) = build_pairs(dims, &refs, &vectors);
 
         Ok(Self {
             dims,
             refs,
             vectors,
+            pair_vectors,
+            pair_rows,
         })
+    }
+
+    /// Top `k` two-verse passages for a quantized query, best first. Same
+    /// brute force as [`search`], over one row fewer per chapter.
+    pub fn search_pairs(&self, query: &[i8], k: usize) -> Vec<Match> {
+        if query.len() != self.dims || self.pair_rows.is_empty() || k == 0 {
+            return Vec::new();
+        }
+        const SCALE: f32 = 1.0 / (127.0 * 127.0);
+        let mut best: Vec<(i32, usize)> = Vec::with_capacity(k + 1);
+        for (j, chunk) in self.pair_vectors.chunks_exact(self.dims).enumerate() {
+            let dot = dot_product(query, chunk);
+            if best.len() < k {
+                best.push((dot, j));
+                best.sort_unstable_by_key(|entry| std::cmp::Reverse(entry.0));
+            } else if dot > best[k - 1].0 {
+                best[k - 1] = (dot, j);
+                best.sort_unstable_by_key(|entry| std::cmp::Reverse(entry.0));
+            }
+        }
+        best.into_iter()
+            .map(|(dot, j)| {
+                let first = self.refs[self.pair_rows[j]];
+                Match {
+                    verse: first,
+                    score: (dot as f32 * SCALE).clamp(-1.0, 1.0),
+                    end_verse: Some(first.verse + 1),
+                }
+            })
+            .collect()
     }
 
     pub fn len(&self) -> usize {
@@ -259,9 +336,36 @@ impl VerseIndex {
             .map(|(dot, row)| Match {
                 verse: self.refs[row],
                 score: (dot as f32 * SCALE).clamp(-1.0, 1.0),
+                end_verse: None,
             })
             .collect()
     }
+}
+
+/// Average each verse's vector with the next verse of the same chapter.
+///
+/// The encoder mean-pools tokens, so the mean of two unit verse vectors is
+/// close to what embedding the two verses as one text would give, without
+/// the text. Re-normalised so the dot product stays a cosine.
+fn build_pairs(dims: usize, refs: &[VerseRef], vectors: &[i8]) -> (Vec<i8>, Vec<usize>) {
+    let mut pair_vectors = Vec::with_capacity(vectors.len());
+    let mut pair_rows = Vec::with_capacity(refs.len());
+    let mut sum = vec![0f32; dims];
+    for row in 0..refs.len().saturating_sub(1) {
+        let (a, b) = (refs[row], refs[row + 1]);
+        if a.book != b.book || a.chapter != b.chapter || b.verse != a.verse + 1 {
+            continue;
+        }
+        let ra = &vectors[row * dims..(row + 1) * dims];
+        let rb = &vectors[(row + 1) * dims..(row + 2) * dims];
+        for ((out, &x), &y) in sum.iter_mut().zip(ra).zip(rb) {
+            *out = f32::from(x) + f32::from(y);
+        }
+        normalize(&mut sum);
+        pair_vectors.extend(quantize(&sum));
+        pair_rows.push(row);
+    }
+    (pair_vectors, pair_rows)
 }
 
 /// Encoder plus index: what the detection pipeline actually holds.
@@ -288,6 +392,66 @@ impl SemanticSearch {
 
     pub fn search(&self, phrase: &str, k: usize) -> Result<Vec<Match>> {
         Ok(self.index.search(&self.encoder.embed_quantized(phrase)?, k))
+    }
+
+    /// [`search`] with the Phase 1 options: synonym variants of the query
+    /// and/or two-verse passages. With the defaults this is exactly
+    /// [`search`].
+    pub fn search_with(
+        &self,
+        phrase: &str,
+        k: usize,
+        options: &SearchOptions,
+    ) -> Result<Vec<Match>> {
+        let variants = super::synonyms::Variants::of(phrase);
+        let texts = match options.synonyms {
+            SynonymMode::Off => vec![phrase],
+            _ => variants.distinct(),
+        };
+
+        // One or more quantized queries, depending on the mode.
+        let queries: Vec<Vec<i8>> = match options.synonyms {
+            SynonymMode::Blend if texts.len() > 1 => {
+                let mut sum = vec![0f32; self.encoder.dims()];
+                for text in &texts {
+                    for (out, v) in sum.iter_mut().zip(self.encoder.embed(text)?) {
+                        *out += v;
+                    }
+                }
+                normalize(&mut sum);
+                vec![quantize(&sum)]
+            }
+            _ => texts
+                .iter()
+                .map(|t| self.encoder.embed_quantized(t))
+                .collect::<Result<_>>()?,
+        };
+
+        // Best score per distinct verse-or-passage across every query and
+        // both indexes; then the top k of those.
+        let mut best: Vec<Match> = Vec::new();
+        for query in &queries {
+            let mut hits = self.index.search(query, k);
+            if options.neighbours {
+                hits.extend(self.index.search_pairs(query, k));
+            }
+            for hit in hits {
+                match best
+                    .iter_mut()
+                    .find(|m| m.verse == hit.verse && m.end_verse == hit.end_verse)
+                {
+                    Some(existing) => existing.score = existing.score.max(hit.score),
+                    None => best.push(hit),
+                }
+            }
+        }
+        best.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        best.truncate(k);
+        Ok(best)
     }
 
     pub fn index(&self) -> &VerseIndex {

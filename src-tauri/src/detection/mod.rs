@@ -13,6 +13,7 @@ pub mod llm;
 pub mod pipeline;
 pub mod regex;
 pub mod spoken_numbers;
+pub mod synonyms;
 pub mod vector;
 
 /// FR-14 no longer fires the LLM stage on a timer; it is gated on the vector

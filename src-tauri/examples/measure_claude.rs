@@ -36,7 +36,7 @@ use sermonai_lib::bible::reference::UsfmRef;
 use sermonai_lib::credentials::local::LocalProvider;
 use sermonai_lib::credentials::Credentials;
 use sermonai_lib::detection::llm::{ParaphraseHit, ParaphraseStage};
-use sermonai_lib::detection::vector::{SemanticSearch, VerseRef};
+use sermonai_lib::detection::vector::{SearchOptions, SemanticSearch, SynonymMode, VerseRef};
 use sermonai_lib::llm::anthropic::AnthropicClient;
 use sermonai_lib::llm::{LlmConfig, ParaphraseGate};
 
@@ -97,11 +97,18 @@ async fn main() {
     let started = Instant::now();
     let mut outcomes: Vec<Outcome> = Vec::with_capacity(cases.len());
     for (i, case) in cases.iter().enumerate() {
-        let hits = search.search(&case.phrase, TOP_K).expect("search");
+        // As the pipeline searches since Phase 1: KJV-vocabulary variants blended.
+        let options = SearchOptions {
+            synonyms: SynonymMode::Blend,
+            neighbours: false,
+        };
+        let hits = search
+            .search_with(&case.phrase, TOP_K, &options)
+            .expect("search");
         let vector_top1 = hits.first().map(|h| h.score).unwrap_or(0.0);
         let vector_rank = hits
             .iter()
-            .position(|h| case.expected.contains(&h.verse))
+            .position(|h| case.expected.iter().any(|want| h.covers(want)))
             .map(|r| r + 1);
 
         let (claude_hits, claude_err) = match stage.detect(&case.phrase).await {

@@ -30,7 +30,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use sermonai_lib::bible::books;
-use sermonai_lib::detection::vector::{Match, SemanticSearch, VerseRef};
+use sermonai_lib::detection::vector::{
+    Match, SearchOptions, SemanticSearch, SynonymMode, VerseRef,
+};
 use sermonai_lib::llm::ParaphraseGate;
 
 const TOP_K: usize = 5;
@@ -54,10 +56,31 @@ struct Scored<'a> {
 
 fn main() {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let path = std::env::args()
-        .nth(1)
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let path = args
+        .iter()
+        .find(|a| a.ends_with(".tsv"))
         .map(PathBuf::from)
         .unwrap_or_else(|| manifest.join("tests/fixtures/paraphrases.tsv"));
+
+    // Phase 1 options, off by default so the bare stage is the baseline:
+    //   --synonyms blend|max   search the KJV-vocabulary variants too
+    //   --neighbours           search two-verse passages too
+    let synonyms = match args
+        .iter()
+        .position(|a| a == "--synonyms")
+        .and_then(|i| args.get(i + 1))
+        .map(String::as_str)
+    {
+        Some("blend") => SynonymMode::Blend,
+        Some("max") => SynonymMode::Max,
+        Some(other) => panic!("--synonyms takes blend or max, not {other:?}"),
+        None => SynonymMode::Off,
+    };
+    let options = SearchOptions {
+        synonyms,
+        neighbours: args.iter().any(|a| a == "--neighbours"),
+    };
 
     let cases = load_cases(&path);
     let search = SemanticSearch::load(&manifest.join("assets")).expect("assets");
@@ -65,6 +88,10 @@ fn main() {
 
     println!("set:      {}", path.display());
     println!("cases:    {}", cases.len());
+    println!(
+        "options:  synonyms {:?}, neighbours {}",
+        options.synonyms, options.neighbours
+    );
     println!(
         "index:    {} verses x {} dims; gate accept >= {:.2}, call >= {:.2}",
         search.index().len(),
@@ -76,10 +103,12 @@ fn main() {
     let scored: Vec<Scored> = cases
         .iter()
         .map(|case| {
-            let hits = search.search(&case.phrase, TOP_K).expect("search");
+            let hits = search
+                .search_with(&case.phrase, TOP_K, &options)
+                .expect("search");
             let rank = hits
                 .iter()
-                .position(|h| case.expected.contains(&h.verse))
+                .position(|h| case.expected.iter().any(|want| h.covers(want)))
                 .map(|i| i + 1);
             Scored { case, hits, rank }
         })
@@ -199,12 +228,7 @@ fn report(pop: &str, rows: &[&Scored], gate: &ParaphraseGate) {
             );
             for s in false_accepts {
                 let h = &s.hits[0];
-                println!(
-                    "  {:.3}  {:<14} {:?}",
-                    h.score,
-                    h.verse.display(),
-                    s.case.phrase
-                );
+                println!("  {:.3}  {:<14} {:?}", h.score, label(h), s.case.phrase);
             }
         }
         return;
@@ -258,7 +282,7 @@ fn print_miss(s: &Scored) {
     let got = s
         .hits
         .first()
-        .map(|h| format!("{} {:.3}", h.verse.display(), h.score))
+        .map(|h| format!("{} {:.3}", label(h), h.score))
         .unwrap_or_else(|| "nothing".into());
     let rank = s
         .rank
@@ -330,4 +354,12 @@ fn parse_usfm(s: &str) -> Option<VerseRef> {
         chapter,
         verse,
     })
+}
+
+/// "John 6:35" for a verse, "John 6:35-36" for a passage hit.
+fn label(m: &Match) -> String {
+    match m.end_verse {
+        Some(end) => format!("{}-{end}", m.verse.display()),
+        None => m.verse.display(),
+    }
 }
