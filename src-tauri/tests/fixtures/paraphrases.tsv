@@ -1,11 +1,10 @@
 # phrase	expected USFM verse (or - for a line that quotes nothing)	population
 #
-# DRAFT, 6 October 2026 — written by the code agent, NOT YET HAND-LABELLED.
-# The M2 Definition of Done asks for 100 hand-labelled paraphrases. Each line
-# below needs a human to confirm (a) the expected verse is the one a preacher
-# would mean, and (b) the wording is a paraphrase a preacher would actually
-# say, not a quotation. Strike any line you would not stand behind; there are
-# more than 100 so that striking leaves enough.
+# Hand-labelled by the operator, 9 October 2026: every line reviewed against
+# the KJV text in docs/testing/paraphrases-labelling.xlsx (the record of the
+# decisions), 191 of 191 kept, three given an alternative reference. Drafted
+# by the code agent on 6 October. The M2 Definition of Done asks for 100
+# hand-labelled paraphrases; the paraphrase population is 168.
 #
 # Populations:
 #   verbatim   — KJV wording as indexed; the stage must catch these (floor)
@@ -72,7 +71,7 @@ he who began a good work in you will carry it on to completion	PHP.1.6	paraphras
 the Lord bless you and keep you and make his face shine on you	NUM.6.24-25	paraphrase
 as for me and my house we will serve the Lord	JOS.24.15	paraphrase
 don't worry about tomorrow tomorrow will take care of itself	MAT.6.34	paraphrase
-what good is it to gain the whole world and lose your soul	MRK.8.36	paraphrase
+what good is it to gain the whole world and lose your soul	MRK.8.36|MAT.16.26	paraphrase
 it's more blessed to give than to receive	ACT.20.35	paraphrase
 the fear of the Lord is the beginning of wisdom	PRO.9.10	paraphrase
 train up a child in the way he should go and he won't depart from it	PRO.22.6	paraphrase
@@ -84,7 +83,7 @@ you are the light of the world a city on a hill can't be hidden	MAT.5.14	paraphr
 blessed are the peacemakers for they will be called children of God	MAT.5.9	paraphrase
 go and make disciples of all nations baptising them	MAT.28.19	paraphrase
 I am with you always to the very end of the age	MAT.28.20	paraphrase
-the Spirit of the Lord is on me because he has anointed me to preach good news to the poor	LUK.4.18	paraphrase
+the Spirit of the Lord is on me because he has anointed me to preach good news to the poor	LUK.4.18|ISA.61.1	paraphrase
 he is not here he has risen just as he said	MAT.28.6	paraphrase
 unless a grain of wheat falls to the ground and dies it stays alone	JHN.12.24	paraphrase
 I am the good shepherd the good shepherd lays down his life for the sheep	JHN.10.11	paraphrase
@@ -150,7 +149,7 @@ love the Lord your God with all your heart soul and mind	MAT.22.37	paraphrase
 you can't serve both God and money	MAT.6.24	paraphrase
 the harvest is plentiful but the workers are few	MAT.9.37	paraphrase
 with God all things are possible	MAT.19.26	paraphrase
-whoever wants to be first must be the servant of all	MRK.9.35	paraphrase
+whoever wants to be first must be the servant of all	MRK.9.35|MRK.10.43	paraphrase
 everything is possible for the one who believes	MRK.9.23	paraphrase
 the Son of Man came to seek and to save the lost	LUK.19.10	paraphrase
 nothing is impossible with God	LUK.1.37	paraphrase
