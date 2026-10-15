@@ -122,3 +122,43 @@ a hotter band is Claude calls, which the 10 s cooldown already caps.
 
 **Still short of the DoD alone: 79.2% against 80%**, one line. Claude's
 share on top of Blend is the next measurement, blocked on account credit.
+
+## The M2 Definition of Done, measured (15 October 2026)
+
+`cargo run --example measure_claude`: every labelled line through the
+vector stage (Blend, as shipped) **and** `ParaphraseStage::detect` directly
+— no audio, no gate, one call per line — with the workspace-scoped key from
+the keychain. Haiku 4.5, the stage's own prompt and parser.
+
+| population | n | vector @3 | Claude @3 | either @3 | **as gated** | Claude false positives |
+|---|---|---|---|---|---|---|
+| verbatim KJV | 8 | 8 | 8 | 8 | **8 (100%)** | — |
+| paraphrase | 168 | 133 (79%) | 167 (99%) | 167 (99.4%) | **154 (91.7%)** | — |
+| preaching, quotes nothing | 15 | 0 accepts | — | — | — | **2** |
+
+**DoD line — 80% of 100 hand-labelled paraphrases in top-3 by vector or
+Claude: met.** 91.7% as the shipped pipeline gates it; 99.4% if every line
+were asked. The gap between the two is the gate's floor: lines the vector
+stage scored under 0.55 are never sent, and Claude would have caught them.
+That is the cost of not calling on every sentence of preaching, and it is
+the figure to re-balance from, not the ceiling.
+
+**Claude recovers 34 of the vector stage's 35 misses.** The one neither
+catches: "whoever wants to be first must be the servant of all" — Claude
+says Mark 10:44 and Matthew 20:27, both the same saying one verse or one
+gospel over; the label (Mark 9:35 | 10:43) could reasonably widen.
+
+**False positives, Claude, 2 of 15 preaching lines:** "receive this word not
+as history" → 1 Thessalonians 2:13 at 0.75 (the preacher is in fact echoing
+that verse — a fair call the label did not anticipate), and "God is not
+surprised by your situation" → Isaiah 46:10 at 0.35 (a theme, not a quote;
+the prompt says not to). Both would reach the operator as cards capped at
+0.90 × self-report, so 0.68 and 0.32 — the second under the vector stage's
+own skip floor. Worth a confidence floor on Claude's hits; parked.
+
+**Cost:** 191 calls, 0 failed, 34,190 input and 11,077 output tokens,
+**$0.0896 — $0.00047 a call**, 266 s wall (1.4 s a call). A live buffer is
+sixty seconds of speech rather than one sentence, so input tokens per call
+will be roughly ten times this; at the cooldown's ceiling of ~280 calls an
+hour that is in the order of **$0.50–1.50 an hour**, to be replaced by the
+counted figure from the first real service.
