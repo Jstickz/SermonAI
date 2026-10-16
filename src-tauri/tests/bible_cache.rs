@@ -159,3 +159,34 @@ fn a_lookup_is_inside_the_five_millisecond_budget() {
         "M2 DoD: cache lookup under 5 ms, measured {per_lookup:?}"
     );
 }
+
+/// FR-51: stepping through a passage follows the cache, crosses chapters,
+/// steps off a range from its ends, and stops at the ends of a book.
+#[test]
+fn a_verse_has_a_next_and_a_previous_in_its_book() {
+    use sermonai_lib::bible::cache::neighbour;
+    use sermonai_lib::bible::reference::parse;
+
+    let data_dir = temp_data_dir("neighbour");
+    let mut conn = db::init(&data_dir).expect("db");
+    seed_bundled(&mut conn, &assets_dir()).expect("seed");
+
+    let step = |reference: &str, delta: i32| {
+        neighbour(&conn, "KJV", &parse(reference).unwrap(), delta)
+            .unwrap()
+            .map(|r| r.passage_id())
+    };
+
+    assert_eq!(step("John 3:16", 1).as_deref(), Some("JHN.3.17"));
+    assert_eq!(step("John 3:16", -1).as_deref(), Some("JHN.3.15"));
+    // Chapter boundaries are crossed: John 3 has 36 verses.
+    assert_eq!(step("John 3:36", 1).as_deref(), Some("JHN.4.1"));
+    assert_eq!(step("John 4:1", -1).as_deref(), Some("JHN.3.36"));
+    // A range steps from its last verse forward and its first verse back.
+    assert_eq!(step("Psalm 139:13-16", 1).as_deref(), Some("PSA.139.17"));
+    assert_eq!(step("Psalm 139:13-16", -1).as_deref(), Some("PSA.139.12"));
+    // The ends of a book are the ends.
+    assert_eq!(step("Genesis 1:1", -1), None);
+    assert_eq!(step("Revelation 22:21", 1), None);
+    assert_eq!(step("Jude 1:25", 1), None, "a one-chapter book ends too");
+}

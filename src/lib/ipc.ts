@@ -126,7 +126,8 @@ export const output = {
   goLive: () => invoke<void>("go_live"),
   clearStaged: () => invoke<void>("clear_staged"),
   setBlanked: (blanked: boolean) => invoke<void>("set_blanked", { blanked }),
-  step: (delta: number) => invoke<void>("step_verse", { delta }),
+  /** Next (1) or previous (-1) verse of the passage on the projector (FR-51). */
+  step: (delta: 1 | -1) => invoke<OutputState>("step_verse", { delta }),
   get: () => invoke<OutputState>("get_output_state"),
   /** Persisted; applies to the verse that is live now (PRD §13.6). */
   setLayout: (layout: ProjectorLayout) => invoke<OutputState>("set_projector_layout", { layout }),

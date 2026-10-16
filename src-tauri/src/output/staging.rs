@@ -267,6 +267,18 @@ impl Staging {
         Ok(&self.state)
     }
 
+    /// Next or previous verse (FR-51): the live verse is replaced directly.
+    /// The operator is stepping through a passage they have already chosen
+    /// to show, and a staged slot between every step would be the thing in
+    /// the way. Unblanks, like Go Live: stepping is an explicit "show this".
+    /// The staged slot is left alone.
+    pub fn step_live(&mut self, verse: Verse, now_ms: u64) -> &OutputState {
+        self.state.live = Some(verse);
+        self.state.live_since_ms = Some(now_ms);
+        self.state.blanked = false;
+        &self.state
+    }
+
     /// Escape: empty the staged slot. Live is untouched.
     pub fn clear_staged(&mut self) -> &OutputState {
         self.state.staged = None;
@@ -476,6 +488,38 @@ mod auto_live_tests {
         assert!(err.contains("Auto-live is off"), "{err}");
         assert_eq!(s.state().live.as_ref().unwrap().reference, "John 3:16");
         assert_eq!(serde_json::to_value(s.state()).unwrap()["autoLive"], false);
+    }
+}
+
+#[cfg(test)]
+mod step_tests {
+    use super::*;
+
+    fn verse(reference: &str) -> Verse {
+        Verse {
+            reference: reference.to_string(),
+            translation: "KJV".to_string(),
+            text: format!("text of {reference}"),
+        }
+    }
+
+    #[test]
+    fn stepping_replaces_live_unblanks_and_leaves_staged_alone() {
+        let mut s = Staging::new();
+        s.stage(verse("John 3:16"));
+        s.go_live(1_000).unwrap();
+        s.stage(verse("Romans 8:28"));
+        s.set_blanked(true);
+
+        let after = s.step_live(verse("John 3:17"), 2_000);
+        assert_eq!(after.live.as_ref().unwrap().reference, "John 3:17");
+        assert_eq!(
+            after.live_since_ms,
+            Some(2_000),
+            "a step is a go-live for the paint report"
+        );
+        assert!(!after.blanked, "stepping means show it");
+        assert_eq!(after.staged.as_ref().unwrap().reference, "Romans 8:28");
     }
 }
 

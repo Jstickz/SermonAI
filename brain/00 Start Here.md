@@ -8,7 +8,7 @@ This folder is the project's memory. It is an Obsidian vault: open `brain/` in O
 
 - **Milestone:** M3 Staging & Projector Output (window 20 Oct to 2 Nov 2026; started early on 16 Oct). M0, M1 and M2 are done on Windows; M1 and M2 have **not** closed on macOS ([[macos-parked-knowingly]]).
 - **Branch:** `m2-detection`, ahead of `main`, carries M2's close and M3's first work.
-- **M3 state:** deliverables 1 to 5 ticked; the operator ran `docs/testing/m3-projector-checklist.md` steps 1–27 on 16 Oct on commit f261934, all matched, staged → paint 5–59 ms (median 10) against the 100 ms DoD. Next unticked: next/previous verse (6, FR-51), then the command palette (7, FR-31), manual override (8), auto-fit (9).
+- **M3 state:** deliverables 1 to 6 ticked; the operator ran `docs/testing/m3-projector-checklist.md` steps 1–27 on 16 Oct on commit f261934, all matched, staged → paint 5–59 ms (median 10) against the 100 ms DoD. Steps 28–30 (the 60-second blank and the 12-verse passage, both DoD lines) await the operator. Next unticked: the command palette (7, FR-31), manual override (8, FR-30), auto-fit (9).
 - **Merge plan:** `m2-detection` merges to `main` at M3 close, not before (operator, 16 Oct).
 - **Blocker in code:** none. **Blockers outside code:** the gateway's Cloudflare account, a Mac, real church hardware ([[open-questions]]).
 - **Newest session:** [[sessions/2026-10-16]].

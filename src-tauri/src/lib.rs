@@ -412,6 +412,7 @@ pub fn run() {
             commands::output::stage_verse,
             commands::output::go_live,
             commands::output::clear_staged,
+            commands::output::step_verse,
             commands::output::set_blanked,
             commands::output::set_projector_layout,
             commands::output::set_auto_live,

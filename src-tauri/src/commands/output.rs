@@ -12,6 +12,7 @@ use std::time::Instant;
 
 use tauri::{AppHandle, Emitter, State};
 
+use crate::bible::{cache, reference};
 use crate::db::{models::Verse, settings};
 use crate::error::{Error, Result};
 use crate::output::staging::{OutputState, ProjectorLayout, ProjectorTransition};
@@ -84,6 +85,69 @@ pub fn go_live(app: AppHandle, state: State<'_, AppState>) -> Result<OutputState
         "went live"
     );
     Ok(next)
+}
+
+/// Next (`delta` 1) or previous (`delta` -1) verse of the passage on the
+/// projector (FR-51, M3 deliverable 6). The neighbour comes from the cache
+/// in the live verse's own translation; the live slot is replaced directly
+/// (see `Staging::step_live`). Errors name the verse and the end it hit.
+#[tauri::command]
+pub fn step_verse(app: AppHandle, state: State<'_, AppState>, delta: i32) -> Result<OutputState> {
+    if delta != 1 && delta != -1 {
+        return Err(Error::Output(format!(
+            "A step is one verse at a time; {delta} is not a step."
+        )));
+    }
+    let live = state
+        .staging
+        .lock()
+        .expect("staging lock")
+        .state()
+        .live
+        .clone()
+        .ok_or_else(|| Error::Output("Nothing is live. Send a verse live first.".to_string()))?;
+    let parsed = reference::parse(&live.reference).map_err(|e| {
+        Error::Output(format!(
+            "{} cannot be stepped from: {e}. Stage the verse you want instead.",
+            live.reference
+        ))
+    })?;
+    let next = {
+        let db = state.db.lock().expect("db lock");
+        let Some(next_ref) = cache::neighbour(&db, &live.translation, &parsed, delta)? else {
+            let end = if delta > 0 { "last" } else { "first" };
+            return Err(Error::Output(format!(
+                "{} is the {end} verse of {} in the {}. Stage another verse to continue.",
+                live.reference,
+                parsed.book_name(),
+                live.translation
+            )));
+        };
+        cache::lookup_ref(&db, &live.translation, &next_ref)?
+            .map(|c| c.verse)
+            .ok_or_else(|| {
+                Error::Output(format!(
+                    "{} is not cached in the {}. Stage it from the picker to fetch it.",
+                    next_ref.display(),
+                    live.translation
+                ))
+            })?
+    };
+    let started = Instant::now();
+    let state_after = state
+        .staging
+        .lock()
+        .expect("staging lock")
+        .step_live(next, unix_ms())
+        .clone();
+    broadcast(&app, &state_after);
+    tracing::info!(
+        reference = %state_after.live.as_ref().map(|v| v.reference.as_str()).unwrap_or(""),
+        delta,
+        staged_to_broadcast_us = started.elapsed().as_micros() as u64,
+        "stepped the live verse"
+    );
+    Ok(state_after)
 }
 
 /// Escape: empty the staged slot.

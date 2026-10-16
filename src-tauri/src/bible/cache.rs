@@ -333,6 +333,52 @@ pub fn lookup_ref(
     }))
 }
 
+/// The verse after (`delta` positive) or before (`delta` negative) a
+/// reference, in the same book and translation, as the cache has it
+/// (FR-51, M3 deliverable 6). A range steps from its last verse forward and
+/// from its first verse back. Chapter boundaries are crossed; a book's are
+/// not, since no passage spans two books. `None` at either end of the book,
+/// or when the neighbour is not cached.
+pub fn neighbour(
+    conn: &Connection,
+    translation_code: &str,
+    reference: &UsfmRef,
+    delta: i32,
+) -> Result<Option<UsfmRef>> {
+    let (sql, chapter, verse) = if delta > 0 {
+        (
+            "SELECT chapter, verse FROM bible_cache
+             WHERE translation_code = ?1 AND book_id = ?2
+               AND (chapter > ?3 OR (chapter = ?3 AND verse > ?4))
+             ORDER BY chapter, verse LIMIT 1",
+            reference.chapter,
+            reference.end_verse.unwrap_or(reference.verse),
+        )
+    } else {
+        (
+            "SELECT chapter, verse FROM bible_cache
+             WHERE translation_code = ?1 AND book_id = ?2
+               AND (chapter < ?3 OR (chapter = ?3 AND verse < ?4))
+             ORDER BY chapter DESC, verse DESC LIMIT 1",
+            reference.chapter,
+            reference.verse,
+        )
+    };
+    let found = conn
+        .query_row(
+            sql,
+            params![translation_code, reference.code(), chapter, verse],
+            |row| Ok((row.get::<_, u16>(0)?, row.get::<_, u16>(1)?)),
+        )
+        .optional()?;
+    Ok(found.map(|(chapter, verse)| UsfmRef {
+        book: reference.book,
+        chapter,
+        verse,
+        end_verse: None,
+    }))
+}
+
 /// Store a passage YouVersion returned, sanitized, with its version's
 /// attribution. Refuses an empty attribution: the text would otherwise be
 /// shown without the line the licence requires beside it.

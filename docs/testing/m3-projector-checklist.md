@@ -151,13 +151,30 @@ reference and send it live each time.
     auto-live card arrive or Go Live by hand: the projector stays dark, the
     Live slot shows the new verse, and unblank shows it.
 
+## Next and previous verse (deliverable 6)
+
+29. With a verse live, press **→** (click somewhere neutral first).
+    Expected: the projector shows the next verse of the same chapter, in
+    the same translation, with the configured transition; the Live slot
+    follows; the Staged slot is untouched. Press **←** twice: back past
+    where you started. The two buttons under Go Live do the same.
+30. **The DoD line.** Edit a card to **Psalm 23:1** and send it live, then
+    step forward with **→** to Psalm 23:6 and on into Psalm 24, then back
+    with **←** to 23:1, keyboard only. Expected: every verse appears, the
+    chapter boundary is crossed both ways, nothing is skipped or repeated.
+    Then edit a card to **Jude 1:25**, send it live, press **→**: the
+    projector keeps Jude 1:25 and a message under the buttons says it is
+    the last verse of Jude. Blank with **B**, press **→**: the projector
+    unblanks on the next verse. Click into a text field and press **→**:
+    the caret moves, nothing steps.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
   `projector painted the live verse staged_to_paint_ms=` for a few go-lives.
   The DoD line is **under 100 ms** to the paint; the first figure is our
   share of it.
-- Anything in steps 6, 9, 14, 20, 23 or 27 that did not look as described.
+- Anything in steps 6, 9, 14, 20, 23, 27 or 30 that did not look as described.
 - A `projector painted the live verse` line from step 25 at 0 ms and one
   at 1500 ms: `staged_to_paint_ms` should be the same either way, since it
   measures the first frame, and `transition_settles_after_ms` should read 0

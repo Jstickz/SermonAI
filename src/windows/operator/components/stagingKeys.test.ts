@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enterAction, isBlankHotkey } from "./stagingKeys";
+import { enterAction, isBlankHotkey, stepDelta } from "./stagingKeys";
 
 describe("enterAction", () => {
   it("stages the top card when nothing is staged", () => {
@@ -42,5 +42,21 @@ describe("enterAction", () => {
     expect(isBlankHotkey(key("x"), null)).toBe(false);
     const input = document.createElement("input");
     expect(isBlankHotkey(key("b"), input)).toBe(false);
+  });
+
+  it("arrows step the live passage, bare and outside a text field only (FR-51)", () => {
+    const key = (k: string, mods: Partial<KeyboardEvent> = {}) => ({
+      key: k,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      ...mods,
+    });
+    expect(stepDelta(key("ArrowRight"), null)).toBe(1);
+    expect(stepDelta(key("ArrowLeft"), null)).toBe(-1);
+    expect(stepDelta(key("ArrowDown"), null)).toBe(0);
+    expect(stepDelta(key("ArrowRight", { ctrlKey: true }), null)).toBe(0);
+    const input = document.createElement("input");
+    expect(stepDelta(key("ArrowRight"), input)).toBe(0);
   });
 });

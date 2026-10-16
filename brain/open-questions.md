@@ -12,7 +12,8 @@ Things not yet decided or not yet verified. When one closes, move its answer int
 
 ## M3, right now
 
-- [x] ~~Deliverable 3 awaits the operator's eye~~ Run 16 Oct on f261934: steps 1–27 passed, staged → paint median 10 ms. Step 28 (the 60-second blank) was not reported either way; confirm before M3 closes.
+- [x] ~~Deliverable 3 awaits the operator's eye~~ Run 16 Oct on f261934: steps 1–27 passed, staged → paint median 10 ms.
+- [ ] **Checklist steps 28–30 await the operator:** the 60-second blank (DoD) and the 12-verse passage by keyboard (DoD), on the build after deliverable 6.
 - [ ] **The picker cannot tell which loopback Windows is playing through.** Parked in MILESTONES; the Windows default output moved to a DELL monitor's HDMI audio when the projector went fullscreen there.
 - [ ] **Manual Go Live does not mark `went_live`** on the detection row; auto-live does. Carry the detection id through `stage_verse` with deliverables 7–8 (parked in MILESTONES).
 - [ ] The length-tier verse fit is a stopgap; deliverable 9 replaces it with a measured fit.

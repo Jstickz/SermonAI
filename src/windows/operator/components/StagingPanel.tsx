@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { output } from "@/lib/ipc";
 import { useServiceStore } from "@/stores/serviceStore";
 import type { Verse } from "@/lib/types";
-import { isTypingTarget } from "./stagingKeys";
+import { isTypingTarget, stepDelta } from "./stagingKeys";
 import { AutoLiveSwitch } from "./AutoLiveSwitch";
 
 /**
@@ -14,9 +14,38 @@ import { AutoLiveSwitch } from "./AutoLiveSwitch";
  * and this panel reads the store. Enter is handled by the detection stack,
  * which knows the top card; Escape is handled here, since the slot is what
  * it empties.
+ *
+ * Next and previous verse (FR-51, deliverable 6): the arrow keys and the
+ * two buttons under the Live slot step the passage on the projector. The
+ * backend finds the neighbour in the cache and replaces the live verse
+ * directly; an end of the book, or an uncached verse, comes back as a
+ * message under the buttons rather than a silent nothing.
  */
 export function StagingPanel() {
   const outputs = useServiceStore((s) => s.outputs);
+  const [stepError, setStepError] = useState<string | null>(null);
+
+  const step = useCallback(async (delta: 1 | -1) => {
+    try {
+      await output.step(delta);
+      setStepError(null);
+    } catch (e) {
+      setStepError(String(e));
+    }
+  }, []);
+
+  // → and ← step the live passage (FR-51) — outside text fields, and only
+  // while something is live, so the arrows keep their meaning elsewhere.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const delta = stepDelta(e, e.target);
+      if (delta === 0 || !useServiceStore.getState().outputs.live) return;
+      e.preventDefault();
+      void step(delta);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [step]);
 
   // Escape clears the staged slot (§13.5) — outside text fields.
   useEffect(() => {
@@ -71,6 +100,28 @@ export function StagingPanel() {
       >
         Go Live · Enter
       </button>
+
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          className="btn-secondary min-h-10 flex-1 disabled:opacity-40"
+          disabled={!live}
+          onClick={() => void step(-1)}
+          title={live ? "Show the verse before this one" : "Nothing is live"}
+        >
+          ← Previous Verse
+        </button>
+        <button
+          type="button"
+          className="btn-secondary min-h-10 flex-1 disabled:opacity-40"
+          disabled={!live}
+          onClick={() => void step(1)}
+          title={live ? "Show the verse after this one" : "Nothing is live"}
+        >
+          Next Verse →
+        </button>
+      </div>
+      {stepError && <p className="mt-2 text-xs text-status-warning">{stepError}</p>}
     </section>
   );
 }
