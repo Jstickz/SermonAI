@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { detections as detectionsApi, on, output } from "@/lib/ipc";
 import type { Detection, Verse } from "@/lib/types";
 import { useServiceStore } from "@/stores/serviceStore";
@@ -124,10 +124,14 @@ export function DetectionStack() {
     [dismissDetection],
   );
 
-  const edit = useCallback((d: Detection, reference: string) => {
+  const [editError, setEditError] = useState<string | null>(null);
+  const edit = useCallback((d: Detection, reference: string, translation: string | null) => {
     // The corrected card comes back through detection:new under the same id;
-    // nothing to do here but ask.
-    void detectionsApi.edit(d.id, reference).catch(() => undefined);
+    // nothing to do here but ask, and show why if it was refused.
+    detectionsApi
+      .edit(d.id, reference, translation)
+      .then(() => setEditError(null))
+      .catch((e) => setEditError(String(e)));
   }, []);
 
   const expire = useCallback((d: Detection) => dismissDetection(d.id), [dismissDetection]);
@@ -223,6 +227,9 @@ export function DetectionStack() {
           {waiting === 0 ? "none waiting" : `${waiting} waiting`}
         </span>
       </div>
+      {editError && (
+        <p className="mb-2 rounded-md bg-status-warning-bg px-3 py-2 text-xs text-status-warning">{editError}</p>
+      )}
       <section className="scroll-hidden flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {unpinned.length === 0 ? (
           <p className="rounded-lg bg-bg-surface p-5 text-[13px] text-content-muted">

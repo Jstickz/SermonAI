@@ -175,21 +175,34 @@ pub fn pin_detection(
     Ok(())
 }
 
-/// The operator corrected a card's reference. The card keeps its id and comes
-/// back as a manual detection with full confidence and the new verse text.
+/// The operator corrected a card's reference, its translation, or both
+/// (FR-30 manual override, M3 deliverable 8). The card keeps its id and
+/// comes back as a manual detection with full confidence and the new verse
+/// text. `translation` names the version to show this card in; `None`
+/// keeps the service default. A per-card choice never changes the default:
+/// the next card is still fetched in what the picker says (FR-32).
 #[tauri::command]
 pub fn edit_detection(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
     id: u64,
     reference: String,
+    translation: Option<String>,
 ) -> Result<Candidate> {
-    let parsed = reference::parse(&reference).map_err(|e| Error::Detection(e.to_string()))?;
-    let translation = state
-        .default_translation
-        .lock()
-        .expect("translation lock")
-        .clone();
+    let parsed = reference::parse(&reference).map_err(|e| {
+        Error::Detection(format!(
+            "\"{}\" is not a reference: {e}. Try the form \"John 3:16\".",
+            reference.trim()
+        ))
+    })?;
+    let translation = match translation.map(|t| t.trim().to_uppercase()) {
+        Some(code) if !code.is_empty() => code,
+        _ => state
+            .default_translation
+            .lock()
+            .expect("translation lock")
+            .clone(),
+    };
     let verse = {
         let db = state.db.lock().expect("db lock");
         cache::lookup_ref(&db, &translation, &parsed)?.map(|c| c.verse)
@@ -208,7 +221,7 @@ pub fn edit_detection(
         went_live: false,
         pinned: false,
     };
-    tracing::info!(id, passage = %card.passage_id, "operator edited a detection");
+    tracing::info!(id, passage = %card.passage_id, %translation, "operator edited a detection");
     // A new row, not an update: the operator named a different verse, and
     // the one the stage proposed stays on record as what it proposed.
     persist(&state, &card, &translation);

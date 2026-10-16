@@ -175,9 +175,12 @@ export const detections = {
   /** The operator accepted a card. Staging is M3; today this is recorded. */
   accept: (id: number, passageId: string) => invoke<void>("accept_detection", { id, passageId }),
   reject: (id: number, passageId: string) => invoke<void>("reject_detection", { id, passageId }),
-  /** Correct a card's reference. It comes back under the same id as a manual
-   *  detection with the new verse text, and the store replaces it in place. */
-  edit: (id: number, reference: string) => invoke<Detection>("edit_detection", { id, reference }),
+  /** Correct a card's reference, its translation, or both (FR-30). It comes
+   *  back under the same id as a manual detection with the new verse text,
+   *  and the store replaces it in place. A null translation keeps the
+   *  service default; a code shows this card in that version only. */
+  edit: (id: number, reference: string, translation: string | null) =>
+    invoke<Detection>("edit_detection", { id, reference, translation }),
   /** Pin or unpin a card as an anchor verse (FR-64); written to its row. */
   pin: (id: number, passageId: string, pinned: boolean) =>
     invoke<void>("pin_detection", { id, passageId, pinned }),

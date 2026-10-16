@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Detection, DetectionSource } from "@/lib/types";
+import { useTranslationStore } from "@/stores/translationStore";
 
 /**
  * One detection card (PRD §13.3, wireframe.html §detection): source badge,
@@ -15,8 +16,14 @@ import type { Detection, DetectionSource } from "@/lib/types";
  *   silently if the settled text does not support it.
  * - **No text yet.** A confirmed card whose verse is not in the cache. The
  *   reference is shown and the card says the text is not cached, rather than
- *   spinning: the operator can still stage the reference in M3, and the
- *   picker (deliverable 7) is where a translation gets fetched.
+ *   spinning: the operator can still stage the reference, or Edit it into a
+ *   translation that has it.
+ *
+ * **Edit** (FR-30 manual override, deliverable 8) is an inline form with the
+ * reference and a translation choice. The translation list is the cached
+ * versions: an uncached one would make a correction wait on the network.
+ * The choice is this card's only; the service default (FR-32) stays where
+ * the picker put it.
  *
  * Auto-dismiss after 30 s (§13.3) applies to confirmed cards nobody acted on.
  * A provisional card is never auto-dismissed here; its lifetime belongs to
@@ -84,7 +91,8 @@ export function DetectionCard({
   detection: Detection;
   onStage: (d: Detection) => void;
   onReject: (d: Detection) => void;
-  onEdit: (d: Detection, reference: string) => void;
+  /** Corrected reference and, when changed, translation code (FR-30). */
+  onEdit: (d: Detection, reference: string, translation: string | null) => void;
   onExpire: (d: Detection) => void;
   /** Pin (true) or unpin (false) the card (FR-64). */
   onPin: (d: Detection, pinned: boolean) => void;
@@ -96,6 +104,14 @@ export function DetectionCard({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(detection.reference);
+  const [draftTranslation, setDraftTranslation] = useState<string>(
+    detection.verse?.translation ?? "",
+  );
+  const choices = useTranslationStore((s) => s.choices);
+  const serviceTranslation = useTranslationStore((s) => s.current);
+  const loadTranslations = useTranslationStore((s) => s.load);
+  const cardTranslation = detection.verse?.translation ?? serviceTranslation;
+  const cached = choices.filter((c) => c.cached);
   const badge = sourceBadge(detection.source);
   const percent = confidencePercent(detection.confidence);
 
@@ -159,13 +175,14 @@ export function DetectionCard({
 
       {editing ? (
         <form
-          className="flex gap-2"
+          className="flex flex-wrap gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             const value = draft.trim();
             if (value === "") return;
             setEditing(false);
-            onEdit(detection, value);
+            const code = draftTranslation || cardTranslation;
+            onEdit(detection, value, code === cardTranslation && value === detection.reference ? null : code);
           }}
         >
           <input
@@ -176,8 +193,21 @@ export function DetectionCard({
             aria-label="Corrected reference"
             placeholder="e.g. John 3:16"
           />
+          <select
+            className="mono min-h-10 rounded-md bg-bg-canvas px-2 text-[13px]"
+            value={draftTranslation || cardTranslation}
+            onChange={(e) => setDraftTranslation(e.target.value)}
+            aria-label="Translation for this card"
+            title="Translation for this card only; the service default is unchanged"
+          >
+            {(cached.length > 0 ? cached : [{ code: cardTranslation, name: cardTranslation }]).map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code}
+              </option>
+            ))}
+          </select>
           <button className="btn-primary" type="submit">
-            Use reference
+            Use Reference
           </button>
           <button className="btn-secondary" type="button" onClick={() => setEditing(false)}>
             Cancel
@@ -212,7 +242,15 @@ export function DetectionCard({
             <button className="reject" onClick={() => onReject(detection)}>
               Reject
             </button>
-            <button className="edit" onClick={() => setEditing(true)}>
+            <button
+              className="edit"
+              onClick={() => {
+                void loadTranslations();
+                setDraft(detection.reference);
+                setDraftTranslation(cardTranslation);
+                setEditing(true);
+              }}
+            >
               Edit
             </button>
           </div>

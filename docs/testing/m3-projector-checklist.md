@@ -211,13 +211,29 @@ reference and send it live each time.
     picker shows the same. Click into a card's Edit field and press
     Ctrl+K: the palette still opens (it is a chord, not a letter).
 
+## Manual override (deliverable 8)
+
+37. On a waiting card click **Edit**. Expected: an inline form with the
+    reference and a translation box showing the card's translation; the
+    box lists the bundled translations (KJV, WEB, ASV). Change the
+    reference to **Psalm 23:1**, leave the translation, click **Use
+    Reference**: the card becomes "Psalms 23:1", marked **M** (edited by
+    operator), 100%, with the KJV text, in the same place in the stack.
+38. **Edit** again, keep the reference, pick **WEB**, Use Reference.
+    Expected: the same card now shows the WEB text and "WEB" beside the
+    reference; the Live tab's translation picker still says the service
+    default (KJV), and the next card to arrive is in KJV. Stage this card
+    and Go Live: the projector's corner label reads WEB (with the third
+    layout on). **Edit**, type **jon 3 16**, Use Reference: a message above
+    the stack says it is not a reference; the card is unchanged.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
   `projector painted the live verse staged_to_paint_ms=` for a few go-lives.
   The DoD line is **under 100 ms** to the paint; the first figure is our
   share of it.
-- Anything in steps 6, 9, 14, 20, 23, 27, 30, 32 or 35 that did not look as described.
+- Anything in steps 6, 9, 14, 20, 23, 27, 30, 32, 35 or 38 that did not look as described.
 - A `projector painted the live verse` line from step 25 at 0 ms and one
   at 1500 ms: `staged_to_paint_ms` should be the same either way, since it
   measures the first frame, and `transition_settles_after_ms` should read 0
