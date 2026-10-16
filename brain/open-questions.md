@@ -12,7 +12,8 @@ Things not yet decided or not yet verified. When one closes, move its answer int
 
 ## M3, right now
 
-- [ ] **Deliverable 3 awaits the operator's eye:** run `docs/testing/m3-projector-checklist.md` on a second monitor and send the `staged_to_paint_ms` lines against the 100 ms DoD. Steps 18–28 check auto-live, transitions and blank (deliverables 2, 4, 5) by eye too; step 28 is the DoD's 60-second blank line.
+- [x] ~~Deliverable 3 awaits the operator's eye~~ Run 16 Oct on f261934: steps 1–27 passed, staged → paint median 10 ms. Step 28 (the 60-second blank) was not reported either way; confirm before M3 closes.
+- [ ] **The picker cannot tell which loopback Windows is playing through.** Parked in MILESTONES; the Windows default output moved to a DELL monitor's HDMI audio when the projector went fullscreen there.
 - [ ] **Manual Go Live does not mark `went_live`** on the detection row; auto-live does. Carry the detection id through `stage_verse` with deliverables 7–8 (parked in MILESTONES).
 - [ ] The length-tier verse fit is a stopgap; deliverable 9 replaces it with a measured fit.
 - [ ] Branch `m2-detection` carries M2's close and M3's first five deliverables; merge to `main` at M3 close (decided 16 Oct).

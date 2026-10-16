@@ -8,7 +8,7 @@ This folder is the project's memory. It is an Obsidian vault: open `brain/` in O
 
 - **Milestone:** M3 Staging & Projector Output (window 20 Oct to 2 Nov 2026; started early on 16 Oct). M0, M1 and M2 are done on Windows; M1 and M2 have **not** closed on macOS ([[macos-parked-knowingly]]).
 - **Branch:** `m2-detection`, ahead of `main`, carries M2's close and M3's first work.
-- **M3 state:** deliverables 1 (staging slot), 2 (auto-live), 4 (transitions) and 5 (blank hotkey) ticked; deliverable 3 (projector renderer, three layouts) built and waiting for the operator to run `docs/testing/m3-projector-checklist.md`, steps 1 to 28, on a second monitor. Next unticked: next/previous verse (6, FR-51), then the command palette (7, FR-31).
+- **M3 state:** deliverables 1 to 5 ticked; the operator ran `docs/testing/m3-projector-checklist.md` steps 1–27 on 16 Oct on commit f261934, all matched, staged → paint 5–59 ms (median 10) against the 100 ms DoD. Next unticked: next/previous verse (6, FR-51), then the command palette (7, FR-31), manual override (8), auto-fit (9).
 - **Merge plan:** `m2-detection` merges to `main` at M3 close, not before (operator, 16 Oct).
 - **Blocker in code:** none. **Blockers outside code:** the gateway's Cloudflare account, a Mac, real church hardware ([[open-questions]]).
 - **Newest session:** [[sessions/2026-10-16]].
@@ -37,6 +37,7 @@ Standing decisions, each with its reasoning in `decisions/`:
 | Installer | msi 5.12 MB; projected ~25 MB with all bundled assets | CI size gate, 40 MB limit |
 | Cold start | 716 ms median to first paint, 162 ms ours | app's own clock, release, 10 launches |
 | Words on screen | p50 187 ms, p95 501 ms | 20-minute release run, EU endpoint, per-chunk anchor |
+| Staged → projector paint | median 10 ms, max 59 ms, n=10 | go_live wall stamp to two frames after the projector's commit, 16 Oct, Windows |
 | Settled text | ~2.3 s, not tunable | Deepgram's decision |
 | Memory under capture | 212 MB of 300 MB (before the index loaded) | private working set by PID, 60 minutes |
 | Regex stage | 426/426 caught, 0 false hits on 459 cases; 242 µs per window | release profile |
