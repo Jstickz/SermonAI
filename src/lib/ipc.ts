@@ -13,6 +13,7 @@ import type {
   MonitorInfo,
   OutputAssignments,
   OutputState,
+  ProjectorLayout,
   Pack,
   PackProgress,
   PackStatus,
@@ -126,6 +127,11 @@ export const output = {
   setBlanked: (blanked: boolean) => invoke<void>("set_blanked", { blanked }),
   step: (delta: number) => invoke<void>("step_verse", { delta }),
   get: () => invoke<OutputState>("get_output_state"),
+  /** Persisted; applies to the verse that is live now (PRD §13.6). */
+  setLayout: (layout: ProjectorLayout) => invoke<OutputState>("set_projector_layout", { layout }),
+  /** The projector's own paint time for the live verse (M3 DoD). */
+  painted: (liveSinceMs: number, paintedAtMs: number) =>
+    invoke<void>("projector_painted", { liveSinceMs, paintedAtMs }),
 };
 
 export const library = {

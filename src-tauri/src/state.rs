@@ -114,6 +114,12 @@ impl AppState {
             .ok()
             .flatten()
             .unwrap_or_else(|| crate::bible::translations::BUILT_IN_DEFAULT.to_string());
+        // The projector layout the operator last chose, or the default.
+        let layout = crate::db::settings::get(&db, crate::commands::output::LAYOUT_SETTING)
+            .ok()
+            .flatten()
+            .and_then(|s| crate::output::staging::ProjectorLayout::parse(&s))
+            .unwrap_or_default();
         Self {
             started,
             started_wall,
@@ -126,7 +132,7 @@ impl AppState {
             default_translation: Mutex::new(default_translation),
             current_sermon: Mutex::new(None),
             detection_rows: Mutex::new(std::collections::HashMap::new()),
-            staging: Mutex::new(crate::output::staging::Staging::new()),
+            staging: Mutex::new(crate::output::staging::Staging::with_layout(layout)),
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
             bible,

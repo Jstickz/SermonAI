@@ -157,10 +157,18 @@ export type TranscriptEvent =
 
 /** What the projector and alternate windows render. Nothing reaches an
  *  output without passing through staging first (PRD §10.2, FR-50). */
+/** What the projector shows beside the verse (PRD §13.6). Mirrors
+ *  `ProjectorLayout` in `src-tauri/src/output/staging.rs`. */
+export type ProjectorLayout = "verse_only" | "verse_reference" | "verse_reference_translation";
+
 export interface OutputState {
   live: Verse | null;
   staged: Verse | null;
   blanked: boolean;
+  layout: ProjectorLayout;
+  /** Wall-clock ms when `live` went live; the projector reports its paint
+   *  against it. Null until something has gone live. */
+  liveSinceMs: number | null;
 }
 
 /** Which display each output window is currently on. Null means hidden. */

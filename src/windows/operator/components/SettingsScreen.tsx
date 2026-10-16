@@ -1,5 +1,6 @@
 import { AudioSettings } from "./AudioSettings";
 import { DisplaySettings } from "./DisplaySettings";
+import { ProjectorLayoutSettings } from "./ProjectorLayoutSettings";
 import { PackSettings } from "./PackSettings";
 import { ServiceSettings } from "./ServiceSettings";
 import { useNavStore, type SettingsSection } from "@/stores/navStore";
@@ -57,7 +58,14 @@ export function SettingsScreen() {
 
       <div className="settings-content">
         {section === "audio" && <AudioSettings />}
-        {section === "displays" && <DisplaySettings />}
+        {section === "displays" && (
+          <>
+            <DisplaySettings />
+            <div className="mt-5">
+              <ProjectorLayoutSettings />
+            </div>
+          </>
+        )}
         {section === "packs" && <PackSettings />}
         {section === "services" && <ServiceSettings />}
         {!BUILT.includes(section) && <NotBuiltYet section={section} />}

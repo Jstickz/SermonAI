@@ -11,12 +11,22 @@ use std::time::Instant;
 
 use tauri::{AppHandle, Emitter, State};
 
-use crate::db::models::Verse;
-use crate::error::Result;
-use crate::output::staging::OutputState;
+use crate::db::{models::Verse, settings};
+use crate::error::{Error, Result};
+use crate::output::staging::{OutputState, ProjectorLayout};
 use crate::state::AppState;
 
 const EVENT: &str = "output:changed";
+/// The `settings` key the chosen layout is kept under.
+pub const LAYOUT_SETTING: &str = "projector_layout";
+
+/// Wall-clock milliseconds, the same clock the projector's `Date.now()` reads.
+fn unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 fn broadcast(app: &AppHandle, state: &OutputState) {
     if let Err(err) = app.emit(EVENT, state) {
@@ -59,7 +69,7 @@ pub fn go_live(app: AppHandle, state: State<'_, AppState>) -> Result<OutputState
         .staging
         .lock()
         .expect("staging lock")
-        .go_live()?
+        .go_live(unix_ms())?
         .clone();
     broadcast(&app, &next);
     tracing::info!(
@@ -99,4 +109,44 @@ pub fn set_blanked(
     tracing::info!(blanked, "projector blank state changed");
     broadcast(&app, &next);
     Ok(next)
+}
+
+/// Choose what the projector shows beside the verse (PRD §13.6, FR-26 basic).
+/// Persisted, and applied to the verse that is live now.
+#[tauri::command]
+pub fn set_projector_layout(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    layout: String,
+) -> Result<OutputState> {
+    let parsed = ProjectorLayout::parse(&layout).ok_or_else(|| {
+        Error::Output(format!(
+            "{layout} is not a projector layout. Choose verse only, verse and reference, or verse, reference and translation."
+        ))
+    })?;
+    {
+        let db = state.db.lock().expect("db lock");
+        settings::set(&db, LAYOUT_SETTING, parsed.as_str())?;
+    }
+    let next = state
+        .staging
+        .lock()
+        .expect("staging lock")
+        .set_layout(parsed)
+        .clone();
+    tracing::info!(layout = parsed.as_str(), "projector layout set");
+    broadcast(&app, &next);
+    Ok(next)
+}
+
+/// The projector window reports when the live verse was painted, against
+/// the time it went live, so staged → live is measured to the thing itself
+/// (M3 DoD: under 100 ms) rather than to our broadcast.
+#[tauri::command]
+pub fn projector_painted(live_since_ms: u64, painted_at_ms: u64) {
+    tracing::info!(
+        staged_to_paint_ms = painted_at_ms.saturating_sub(live_since_ms),
+        budget_ms = 100,
+        "projector painted the live verse"
+    );
 }

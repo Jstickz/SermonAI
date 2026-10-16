@@ -108,6 +108,12 @@ describe("serviceStore", () => {
     expect(after.isCapturing).toBe(false);
     expect(after.segments).toHaveLength(0);
     expect(after.detections).toHaveLength(0);
-    expect(after.outputs).toEqual({ live: null, staged: null, blanked: false });
+    expect(after.outputs).toEqual({
+      live: null,
+      staged: null,
+      blanked: false,
+      layout: "verse_reference",
+      liveSinceMs: null,
+    });
   });
 });

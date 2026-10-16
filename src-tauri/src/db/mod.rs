@@ -182,3 +182,5 @@ mod tests {
 
 pub mod detections;
 pub mod sermons;
+
+pub mod settings;

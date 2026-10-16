@@ -4,7 +4,13 @@ import type { OutputState } from "@/lib/types";
 
 /** Stage confidence monitor: live verse large, staged verse small, clock (FR-48). */
 export function AlternateApp() {
-  const [state, setState] = useState<OutputState>({ live: null, staged: null, blanked: false });
+  const [state, setState] = useState<OutputState>({
+    live: null,
+    staged: null,
+    blanked: false,
+    layout: "verse_reference",
+    liveSinceMs: null,
+  });
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {

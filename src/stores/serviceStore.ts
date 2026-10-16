@@ -28,7 +28,13 @@ interface ServiceState {
   reset: () => void;
 }
 
-const EMPTY_OUTPUTS: OutputState = { live: null, staged: null, blanked: false };
+const EMPTY_OUTPUTS: OutputState = {
+  live: null,
+  staged: null,
+  blanked: false,
+  layout: "verse_reference",
+  liveSinceMs: null,
+};
 
 export const useServiceStore = create<ServiceState>((set) => ({
   sermonId: null,
