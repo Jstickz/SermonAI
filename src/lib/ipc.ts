@@ -175,6 +175,9 @@ export const detections = {
   /** Correct a card's reference. It comes back under the same id as a manual
    *  detection with the new verse text, and the store replaces it in place. */
   edit: (id: number, reference: string) => invoke<Detection>("edit_detection", { id, reference }),
+  /** Pin or unpin a card as an anchor verse (FR-64); written to its row. */
+  pin: (id: number, passageId: string, pinned: boolean) =>
+    invoke<void>("pin_detection", { id, passageId, pinned }),
 };
 
 export const packs = {

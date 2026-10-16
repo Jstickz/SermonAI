@@ -415,6 +415,7 @@ SermonAI wins on four things:
 - **FR-33:** Blank the projector with a single hotkey.
 - **FR-50 (new):** **Staging area.** Accepted or searched verses land in a staging slot on the operator screen first; a single action ("Go Live", Enter, or remote tap) sends the staged verse to output. Auto-live mode is available as an opt-in setting for hands-off operation.
 - **FR-51 (new):** Navigate the currently displayed passage verse by verse (next / previous) from keyboard and remote.
+- **FR-64 (new, 16 Oct 2026):** **Pinned detections.** A confirmed detection card can be pinned as an anchor verse. A pinned card never auto-dismisses, sits in its own section at the top of the detection column, and can be staged or sent live any number of times without unpinning; Go Live on a pinned card skips the staged slot, since the operator has already read it. Pinned cards are outside Enter's path, outside the waiting count, and outside auto-live. Pins last for the service and are written to the detection's row so the summary PDF can mark anchor verses (§13.11) and a recovered service can restore them (FR-34, M4). Keyboard: P pins the top waiting card; 1 to 9 send the Nth pinned card live (§13.12). The remote gains Pin in M7 (FR-54).
 
 ### 8.7 Phone Remote *(new in v2.0)*
 
@@ -754,6 +755,7 @@ sermonai/
 ### 13.3 Scripture Detection Card
 - Reference, verse text, translation, confidence, detection source (regex / semantic / AI).
 - Accept, Reject, Edit. Accept sends to staging (or live if auto-live). Auto-dismiss after 30s.
+- **Pin** (FR-64): keeps the card for the service in a Pinned section above the waiting cards, marked and numbered. A pinned card offers Stage, Go Live (straight to the projector) and Unpin, never auto-dismisses, and is never touched by Enter or auto-live. Pins clear at End Service.
 
 ### 13.4 Translation Picker
 - 20+ bundled plus imported translations; search-as-you-type; download icon for uncached; per-service default and per-verse override.
@@ -840,6 +842,28 @@ sermonai/
 - From an outline or summary, generate one slide per main point with supporting scripture in the active theme. Export PPTX or present in-app.
 
 ---
+
+### 13.12 Keyboard Shortcuts *(new, 16 Oct 2026)*
+
+Every critical function has one key (§9.4). All of these are bare keys unless
+marked, and **none fires while a text field has focus**: a keystroke inside a
+field belongs to the field. The printed cheat sheet for the M3 exit gate is
+this table.
+
+| Key | Does | Where | FR |
+|---|---|---|---|
+| Enter | The next thing in the path: nothing staged → stage the top waiting card; something staged → send it live | Live tab | FR-50 |
+| Shift+Enter | Stage the top waiting card and send it live in one | Live tab | FR-50 |
+| Escape | Clear the staged slot; live is untouched | Live tab | FR-50 |
+| B | Blank / unblank the projector, instantly | every tab | FR-33 |
+| → / ← | Next / previous verse of the passage on the projector | every tab, while something is live | FR-51 |
+| P | Pin the top waiting card | Live tab | FR-64 |
+| 1 … 9 | Send the Nth pinned card live | Live tab | FR-64 |
+| Ctrl/Cmd+K | Command palette; inside it, Enter stages, Shift+Enter goes live, Tab switches translation, ↑↓ move | every tab | FR-31 |
+
+Top-of-stack means the newest waiting card: confirmed, not pinned, not already
+shown by auto-live. A pinned card goes live only by its own controls or its
+number.
 
 ## 14. Data Model & Storage
 

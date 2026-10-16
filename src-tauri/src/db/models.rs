@@ -60,6 +60,8 @@ pub struct DetectedScripture {
     pub source: DetectionSource,
     pub accepted_by_operator: bool,
     pub went_live: bool,
+    /// The operator pinned it as an anchor verse (FR-64); the PDF marks it.
+    pub pinned: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

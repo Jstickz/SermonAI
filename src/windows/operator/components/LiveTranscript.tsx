@@ -3,6 +3,7 @@ import { audio, on } from "@/lib/ipc";
 import { Modal } from "./Modal";
 import { TranslationPicker } from "./TranslationPicker";
 import { useDeviceStore } from "@/stores/deviceStore";
+import { useServiceStore } from "@/stores/serviceStore";
 import { useNavStore } from "@/stores/navStore";
 import { FONT_SIZES, useTranscriptViewStore } from "@/stores/transcriptViewStore";
 import type { AudioDeviceKind, CaptureState, LatencySummary, SttStatus } from "@/lib/types";
@@ -254,6 +255,8 @@ export function LiveTranscript() {
         setLatency(null);
         setDeviceLost(null);
         lastEnd.current = null;
+        // Pins last for the service (FR-64); a new one starts clean.
+        useServiceStore.getState().clearDetections();
         setCapture(await audio.start(device, true));
       } else {
         setCapture(await audio.stop());

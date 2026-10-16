@@ -421,6 +421,7 @@ mod auto_live_tests {
             detected_at_ms: 0,
             verse,
             went_live: false,
+            pinned: false,
         }
     }
 

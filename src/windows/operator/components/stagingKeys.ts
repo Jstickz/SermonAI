@@ -15,7 +15,9 @@
  * and is handled by the top bar's blank button. **→** and **←** step the
  * passage on the projector a verse forward or back (FR-51), handled by the
  * staging panel beside the Live slot; bare arrows, outside text fields,
- * where they would otherwise move a caret.
+ * where they would otherwise move a caret. **P** pins the top waiting card
+ * and **1** to **9** send the Nth pinned card live (FR-64); both bare and
+ * outside text fields. PRD §13.12 is the table of all of them.
  */
 export type EnterAction = "stage" | "go-live" | "stage-and-go-live" | "none";
 
@@ -37,6 +39,27 @@ export function stepDelta(
   if (e.key === "ArrowRight") return 1;
   if (e.key === "ArrowLeft") return -1;
   return 0;
+}
+
+/** P, bare, outside a text field: pin the top waiting card (FR-64). */
+export function isPinHotkey(
+  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey">,
+  target: EventTarget | null,
+): boolean {
+  if (e.key !== "p" && e.key !== "P") return false;
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  return !isTypingTarget(target);
+}
+
+/** 1 to 9, bare, outside a text field: the index (0-based) of the pinned
+ *  card to send live (FR-64); -1 when the key is not one of them. */
+export function pinnedIndex(
+  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey">,
+  target: EventTarget | null,
+): number {
+  if (e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(target)) return -1;
+  if (!/^[1-9]$/.test(e.key)) return -1;
+  return Number(e.key) - 1;
 }
 
 /** B, bare — no modifier, so Ctrl+B in a browser-like field is not a

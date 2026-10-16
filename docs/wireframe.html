@@ -1081,6 +1081,30 @@
       </div>
 
       <div class="op-col">
+        <!-- Pinned (FR-64, added 16 Oct 2026): anchor verses the operator keeps
+             for the service. Own section, accent frame, numbered; the number is
+             the key that sends it live. Never auto-dismissed, never Enter's. -->
+        <div class="stack-header">
+          <h3>Pinned</h3>
+          <span class="count">1–9 sends live</span>
+        </div>
+        <div style="border: 1px solid var(--a-800); border-radius: 10px; padding: 8px; margin-bottom: 12px; background: var(--bg-sunken);">
+          <div class="detection" style="border: 1px solid var(--a-500);">
+            <div class="top">
+              <span class="chip" style="color: var(--a-500);">Pinned · 1</span>
+              <span class="dot regex"></span><span class="src-letter">R</span> · Direct reference · 98% confidence
+            </div>
+            <div class="ref">Jeremiah 29:11</div>
+            <div class="verse-text">For I know the thoughts that I think toward you, saith the Lord, thoughts of peace, and not of evil, to give you an expected end.</div>
+            <div class="confidence-bar"><div style="width:98%"></div></div>
+            <div class="actions">
+              <button class="accept">Stage</button>
+              <button class="accept">Go Live · 1</button>
+              <button class="edit">Unpin</button>
+            </div>
+          </div>
+        </div>
+
         <div class="stack-header">
           <h3>Detections</h3>
           <span class="count">3 waiting</span>
@@ -1096,6 +1120,7 @@
           <div class="confidence-bar"><div style="width:78%"></div></div>
           <div class="actions">
             <button class="accept">Stage · ↵</button>
+            <button class="edit">Pin</button>
             <button class="reject">Reject</button>
             <button class="edit">Edit</button>
           </div>

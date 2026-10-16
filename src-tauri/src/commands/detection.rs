@@ -154,6 +154,27 @@ pub fn reject_detection(
     Ok(())
 }
 
+/// The operator pinned or unpinned a card as an anchor verse (FR-64, M3
+/// deliverable 10). The card itself lives in the window; this writes the
+/// pin to the row so the summary PDF can mark it.
+#[tauri::command]
+pub fn pin_detection(
+    state: tauri::State<'_, AppState>,
+    id: u64,
+    passage_id: String,
+    pinned: bool,
+) -> Result<()> {
+    tracing::info!(id, passage = %passage_id, pinned, "operator pinned a detection");
+    let Some(row_id) = row_of(&state, id) else {
+        return Ok(());
+    };
+    let db = state.db.lock().expect("db lock");
+    if let Err(err) = detections::mark_pinned(&db, row_id, pinned) {
+        tracing::warn!(%err, id, "could not record the pin");
+    }
+    Ok(())
+}
+
 /// The operator corrected a card's reference. The card keeps its id and comes
 /// back as a manual detection with full confidence and the new verse text.
 #[tauri::command]
@@ -185,6 +206,7 @@ pub fn edit_detection(
         detected_at_ms: unix_ms(),
         verse,
         went_live: false,
+        pinned: false,
     };
     tracing::info!(id, passage = %card.passage_id, "operator edited a detection");
     // A new row, not an update: the operator named a different verse, and

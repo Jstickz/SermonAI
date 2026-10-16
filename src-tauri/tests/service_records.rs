@@ -44,6 +44,7 @@ fn candidate(id: u64, passage_id: &str, source: DetectionSource, confidence: f32
         detected_at_ms: 0,
         verse: None,
         went_live: false,
+        pinned: false,
     }
 }
 
@@ -162,6 +163,13 @@ fn a_service_records_its_detections_and_the_operators_decisions() {
     let rows = detections::list(&conn, sermon_id).unwrap();
     assert!(rows[0].went_live);
     assert!(!rows[1].went_live, "only the row that went live");
+
+    // A pin (FR-64) is written for the PDF, and the last value stands.
+    assert!(!rows[0].pinned, "nothing is pinned by default");
+    detections::mark_pinned(&conn, direct, true).unwrap();
+    assert!(detections::list(&conn, sermon_id).unwrap()[0].pinned);
+    detections::mark_pinned(&conn, direct, false).unwrap();
+    assert!(!detections::list(&conn, sermon_id).unwrap()[0].pinned);
 
     assert_eq!(
         (

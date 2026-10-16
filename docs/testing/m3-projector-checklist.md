@@ -168,13 +168,34 @@ reference and send it live each time.
     unblanks on the next verse. Click into a text field and press **→**:
     the caret moves, nothing steps.
 
+## Pinned cards (deliverable 10)
+
+31. With cards arriving, click **Pin** on one. Expected: it moves into a
+    **Pinned** section above Detections, with an accent frame and a
+    "Pinned · 1" chip; the waiting count drops by one; it is still there
+    after 30 seconds. Pin a second card: it is "Pinned · 2", under the
+    first. Press **P** with a waiting card at the top: that card is pinned
+    as 3.
+32. Press **Enter** with pinned cards and no waiting ones: nothing happens.
+    With a waiting card: Enter stages the waiting card, never a pinned one.
+    Press **1**: pinned card 1 goes straight to the projector, with no stop
+    in the staged slot, and stays pinned. Click its **Stage** button: it
+    appears in the Staged slot and the card stays. Press **1** again later:
+    it goes live again. Click into any text field and type **p** or **1**:
+    the letter is typed, nothing pins or goes live.
+33. Click **Unpin** on card 2: it returns to the waiting cards and leaves
+    after 30 seconds; the remaining pinned cards keep their numbers in pin
+    order. Switch Transcribe off and on again: the pinned section is empty,
+    since pins last for the service. In the log, each pin and unpin appears
+    as `operator pinned a detection … pinned=true|false`.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
   `projector painted the live verse staged_to_paint_ms=` for a few go-lives.
   The DoD line is **under 100 ms** to the paint; the first figure is our
   share of it.
-- Anything in steps 6, 9, 14, 20, 23, 27 or 30 that did not look as described.
+- Anything in steps 6, 9, 14, 20, 23, 27, 30 or 32 that did not look as described.
 - A `projector painted the live verse` line from step 25 at 0 ms and one
   at 1500 ms: `staged_to_paint_ms` should be the same either way, since it
   measures the first frame, and `transition_settles_after_ms` should read 0

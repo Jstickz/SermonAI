@@ -371,6 +371,12 @@
     @apply flex flex-col gap-3 rounded-lg bg-bg-raised p-5;
     animation: cardIn 200ms var(--ease-brand-out, ease-out);
   }
+  /* Pinned (FR-64): the accent frame marks an anchor verse the operator
+     chose to keep; nothing else about the card changes. */
+  .detection.pinned {
+    @apply border border-accent-500/60;
+  }
+
   .detection.provisional {
     @apply opacity-70;
   }

@@ -19,6 +19,7 @@ function detection(id: number, provisional = false): Detection {
     // Null until the Bible cache has the text (M2 deliverable 5).
     verse: null,
     wentLive: false,
+    pinned: false,
   };
 }
 
@@ -119,5 +120,43 @@ describe("serviceStore", () => {
       transitionMs: 400,
       liveSinceMs: null,
     });
+  });
+
+  it("keeps a pin when the card is replaced under its id, and clears for a new service (FR-64)", () => {
+    const store = useServiceStore.getState();
+    store.reset();
+    store.addDetection(detection(1));
+    store.pinDetection(1, true);
+    expect(useServiceStore.getState().detections[0]?.pinned).toBe(true);
+
+    // An Edit comes back as a new card under the same id; the pin is the
+    // operator's and survives it.
+    store.addDetection({ ...detection(1), reference: "John 3:17" });
+    const replaced = useServiceStore.getState().detections[0];
+    expect(replaced?.reference).toBe("John 3:17");
+    expect(replaced?.pinned).toBe(true);
+
+    store.pinDetection(1, false);
+    expect(useServiceStore.getState().detections[0]?.pinned).toBe(false);
+
+    store.pinDetection(1, true);
+    store.clearDetections();
+    expect(useServiceStore.getState().detections).toHaveLength(0);
+    expect(useServiceStore.getState().pinOrder).toEqual([]);
+  });
+
+  it("numbers pinned cards by when they were pinned, not when they arrived (FR-64)", () => {
+    const store = useServiceStore.getState();
+    store.reset();
+    store.addDetection(detection(1));
+    store.addDetection(detection(2));
+    store.addDetection(detection(3)); // newest, top of the stack
+    store.pinDetection(3, true);
+    store.pinDetection(1, true);
+    expect(useServiceStore.getState().pinOrder).toEqual([3, 1]);
+    store.pinDetection(3, false);
+    store.pinDetection(3, true);
+    // Re-pinning goes to the end.
+    expect(useServiceStore.getState().pinOrder).toEqual([1, 3]);
   });
 });

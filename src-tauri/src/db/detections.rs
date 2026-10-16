@@ -83,11 +83,23 @@ pub fn mark_went_live(conn: &Connection, row_id: i64) -> Result<()> {
     Ok(())
 }
 
+/// The operator pinned (`true`) or unpinned (`false`) the detection as an
+/// anchor verse (FR-64). The last value stands: a verse pinned, unpinned and
+/// pinned again is pinned.
+pub fn mark_pinned(conn: &Connection, row_id: i64, pinned: bool) -> Result<()> {
+    conn.execute(
+        "UPDATE detected_scriptures SET pinned = ?2 WHERE id = ?1",
+        params![row_id, pinned],
+    )?;
+    Ok(())
+}
+
 /// Everything recorded for a service, in detection order.
 pub fn list(conn: &Connection, sermon_id: i64) -> Result<Vec<DetectedScripture>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, sermon_id, segment_id, book, chapter, verse, end_verse, translation,
-                confidence, source, COALESCE(accepted_by_operator, 0), COALESCE(went_live, 0)
+                confidence, source, COALESCE(accepted_by_operator, 0), COALESCE(went_live, 0),
+                pinned
          FROM detected_scriptures WHERE sermon_id = ?1 ORDER BY id",
     )?;
     let rows = stmt
@@ -106,6 +118,7 @@ pub fn list(conn: &Connection, sermon_id: i64) -> Result<Vec<DetectedScripture>>
                 source: source_from(source.as_deref().unwrap_or("manual")),
                 accepted_by_operator: row.get(10)?,
                 went_live: row.get(11)?,
+                pinned: row.get(12)?,
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;

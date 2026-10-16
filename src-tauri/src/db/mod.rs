@@ -15,6 +15,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0002_youversion",
         include_str!("../../migrations/0002_youversion.sql"),
     ),
+    ("0003_pins", include_str!("../../migrations/0003_pins.sql")),
 ];
 
 /// Open (creating if needed) the database in the app data directory and apply

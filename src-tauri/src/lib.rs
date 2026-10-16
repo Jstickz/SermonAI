@@ -425,6 +425,7 @@ pub fn run() {
             commands::detection::accept_detection,
             commands::detection::reject_detection,
             commands::detection::edit_detection,
+            commands::detection::pin_detection,
         ])
         ;
     tracing::info!(

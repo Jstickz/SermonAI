@@ -8,7 +8,8 @@ This folder is the project's memory. It is an Obsidian vault: open `brain/` in O
 
 - **Milestone:** M3 Staging & Projector Output (window 20 Oct to 2 Nov 2026; started early on 16 Oct). M0, M1 and M2 are done on Windows; M1 and M2 have **not** closed on macOS ([[macos-parked-knowingly]]).
 - **Branch:** `m2-detection`, ahead of `main`, carries M2's close and M3's first work.
-- **M3 state:** deliverables 1 to 6 ticked; the operator ran `docs/testing/m3-projector-checklist.md` steps 1–27 on 16 Oct on commit f261934, all matched, staged → paint 5–59 ms (median 10) against the 100 ms DoD. Steps 28–30 (the 60-second blank and the 12-verse passage, both DoD lines) await the operator. Next unticked: the command palette (7, FR-31), manual override (8, FR-30), auto-fit (9).
+- **M3 state:** deliverables 1 to 6 and 10 (pinned cards, FR-64, added 16 Oct) ticked; the operator ran `docs/testing/m3-projector-checklist.md` steps 1–27 on 16 Oct on commit f261934, all matched, staged → paint 5–59 ms (median 10) against the 100 ms DoD. Steps 28–33 (the 60-second blank and the 12-verse passage, both DoD lines, and the pins) await the operator. Next unticked: the command palette (7, FR-31), manual override (8, FR-30), auto-fit (9).
+- [[enter-does-the-next-thing]] now has a second clause: a pinned card is never the next thing; it goes live by its own controls or its number (PRD §13.12 is the shortcut table).
 - **Merge plan:** `m2-detection` merges to `main` at M3 close, not before (operator, 16 Oct).
 - **Blocker in code:** none. **Blockers outside code:** the gateway's Cloudflare account, a Mac, real church hardware ([[open-questions]]).
 - **Newest session:** [[sessions/2026-10-16]].

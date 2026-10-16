@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enterAction, isBlankHotkey, stepDelta } from "./stagingKeys";
+import { enterAction, isBlankHotkey, isPinHotkey, pinnedIndex, stepDelta } from "./stagingKeys";
 
 describe("enterAction", () => {
   it("stages the top card when nothing is staged", () => {
@@ -58,5 +58,25 @@ describe("enterAction", () => {
     expect(stepDelta(key("ArrowRight", { ctrlKey: true }), null)).toBe(0);
     const input = document.createElement("input");
     expect(stepDelta(key("ArrowRight"), input)).toBe(0);
+  });
+
+  it("P pins and 1 to 9 pick a pinned card, bare and outside a text field only (FR-64)", () => {
+    const key = (k: string, mods: Partial<KeyboardEvent> = {}) => ({
+      key: k,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      ...mods,
+    });
+    expect(isPinHotkey(key("p"), null)).toBe(true);
+    expect(isPinHotkey(key("P"), null)).toBe(true);
+    expect(isPinHotkey(key("p", { ctrlKey: true }), null)).toBe(false);
+    expect(pinnedIndex(key("1"), null)).toBe(0);
+    expect(pinnedIndex(key("9"), null)).toBe(8);
+    expect(pinnedIndex(key("0"), null)).toBe(-1);
+    expect(pinnedIndex(key("1", { altKey: true }), null)).toBe(-1);
+    const input = document.createElement("input");
+    expect(isPinHotkey(key("p"), input)).toBe(false);
+    expect(pinnedIndex(key("1"), input)).toBe(-1);
   });
 });
