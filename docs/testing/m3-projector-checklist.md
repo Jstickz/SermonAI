@@ -227,13 +227,25 @@ reference and send it live each time.
     layout on). **Edit**, type **jon 3 16**, Use Reference: a message above
     the stack says it is not a reference; the card is unchanged.
 
+## Auto-fit (deliverable 9)
+
+39. Send **Psalm 119:105** live, then **Esther 8:9**, then **John 11:35**.
+    Expected: each fills the screen as large as it can while the whole
+    block — verse, reference, rule — stays inside the margins with nothing
+    clipped and no scrollbar; the short verses are much larger than the
+    long one, and John 11:35 ("Jesus wept.") is at the ceiling, not larger.
+    With Esther 8:9 live, drag the projector to the portrait display (or
+    assign it there): it refits for the new shape on its own. The paint
+    report lines should look the same as before: the first frame is
+    already at the fitted size.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
   `projector painted the live verse staged_to_paint_ms=` for a few go-lives.
   The DoD line is **under 100 ms** to the paint; the first figure is our
   share of it.
-- Anything in steps 6, 9, 14, 20, 23, 27, 30, 32, 35 or 38 that did not look as described.
+- Anything in steps 6, 9, 14, 20, 23, 27, 30, 32, 35, 38 or 39 that did not look as described.
 - A `projector painted the live verse` line from step 25 at 0 ms and one
   at 1500 ms: `staged_to_paint_ms` should be the same either way, since it
   measures the first frame, and `transition_settles_after_ms` should read 0

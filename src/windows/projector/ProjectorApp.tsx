@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { on, output } from "@/lib/ipc";
 import type { OutputState, ProjectorLayout, Verse } from "@/lib/types";
+import { useAutoFit } from "./autoFit";
 import {
   EMPTY_LAYERS,
   exitMs,
@@ -29,6 +30,10 @@ import {
  * can begin to read it — and the log notes how long the transition takes
  * to settle beside it.
  *
+ * The verse is sized by measurement (deliverable 9, `autoFit.ts`): the
+ * largest size at which verse, reference and rule fit the layer, found
+ * before the first paint, re-found on resize.
+ *
  * Blanked (FR-33, deliverable 5): a canvas-coloured cover over the layers,
  * instantly, with no fade (wireframe §projector "Blanked state"). The
  * layers stay mounted underneath, so unblanking uncovers the same verse
@@ -46,20 +51,6 @@ export const EMPTY: OutputState = {
   transitionMs: 400,
   liveSinceMs: null,
 };
-
-/**
- * A size tier for the verse by its length (Branding type.scripture.projector:
- * fluid 64–140, auto-fit). Four tiers so a 60-word verse fits the screen
- * without the 12-word one shrinking to match; deliverable 9 replaces this
- * with a measured fit.
- */
-export function verseSizeClass(text: string): string {
-  const n = text.length;
-  if (n <= 120) return "text-[clamp(64px,7vw,140px)]";
-  if (n <= 240) return "text-[clamp(48px,5.2vw,104px)]";
-  if (n <= 400) return "text-[clamp(36px,3.9vw,78px)]";
-  return "text-[clamp(28px,3vw,60px)]";
-}
 
 export function showsReference(layout: ProjectorLayout): boolean {
   return layout !== "verse_only";
@@ -182,15 +173,27 @@ function VerseLayer({
   style: React.CSSProperties;
   leaving: boolean;
 }) {
+  const layerRef = useRef<HTMLDivElement>(null);
+  const blockRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const fontSize = useAutoFit(
+    layerRef,
+    blockRef,
+    textRef,
+    `${verse.reference}|${verse.translation}|${layout}|${verse.text.length}`,
+  );
   return (
     <div
-      className="absolute inset-0 flex items-center justify-center px-[8%]"
+      ref={layerRef}
+      className="absolute inset-0 flex items-center justify-center px-[8%] py-[6%]"
       style={style}
       aria-hidden={leaving || undefined}
     >
-      <div className="max-w-[90%] text-center">
+      <div ref={blockRef} className="w-full text-center">
         <p
-          className={`font-serif leading-[1.2] tracking-[-0.005em] text-content-primary ${verseSizeClass(verse.text)}`}
+          ref={textRef}
+          className="font-serif leading-[1.2] tracking-[-0.005em] text-content-primary"
+          style={{ fontSize: `${fontSize}px` }}
         >
           {verse.text || verse.reference}
         </p>
