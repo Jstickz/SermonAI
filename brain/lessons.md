@@ -73,4 +73,5 @@ Display assignments in React state lost track of the live screen on a tab switch
 
 - A leftover `sermonai.exe` holds the release binary and fails every cargo build with "Access is denied (os error 5)". [[close-leftover-instances]].
 - Keep the build tree out of any sync root. The project moved from OneDrive on 4 October. ([[sessions/2026-10-04]])
+- Moving the project to another drive leaves cargo's cached build-script output pointing at the old path: every build fails with "failed to read plugin permissions … C:\Projects\… (os error 3)" even though the project is on D:. The fix is to delete every `target/*/build/*/` whose `root-output` names the old path (136 of them on 16 October), not `cargo clean`. ([[sessions/2026-10-16]])
 - A `.foglamp/scan.lock.json` holds a public URL's edit token; it is gitignored. Secrets have never entered git history; keep it so. ([[people-and-accounts]])

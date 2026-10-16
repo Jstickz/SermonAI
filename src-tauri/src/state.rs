@@ -120,6 +120,11 @@ impl AppState {
             .flatten()
             .and_then(|s| crate::output::staging::ProjectorLayout::parse(&s))
             .unwrap_or_default();
+        // Auto-live, off unless the operator turned it on (§13.5).
+        let auto_live = crate::db::settings::get(&db, crate::commands::output::AUTO_LIVE_SETTING)
+            .ok()
+            .flatten()
+            .is_some_and(|s| s == "true");
         Self {
             started,
             started_wall,
@@ -132,7 +137,9 @@ impl AppState {
             default_translation: Mutex::new(default_translation),
             current_sermon: Mutex::new(None),
             detection_rows: Mutex::new(std::collections::HashMap::new()),
-            staging: Mutex::new(crate::output::staging::Staging::with_layout(layout)),
+            staging: Mutex::new(crate::output::staging::Staging::with_settings(
+                layout, auto_live,
+            )),
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
             bible,

@@ -5,7 +5,10 @@
 //! revisions in flight (PRD §18.1) and a withdrawn one was never a detection.
 //! The operator's Accept or Reject updates the same row; an Edit writes a new
 //! row with source `manual`, since the operator has named a different verse.
-//! `went_live` and `displayed_at` belong to staging (M3) and stay unset here.
+//! `went_live` and `displayed_at` are set by [`mark_went_live`] when auto-live
+//! sends the card to the projector (M3 deliverable 2). A verse the operator
+//! stages and promotes by hand is not yet tied back to its row: the staged
+//! slot holds a `Verse`, not a detection id (see MILESTONES, M3).
 
 use rusqlite::{params, Connection};
 
@@ -65,6 +68,17 @@ pub fn mark_accepted(conn: &Connection, row_id: i64, accepted: bool) -> Result<(
     conn.execute(
         "UPDATE detected_scriptures SET accepted_by_operator = ?2 WHERE id = ?1",
         params![row_id, accepted],
+    )?;
+    Ok(())
+}
+
+/// The detection reached the projector. `displayed_at` is the database's
+/// clock, which is enough for a record of when; the paint itself is timed
+/// in the log.
+pub fn mark_went_live(conn: &Connection, row_id: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE detected_scriptures SET went_live = 1, displayed_at = CURRENT_TIMESTAMP WHERE id = ?1",
+        params![row_id],
     )?;
     Ok(())
 }

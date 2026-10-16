@@ -47,6 +47,9 @@ export interface Detection {
   detectedAtMs: number;
   /** Null until the Bible cache has the text; the card shows the reference. */
   verse: Verse | null;
+  /** Auto-live sent this card to the projector as it arrived (§13.5). It is
+   *  shown, not waiting: no Stage button, and Enter skips it. */
+  wentLive: boolean;
 }
 
 /**
@@ -166,6 +169,8 @@ export interface OutputState {
   staged: Verse | null;
   blanked: boolean;
   layout: ProjectorLayout;
+  /** Auto-live is on (§13.5): confirmed cards above 90% skip staging. */
+  autoLive: boolean;
   /** Wall-clock ms when `live` went live; the projector reports its paint
    *  against it. Null until something has gone live. */
   liveSinceMs: number | null;

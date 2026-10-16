@@ -33,6 +33,7 @@ const EMPTY_OUTPUTS: OutputState = {
   staged: null,
   blanked: false,
   layout: "verse_reference",
+  autoLive: false,
   liveSinceMs: null,
 };
 

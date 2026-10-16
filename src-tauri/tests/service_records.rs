@@ -43,6 +43,7 @@ fn candidate(id: u64, passage_id: &str, source: DetectionSource, confidence: f32
         evidence: None,
         detected_at_ms: 0,
         verse: None,
+        went_live: false,
     }
 }
 
@@ -154,7 +155,13 @@ fn a_service_records_its_detections_and_the_operators_decisions() {
     );
     assert_eq!(rows[0].source, DetectionSource::Regex);
     assert!(rows[0].accepted_by_operator);
-    assert!(!rows[0].went_live, "staging is M3");
+    assert!(!rows[0].went_live, "nothing has gone live yet");
+
+    // Auto-live (M3 deliverable 2) marks the row as shown.
+    detections::mark_went_live(&conn, direct).unwrap();
+    let rows = detections::list(&conn, sermon_id).unwrap();
+    assert!(rows[0].went_live);
+    assert!(!rows[1].went_live, "only the row that went live");
 
     assert_eq!(
         (

@@ -97,6 +97,11 @@ pub struct Candidate {
     pub evidence: Option<String>,
     pub detected_at_ms: u64,
     pub verse: Option<Verse>,
+    /// Auto-live sent this card to the projector as it was emitted (§13.5,
+    /// M3 deliverable 2). The card still reaches the stack so the operator
+    /// sees what went up; it is not waiting for a decision.
+    #[serde(default)]
+    pub went_live: bool,
 }
 
 /// The pipeline wants Claude asked about this buffer. The caller owns the
@@ -479,6 +484,7 @@ fn candidate(
         evidence,
         detected_at_ms: now_ms,
         verse: None,
+        went_live: false,
     }
 }
 

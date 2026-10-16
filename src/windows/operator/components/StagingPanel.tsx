@@ -1,39 +1,22 @@
 import { useEffect } from "react";
-import { on, output } from "@/lib/ipc";
+import { output } from "@/lib/ipc";
 import { useServiceStore } from "@/stores/serviceStore";
 import type { Verse } from "@/lib/types";
 import { isTypingTarget } from "./stagingKeys";
+import { AutoLiveSwitch } from "./AutoLiveSwitch";
 
 /**
  * The staging slot (FR-50, PRD §13.5): Staged and Live side by side, a Go
  * Live button, Escape to clear. Layout from wireframe.html §staging.
  *
- * The backend owns the state; this panel mirrors `output:changed` into the
- * service store and asks for the current state on mount, because the Live
- * tab unmounts when the operator switches away and must come back showing
- * what is actually on the projector. Enter is handled by the detection
- * stack, which knows the top card; Escape is handled here, since the slot
- * is what it empties.
+ * The backend owns the state; `OperatorApp` mirrors `output:changed` into
+ * the service store (it has to, for the auto-live indicator on every tab),
+ * and this panel reads the store. Enter is handled by the detection stack,
+ * which knows the top card; Escape is handled here, since the slot is what
+ * it empties.
  */
 export function StagingPanel() {
   const outputs = useServiceStore((s) => s.outputs);
-  const setOutputs = useServiceStore((s) => s.setOutputs);
-
-  useEffect(() => {
-    let cancelled = false;
-    let unlisten: (() => void) | undefined;
-    void output.get().then((s) => {
-      if (!cancelled) setOutputs(s);
-    });
-    void on("output:changed", setOutputs).then((fn) => {
-      if (cancelled) fn();
-      else unlisten = fn;
-    });
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [setOutputs]);
 
   // Escape clears the staged slot (§13.5) — outside text fields.
   useEffect(() => {
@@ -52,9 +35,16 @@ export function StagingPanel() {
 
   return (
     <section className="rounded-lg bg-bg-raised p-5">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">Staging</h3>
-        {outputs.blanked && <span className="chip">Projector blanked</span>}
+        <div className="flex items-center gap-3">
+          {outputs.blanked && <span className="chip">Projector blanked</span>}
+          {/* The wireframe puts the switch here as well as in Settings: the
+              operator who turns it on mid-service should not have to leave
+              the Live tab, and the one who sees the indicator should find
+              the way off beside it. */}
+          <AutoLiveSwitch compact />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

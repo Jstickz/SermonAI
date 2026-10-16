@@ -6,6 +6,13 @@ import { useTranslationStore } from "@/stores/translationStore";
 import { DetectionCard } from "./DetectionCard";
 import { enterAction, isTypingTarget } from "./stagingKeys";
 
+/** A card the operator can still act on: confirmed, and not already put on
+ *  the projector by auto-live. Enter and the "waiting" count use the same
+ *  rule, so the count never promises a card Enter will not take. */
+export function isWaiting(d: Pick<Detection, "provisional" | "wentLive">): boolean {
+  return !d.provisional && !d.wentLive;
+}
+
 /** The verse a card stages. A card whose text was not cached still carries
  *  its reference (§13.3), so the operator can stage it and read it later. */
 function verseOf(d: Detection): Verse {
@@ -93,7 +100,7 @@ export function DetectionStack() {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Enter" || isTypingTarget(e.target)) return;
       const { detections, outputs } = useServiceStore.getState();
-      const top = detections.find((d) => !d.provisional);
+      const top = detections.find(isWaiting);
       const action = enterAction(outputs.staged !== null, top !== undefined, e.shiftKey);
       if (action === "none") return;
       e.preventDefault();
@@ -119,7 +126,7 @@ export function DetectionStack() {
     return () => window.removeEventListener("keydown", handler);
   }, [stage, dismissDetection]);
 
-  const waiting = detections.filter((d) => !d.provisional).length;
+  const waiting = detections.filter(isWaiting).length;
 
   return (
     <>

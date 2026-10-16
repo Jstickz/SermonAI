@@ -1,11 +1,12 @@
 # M3 projector checklist — staging slot and renderer, by eye
 
-**What this verifies:** M3 deliverables 1 and 3 — a verse travels from a card
-to the staged slot to the projector with one keypress, in each of the three
-layouts, with the translation label where the operator decided it goes
-(16 Oct 2026: short abbreviation, small, bottom-right corner). Run on a
-second monitor; the projector window is fullscreen and frameless, so keep
-the operator window on the primary.
+**What this verifies:** M3 deliverables 1, 2 and 3 — a verse travels from a
+card to the staged slot to the projector with one keypress, in each of the
+three layouts, with the translation label where the operator decided it goes
+(16 Oct 2026: short abbreviation, small, bottom-right corner); and with
+auto-live on, a confident card reaches the projector with no keypress, with
+the indicator showing. Run on a second monitor; the projector window is
+fullscreen and frameless, so keep the operator window on the primary.
 
 **Build:** `npm run build && node scripts/build-app.mjs`, then
 `src-tauri\target\release\sermonai.exe`. The log is at
@@ -80,10 +81,40 @@ Keep a verse live for these. Changes apply to the verse on screen at once.
     verse large and the staged one small, as before — unchanged by this
     work.
 
+## Auto-live (deliverable 2)
+
+Off by default. The rule: a **confirmed** card, **above 90%**, **with cached
+text**, goes straight to the projector. Everything else still waits as a card.
+
+18. Live tab, Staging panel header: the **Auto-live** switch is off, and the
+    top bar shows no auto-live chip. Settings → General → Behaviour shows
+    the same switch, off, under "Auto-live detected verses".
+19. Turn it on from either place. Expected: the other switch follows, and an
+    amber **Auto-live on** chip appears in the top bar. Switch to Library,
+    Settings, back to Live: the chip is on every tab.
+20. With transcription running and the test sermon playing, wait for the
+    next direct reference (an R card, 97%). Expected: the projector shows
+    it with no keypress; the card still appears in the stack, with an amber
+    **On projector · auto-live** chip where Stage would be, Reject and Edit
+    still offered; the Live slot in the panel matches; "waiting" in the
+    stack header does not count it. Press **Enter**: nothing happens for
+    that card (it is shown, not waiting).
+21. Stage any card by hand so the Staged slot is full, then let the next
+    confident card arrive. Expected: it goes live; the Staged slot still
+    holds what you staged. (Auto-live also respects a blanked projector:
+    the verse goes live underneath and unblank shows it. There is no blank
+    control until deliverable 5, so that line is checked then.)
+22. A **V** or **A** card (semantic or paraphrase) arrives at or below 90%.
+    Expected: it waits as a normal card with Stage. Quit and relaunch with
+    auto-live on: the chip is there on launch and the switch shows on.
+    Turn it off: the chip goes, both switches show off.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
   `projector painted the live verse staged_to_paint_ms=` for a few go-lives.
   The DoD line is **under 100 ms** to the paint; the first figure is our
   share of it.
-- Anything in steps 6, 9 or 14 that did not look as described.
+- Anything in steps 6, 9, 14 or 20 that did not look as described.
+- For auto-live, the log line `went live by auto-live … staged_to_broadcast_us=`
+  followed by its `projector painted the live verse staged_to_paint_ms=`.

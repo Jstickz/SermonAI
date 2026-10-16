@@ -414,6 +414,7 @@ pub fn run() {
             commands::output::clear_staged,
             commands::output::set_blanked,
             commands::output::set_projector_layout,
+            commands::output::set_auto_live,
             commands::output::projector_painted,
             commands::credentials::list_service_credentials,
             commands::credentials::set_service_key,

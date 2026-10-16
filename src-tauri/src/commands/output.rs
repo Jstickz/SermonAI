@@ -5,7 +5,8 @@
 //! the stage monitor render from that event; the operator's panel mirrors
 //! it. Nothing here decides what may be staged — a provisional card has no
 //! Stage button (§13.5), so by the time a verse arrives here the operator
-//! has chosen it.
+//! has chosen it. The one verse that arrives without the operator is
+//! [`auto_live`]'s, and `staging::auto_live_qualifies` decided that.
 
 use std::time::Instant;
 
@@ -19,6 +20,8 @@ use crate::state::AppState;
 const EVENT: &str = "output:changed";
 /// The `settings` key the chosen layout is kept under.
 pub const LAYOUT_SETTING: &str = "projector_layout";
+/// The `settings` key auto-live is kept under: "true" or "false".
+pub const AUTO_LIVE_SETTING: &str = "auto_live";
 
 /// Wall-clock milliseconds, the same clock the projector's `Date.now()` reads.
 fn unix_ms() -> u64 {
@@ -137,6 +140,62 @@ pub fn set_projector_layout(
     tracing::info!(layout = parsed.as_str(), "projector layout set");
     broadcast(&app, &next);
     Ok(next)
+}
+
+/// Turn auto-live on or off (PRD §13.5, M3 deliverable 2). Persisted, and
+/// broadcast at once so the indicator in every window changes with it.
+#[tauri::command]
+pub fn set_auto_live(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<OutputState> {
+    {
+        let db = state.db.lock().expect("db lock");
+        settings::set(
+            &db,
+            AUTO_LIVE_SETTING,
+            if enabled { "true" } else { "false" },
+        )?;
+    }
+    let next = state
+        .staging
+        .lock()
+        .expect("staging lock")
+        .set_auto_live(enabled)
+        .clone();
+    tracing::info!(enabled, "auto-live set");
+    broadcast(&app, &next);
+    Ok(next)
+}
+
+/// Auto-live: a confirmed card above the line goes straight to the
+/// projector. Called by the card emitter, which has already asked
+/// `auto_live_qualifies`; this only checks the switch, under the same lock
+/// the operator's commands take, so a card and a Go Live cannot interleave.
+/// Returns whether it went live. Timed to the broadcast like `go_live`; the
+/// projector's paint report covers the rest.
+pub fn auto_live(app: &AppHandle, state: &AppState, verse: Verse) -> bool {
+    let started = Instant::now();
+    let mut staging = state.staging.lock().expect("staging lock");
+    if !staging.auto_live() {
+        return false;
+    }
+    let next = match staging.auto_live_verse(verse, unix_ms()) {
+        Ok(next) => next.clone(),
+        Err(err) => {
+            tracing::warn!(%err, "auto-live refused");
+            return false;
+        }
+    };
+    drop(staging);
+    broadcast(app, &next);
+    tracing::info!(
+        reference = %next.live.as_ref().map(|v| v.reference.as_str()).unwrap_or(""),
+        staged_to_broadcast_us = started.elapsed().as_micros() as u64,
+        "went live by auto-live"
+    );
+    true
 }
 
 /// The projector window reports when the live verse was painted, against

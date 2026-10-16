@@ -129,6 +129,8 @@ export const output = {
   get: () => invoke<OutputState>("get_output_state"),
   /** Persisted; applies to the verse that is live now (PRD §13.6). */
   setLayout: (layout: ProjectorLayout) => invoke<OutputState>("set_projector_layout", { layout }),
+  /** Auto-live on or off (PRD §13.5). Persisted; every window hears. */
+  setAutoLive: (enabled: boolean) => invoke<OutputState>("set_auto_live", { enabled }),
   /** The projector's own paint time for the live verse (M3 DoD). */
   painted: (liveSinceMs: number, paintedAtMs: number) =>
     invoke<void>("projector_painted", { liveSinceMs, paintedAtMs }),

@@ -1,4 +1,5 @@
 import { AudioSettings } from "./AudioSettings";
+import { BehaviourSettings } from "./BehaviourSettings";
 import { DisplaySettings } from "./DisplaySettings";
 import { ProjectorLayoutSettings } from "./ProjectorLayoutSettings";
 import { PackSettings } from "./PackSettings";
@@ -33,7 +34,7 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 /** The sections with a screen behind them. Listing them once keeps the
  *  fallback from shadowing a panel that was added but not added here — a
  *  mistake that renders as "not built yet" over working code. */
-const BUILT: readonly string[] = ["audio", "displays", "packs", "services"];
+const BUILT: readonly string[] = ["general", "audio", "displays", "packs", "services"];
 
 export function SettingsScreen() {
   // In the nav store rather than local state so the Live tab can send the
@@ -57,6 +58,7 @@ export function SettingsScreen() {
       </nav>
 
       <div className="settings-content">
+        {section === "general" && <BehaviourSettings />}
         {section === "audio" && <AudioSettings />}
         {section === "displays" && (
           <>

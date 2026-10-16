@@ -6,6 +6,11 @@
 //! that looked right at a glance gets a second look as text before the
 //! congregation sees it, and a verse on a projector cannot be recalled.
 //!
+//! **Auto-live** (FR-50, PRD §13.5, M3 deliverable 2) is the one exception,
+//! and it is opt-in: with it on, a confirmed card whose confidence is above
+//! [`AUTO_LIVE_MIN_CONFIDENCE`] skips the staged slot and goes straight to
+//! live. [`auto_live_qualifies`] is the whole rule; the card emitter asks it.
+//!
 //! Pure state with no clock of its own, so a command can wrap it in a mutex
 //! and the tests can drive it without a window. Every change returns the
 //! whole [`OutputState`], which the commands broadcast as `output:changed`
@@ -15,7 +20,31 @@
 use serde::{Deserialize, Serialize};
 
 use crate::db::models::Verse;
+use crate::detection::pipeline::Candidate;
 use crate::error::{Error, Result};
+
+/// Auto-live's line: a card must be **strictly above** this to skip staging
+/// (wireframe §settings: "when confidence is above 90%"). The Claude stage
+/// caps its confidence *at* 0.90 for exactly this reason (`pipeline.rs`):
+/// a paraphrase always passes an operator.
+pub const AUTO_LIVE_MIN_CONFIDENCE: f32 = 0.90;
+
+/// Whether auto-live may send this card to the projector without the
+/// operator. Three conditions, each its own reason:
+///
+/// - **confirmed**: a provisional card is never projectable (§18.1), by any
+///   path, and auto-live is a path.
+/// - **above the line**: at or below 0.90 the operator decides.
+/// - **has text**: a reference with no cached words would put an empty
+///   screen in front of the congregation; that card waits as a card.
+pub fn auto_live_qualifies(card: &Candidate) -> bool {
+    !card.provisional
+        && card.confidence > AUTO_LIVE_MIN_CONFIDENCE
+        && card
+            .verse
+            .as_ref()
+            .is_some_and(|v| !v.text.trim().is_empty())
+}
 
 /// What the projector shows beside the verse (PRD §13.6: "verse only, verse +
 /// reference, verse + reference + translation"; FR-26 basic). Mirrors
@@ -63,6 +92,9 @@ pub struct OutputState {
     /// unblanking restores the verse without re-staging it.
     pub blanked: bool,
     pub layout: ProjectorLayout,
+    /// Auto-live is on (§13.5). Carried here so every window can show the
+    /// indicator from the one event it already listens to.
+    pub auto_live: bool,
     /// Wall-clock ms when the live verse went live, so the projector can
     /// report its paint against it (the M3 DoD's staged → live budget).
     pub live_since_ms: Option<u64>,
@@ -78,11 +110,15 @@ impl Staging {
         Self::default()
     }
 
-    /// Start with the layout the operator last chose.
-    pub fn with_layout(layout: ProjectorLayout) -> Self {
+    /// Start with what the operator last chose: the layout, and whether
+    /// auto-live was on. Auto-live survives a restart deliberately — a church
+    /// that runs hands-off should not find the setting silently off on
+    /// Sunday — and the indicator makes the state visible either way.
+    pub fn with_settings(layout: ProjectorLayout, auto_live: bool) -> Self {
         Self {
             state: OutputState {
                 layout,
+                auto_live,
                 ..OutputState::default()
             },
         }
@@ -91,6 +127,32 @@ impl Staging {
     pub fn set_layout(&mut self, layout: ProjectorLayout) -> &OutputState {
         self.state.layout = layout;
         &self.state
+    }
+
+    pub fn set_auto_live(&mut self, enabled: bool) -> &OutputState {
+        self.state.auto_live = enabled;
+        &self.state
+    }
+
+    pub fn auto_live(&self) -> bool {
+        self.state.auto_live
+    }
+
+    /// Auto-live: put a verse straight into the live slot. The staged slot is
+    /// left alone — whatever the operator lined up is still theirs to send —
+    /// and so is blank: blanking is an explicit act, and a verse arriving on
+    /// its own must not undo it. The verse is live underneath, so unblank
+    /// shows it. Refused while auto-live is off, so a caller cannot bypass
+    /// staging by naming the wrong method.
+    pub fn auto_live_verse(&mut self, verse: Verse, now_ms: u64) -> Result<&OutputState> {
+        if !self.state.auto_live {
+            return Err(Error::Output(
+                "Auto-live is off. Stage the verse and press Go Live.".to_string(),
+            ));
+        }
+        self.state.live = Some(verse);
+        self.state.live_since_ms = Some(now_ms);
+        Ok(&self.state)
     }
 
     pub fn state(&self) -> &OutputState {
@@ -234,6 +296,92 @@ mod tests {
         assert_eq!(json["staged"]["reference"], "John 3:16");
         assert_eq!(json["staged"]["translation"], "KJV");
         assert_eq!(json["blanked"], false);
+        assert_eq!(json["autoLive"], false);
+    }
+}
+
+#[cfg(test)]
+mod auto_live_tests {
+    use super::*;
+    use crate::db::models::DetectionSource;
+
+    fn verse(reference: &str) -> Verse {
+        Verse {
+            reference: reference.to_string(),
+            translation: "KJV".to_string(),
+            text: format!("text of {reference}"),
+        }
+    }
+
+    fn card(confidence: f32, provisional: bool, verse: Option<Verse>) -> Candidate {
+        Candidate {
+            id: 1,
+            passage_id: "JHN.3.16".into(),
+            reference: "John 3:16".into(),
+            source: DetectionSource::Regex,
+            confidence,
+            provisional,
+            evidence: None,
+            detected_at_ms: 0,
+            verse,
+            went_live: false,
+        }
+    }
+
+    #[test]
+    fn only_a_confirmed_card_with_text_above_the_line_qualifies() {
+        let v = Some(verse("John 3:16"));
+        assert!(auto_live_qualifies(&card(0.97, false, v.clone())));
+        assert!(
+            !auto_live_qualifies(&card(0.90, false, v.clone())),
+            "at the line is not above it: Claude's cap must keep a paraphrase out"
+        );
+        assert!(
+            !auto_live_qualifies(&card(0.97, true, v.clone())),
+            "provisional is never projectable, by any path"
+        );
+        assert!(
+            !auto_live_qualifies(&card(0.97, false, None)),
+            "no text means an empty screen"
+        );
+        let blank = Verse {
+            text: "  ".into(),
+            ..verse("John 3:16")
+        };
+        assert!(!auto_live_qualifies(&card(0.97, false, Some(blank))));
+    }
+
+    #[test]
+    fn auto_live_goes_straight_to_live_and_leaves_staged_alone() {
+        let mut s = Staging::with_settings(ProjectorLayout::default(), true);
+        s.stage(verse("Psalm 23:1"));
+        let after = s.auto_live_verse(verse("John 3:16"), 5_000).unwrap();
+        assert_eq!(after.live.as_ref().unwrap().reference, "John 3:16");
+        assert_eq!(after.live_since_ms, Some(5_000));
+        assert_eq!(
+            after.staged.as_ref().unwrap().reference,
+            "Psalm 23:1",
+            "the operator's staged verse is still theirs to send"
+        );
+    }
+
+    #[test]
+    fn auto_live_respects_a_blank_and_is_refused_while_off() {
+        let mut s = Staging::with_settings(ProjectorLayout::default(), true);
+        s.set_blanked(true);
+        s.auto_live_verse(verse("John 3:16"), 1).unwrap();
+        assert!(s.state().blanked, "blanking is the operator's act");
+        s.set_blanked(false);
+        assert_eq!(s.state().live.as_ref().unwrap().reference, "John 3:16");
+
+        s.set_auto_live(false);
+        let err = s
+            .auto_live_verse(verse("John 3:17"), 2)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("Auto-live is off"), "{err}");
+        assert_eq!(s.state().live.as_ref().unwrap().reference, "John 3:16");
+        assert_eq!(serde_json::to_value(s.state()).unwrap()["autoLive"], false);
     }
 }
 
@@ -262,7 +410,7 @@ mod layout_tests {
 
     #[test]
     fn going_live_stamps_the_time_and_the_layout_survives_everything() {
-        let mut s = Staging::with_layout(ProjectorLayout::VerseReferenceTranslation);
+        let mut s = Staging::with_settings(ProjectorLayout::VerseReferenceTranslation, false);
         s.stage(Verse {
             reference: "John 3:16".into(),
             translation: "KJV".into(),

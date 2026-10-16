@@ -18,6 +18,7 @@ function detection(id: number, provisional = false): Detection {
     detectedAtMs: 0,
     // Null until the Bible cache has the text (M2 deliverable 5).
     verse: null,
+    wentLive: false,
   };
 }
 
@@ -113,6 +114,7 @@ describe("serviceStore", () => {
       staged: null,
       blanked: false,
       layout: "verse_reference",
+      autoLive: false,
       liveSinceMs: null,
     });
   });

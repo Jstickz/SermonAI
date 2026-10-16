@@ -21,6 +21,13 @@ import type { Detection, DetectionSource } from "@/lib/types";
  * Auto-dismiss after 30 s (§13.3) applies to confirmed cards nobody acted on.
  * A provisional card is never auto-dismissed here; its lifetime belongs to
  * the settled text.
+ *
+ * A third state, from auto-live (§13.5): **went live**. The backend put the
+ * verse on the projector as the card was emitted. The card is still shown —
+ * the operator must see what the congregation is seeing — with "On
+ * projector" where Stage would be. Reject and Edit stay: a verse on a
+ * projector cannot be recalled, but the record can be corrected, and an
+ * Edit produces a card to stage in its place.
  */
 
 /** The wireframe's source badge: a coloured dot, a letter, a label. */
@@ -37,9 +44,10 @@ export function sourceBadge(source: DetectionSource): { letter: string; label: s
   }
 }
 
-/** Whether the operator may stage this card. Never while provisional. */
-export function canStage(detection: Pick<Detection, "provisional">): boolean {
-  return !detection.provisional;
+/** Whether the operator may stage this card. Never while provisional, and
+ *  not once auto-live has already shown it. */
+export function canStage(detection: Pick<Detection, "provisional" | "wentLive">): boolean {
+  return !detection.provisional && !detection.wentLive;
 }
 
 /** 0.978 → 98. Rounded, never over 100. */
@@ -80,7 +88,7 @@ export function DetectionCard({
     <article
       className={`detection ${detection.provisional ? "provisional" : ""}`}
       aria-label={`${detection.reference}, ${badge.label}, ${percent}% confidence${
-        detection.provisional ? ", unconfirmed" : ""
+        detection.provisional ? ", unconfirmed" : detection.wentLive ? ", on the projector" : ""
       }`}
     >
       <div className="top">
@@ -90,6 +98,12 @@ export function DetectionCard({
           · {badge.label} · <span className="mono">{percent}%</span> confidence
         </span>
         {detection.provisional && <span className="chip ml-auto">Unconfirmed</span>}
+        {detection.wentLive && (
+          <span className="chip ml-auto bg-status-warning-bg text-status-warning">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-status-warning" aria-hidden="true" />
+            On projector · auto-live
+          </span>
+        )}
       </div>
 
       <div className="ref">{detection.reference}</div>

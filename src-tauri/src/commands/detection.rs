@@ -12,6 +12,7 @@ use crate::bible::{cache, reference};
 use crate::db::{detections, models::DetectionSource};
 use crate::detection::pipeline::Candidate;
 use crate::error::{Error, Result};
+use crate::output::staging::auto_live_qualifies;
 use crate::state::AppState;
 
 /// Write a confirmed card under the running service and remember its row.
@@ -34,20 +35,34 @@ fn persist(state: &AppState, card: &Candidate, translation: &str) {
     }
 }
 
-/// Apply an operator decision to the card's row, if it has one.
-fn decide(state: &AppState, id: u64, accepted: bool) {
-    let row = state
+fn row_of(state: &AppState, id: u64) -> Option<i64> {
+    state
         .detection_rows
         .lock()
         .expect("rows lock")
         .get(&id)
-        .copied();
-    let Some(row_id) = row else {
+        .copied()
+}
+
+/// Apply an operator decision to the card's row, if it has one.
+fn decide(state: &AppState, id: u64, accepted: bool) {
+    let Some(row_id) = row_of(state, id) else {
         return;
     };
     let db = state.db.lock().expect("db lock");
     if let Err(err) = detections::mark_accepted(&db, row_id, accepted) {
         tracing::warn!(%err, id, "could not record the operator's decision");
+    }
+}
+
+/// Record that auto-live put the card on the projector.
+fn record_went_live(state: &AppState, id: u64) {
+    let Some(row_id) = row_of(state, id) else {
+        return;
+    };
+    let db = state.db.lock().expect("db lock");
+    if let Err(err) = detections::mark_went_live(&db, row_id) {
+        tracing::warn!(%err, id, "could not record that a detection went live");
     }
 }
 
@@ -65,6 +80,12 @@ pub fn unix_ms() -> u64 {
 /// would be spend without display, and the reference is enough to warn the
 /// operator something is coming. A confirmed card whose verse is not cached
 /// still goes, with `verse: None`; the card says so rather than waiting.
+///
+/// With auto-live on (§13.5), a confirmed card that `auto_live_qualifies`
+/// goes to the projector before it goes to the window, and the card arrives
+/// marked `went_live` so the stack shows it as shown rather than waiting.
+/// The order matters: the projector is the thing the operator is watching
+/// for, and the card is the record of it.
 pub fn emit_cards(app: &AppHandle, cards: Vec<Candidate>) {
     if cards.is_empty() {
         return;
@@ -91,6 +112,13 @@ pub fn emit_cards(app: &AppHandle, cards: Vec<Candidate>) {
         }
         if !card.provisional {
             persist(&state, &card, &translation);
+            if auto_live_qualifies(&card) {
+                let verse = card.verse.clone().expect("qualifies implies text");
+                if crate::commands::output::auto_live(app, &state, verse) {
+                    card.went_live = true;
+                    record_went_live(&state, card.id);
+                }
+            }
         }
         let _ = app.emit("detection:new", &card);
     }
@@ -156,6 +184,7 @@ pub fn edit_detection(
         evidence: None,
         detected_at_ms: unix_ms(),
         verse,
+        went_live: false,
     };
     tracing::info!(id, passage = %card.passage_id, "operator edited a detection");
     // A new row, not an update: the operator named a different verse, and

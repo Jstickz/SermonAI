@@ -5,6 +5,9 @@ import { SettingsScreen } from "./components/SettingsScreen";
 import { StagingPanel } from "./components/StagingPanel";
 import { TabPanel } from "./components/TabPanel";
 import { TABS, useNavStore } from "@/stores/navStore";
+import { useServiceStore } from "@/stores/serviceStore";
+import { useEffect } from "react";
+import { on, output } from "@/lib/ipc";
 
 // M0 shell only. The panels below are filled in per milestone:
 // transcript M1, detection cards M2, staging M3, library M4, packs M0/M5.
@@ -15,6 +18,27 @@ export function OperatorApp() {
   // section. See navStore.
   const tab = useNavStore((s) => s.tab);
   const setTab = useNavStore((s) => s.setTab);
+  const autoLive = useServiceStore((s) => s.outputs.autoLive);
+  const setOutputs = useServiceStore((s) => s.setOutputs);
+
+  // The output state is mirrored here, at the root, rather than in the
+  // staging panel: the auto-live indicator must show on every tab (§13.5,
+  // "obvious"), and the panel only mounts once the Live tab has been seen.
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    void output.get().then((s) => {
+      if (!cancelled) setOutputs(s);
+    });
+    void on("output:changed", setOutputs).then((fn) => {
+      if (cancelled) fn();
+      else unlisten = fn;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [setOutputs]);
 
   return (
     <div className="flex h-full flex-col bg-bg-canvas">
@@ -36,6 +60,19 @@ export function OperatorApp() {
         </nav>
 
         <div className="flex-1" />
+        {/* Auto-live's indicator (PRD §13.5): on every tab, in the warning
+            colour, because a verse can now reach the congregation without a
+            keypress and the operator must never be surprised by that. */}
+        {autoLive && (
+          <span
+            className="chip bg-status-warning-bg text-status-warning"
+            role="status"
+            title="Confirmed verses above 90% go straight to the projector. Turn off in Staging or Settings."
+          >
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-status-warning" aria-hidden="true" />
+            Auto-live on
+          </span>
+        )}
         <span className="chip">Not in service</span>
       </header>
 
