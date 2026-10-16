@@ -1,14 +1,17 @@
 # M3 projector checklist — staging slot and renderer, by eye
 
-**What this verifies:** M3 deliverables 1 to 5 — a verse travels from a
-card to the staged slot to the projector with one keypress, in each of the
-three layouts, with the translation label where the operator decided it goes
-(16 Oct 2026: short abbreviation, small, bottom-right corner); with
+**What this verifies:** every M3 deliverable, 1 to 10 — a verse travels
+from a card to the staged slot to the projector with one keypress, in each
+of the three layouts, with the translation label where the operator decided
+it goes (16 Oct 2026: short abbreviation, small, bottom-right corner); with
 auto-live on, a confident card reaches the projector with no keypress, with
 the indicator showing; verses change by fade, slide or dissolve at the
-length you set; and **B** blanks and unblanks instantly with nothing lost.
-Run on a second monitor; the projector window is fullscreen and frameless,
-so keep the operator window on the primary.
+length you set; **B** blanks and unblanks instantly with nothing lost;
+arrows step the passage; pinned cards, the palette, Edit's translation
+choice and the measured fit each have their steps. Steps 1–27 passed on
+f261934 on 16 Oct; 28–39 are for the next run. Run on a second monitor;
+the projector window is fullscreen and frameless, so keep the operator
+window on the primary.
 
 **Build:** `npm run build && node scripts/build-app.mjs`, then
 `src-tauri\target\release\sermonai.exe`. The log is at
