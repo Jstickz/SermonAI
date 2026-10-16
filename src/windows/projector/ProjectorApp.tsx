@@ -1,6 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { on, output } from "@/lib/ipc";
-import type { OutputState, ProjectorLayout } from "@/lib/types";
+import type { OutputState, ProjectorLayout, Verse } from "@/lib/types";
+import {
+  EMPTY_LAYERS,
+  exitMs,
+  layerStyle,
+  onLive,
+  onSettled,
+  settleMs,
+  type LayerState,
+} from "./projectorTransitions";
 
 /**
  * The congregation's screen (FR-24; M3 deliverable 3).
@@ -13,12 +22,19 @@ import type { OutputState, ProjectorLayout } from "@/lib/types";
  * operator's call of 16 Oct 2026; full attribution belongs on the operator
  * screen and in the PDF (§15.2), not in front of the congregation.
  *
- * Blanked, or nothing live: a canvas-coloured screen, not black, so the
- * projector's own "no signal" is never mistaken for a blank.
+ * Transitions (FR-25, deliverable 4): verses are layers, and a go-live
+ * animates the old one out and the new one in per the configured
+ * transition and length (`projectorTransitions.ts`). The paint report is
+ * still the first frame of the new verse — that is when the congregation
+ * can begin to read it — and the log notes how long the transition takes
+ * to settle beside it.
  *
- * Reports its own paint of each new live verse, two animation frames after
- * the state arrives, against the time the verse went live — the M3 DoD's
- * staged → live budget is measured to this, not to the backend's broadcast.
+ * Blanked (FR-33, deliverable 5): a canvas-coloured cover over the layers,
+ * instantly, with no fade (wireframe §projector "Blanked state"). The
+ * layers stay mounted underneath, so unblanking uncovers the same verse
+ * with no re-layout and no re-animation: no flicker, no lost state. Blank
+ * and empty are canvas-coloured rather than black, so the projector's own
+ * "no signal" is never mistaken for a blank.
  */
 export const EMPTY: OutputState = {
   live: null,
@@ -26,6 +42,8 @@ export const EMPTY: OutputState = {
   blanked: false,
   layout: "verse_reference",
   autoLive: false,
+  transition: "fade",
+  transitionMs: 400,
   liveSinceMs: null,
 };
 
@@ -51,8 +69,24 @@ export function showsTranslation(layout: ProjectorLayout): boolean {
   return layout === "verse_reference_translation";
 }
 
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const handler = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return reduced;
+}
+
 export function ProjectorApp() {
   const [state, setState] = useState<OutputState>(EMPTY);
+  const [layers, setLayers] = useState<LayerState>(EMPTY_LAYERS);
+  const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     let cancelled = false;
@@ -73,42 +107,97 @@ export function ProjectorApp() {
     };
   }, []);
 
+  // The live slot drives the layer stack; a layout change touches no layer.
+  const live = state.live;
+  const liveSince = state.liveSinceMs;
+  useEffect(() => {
+    setLayers((prev) => onLive(prev, live, liveSince));
+  }, [live, liveSince]);
+
+  // Drop each exiting layer once its exit has run. A timer rather than
+  // animationend: an instant exit fires no animation event, and a layer
+  // covered by a blank may be in a window that is not painting.
+  const { transition, transitionMs } = state;
+  const outKeys = layers.layers
+    .filter((l) => l.phase === "out")
+    .map((l) => l.key)
+    .join(",");
+  useEffect(() => {
+    if (outKeys === "") return;
+    const ms = reducedMotion ? 0 : exitMs(transition, transitionMs);
+    const timers = outKeys.split(",").map((k) => {
+      const key = Number(k);
+      return window.setTimeout(() => setLayers((prev) => onSettled(prev, key)), ms + 20);
+    });
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [outKeys, transition, transitionMs, reducedMotion]);
+
   // Paint report, once per go-live. Two frames: the first is when React has
   // committed, the second is after the browser has painted that commit.
-  const liveSince = state.liveSinceMs;
-  const liveRef = state.live?.reference;
+  // Keyed on the go-live, not on blank: uncovering a verse is not a paint
+  // of a new one, and would report a stale figure.
+  const reported = useRef<number | null>(null);
   useEffect(() => {
-    if (liveSince === null || !liveRef || state.blanked) return;
+    if (liveSince === null || !live || reported.current === liveSince) return;
+    const settle = reducedMotion ? 0 : settleMs(transition, transitionMs);
     let inner = 0;
     const outer = requestAnimationFrame(() => {
       inner = requestAnimationFrame(() => {
-        void output.painted(liveSince, Date.now()).catch(() => undefined);
+        reported.current = liveSince;
+        void output.painted(liveSince, Date.now(), settle).catch(() => undefined);
       });
     });
     return () => {
       cancelAnimationFrame(outer);
       cancelAnimationFrame(inner);
     };
-  }, [liveSince, liveRef, state.blanked]);
+  }, [liveSince, live, transition, transitionMs, reducedMotion]);
 
-  if (state.blanked || !state.live) {
-    return <div className="h-full bg-bg-canvas" />;
-  }
-
-  const { live, layout } = state;
+  const { layout } = state;
 
   return (
-    <div className="relative flex h-full items-center justify-center bg-bg-canvas px-[8%]">
+    <div className="relative h-full overflow-hidden bg-bg-canvas">
+      {layers.layers.map((layer) => (
+        <VerseLayer
+          key={layer.key}
+          verse={layer.verse}
+          layout={layout}
+          style={layerStyle(transition, layer.phase, transitionMs, reducedMotion)}
+          leaving={layer.phase === "out"}
+        />
+      ))}
+      {state.blanked && <div className="absolute inset-0 bg-bg-canvas" aria-label="Blanked" />}
+    </div>
+  );
+}
+
+function VerseLayer({
+  verse,
+  layout,
+  style,
+  leaving,
+}: {
+  verse: Verse;
+  layout: ProjectorLayout;
+  style: React.CSSProperties;
+  leaving: boolean;
+}) {
+  return (
+    <div
+      className="absolute inset-0 flex items-center justify-center px-[8%]"
+      style={style}
+      aria-hidden={leaving || undefined}
+    >
       <div className="max-w-[90%] text-center">
         <p
-          className={`font-serif leading-[1.2] tracking-[-0.005em] text-content-primary ${verseSizeClass(live.text)}`}
+          className={`font-serif leading-[1.2] tracking-[-0.005em] text-content-primary ${verseSizeClass(verse.text)}`}
         >
-          {live.text || live.reference}
+          {verse.text || verse.reference}
         </p>
         {showsReference(layout) && (
           <>
             <p className="mt-8 text-[22px] font-medium uppercase tracking-[0.06em] text-content-secondary">
-              {live.reference}
+              {verse.reference}
             </p>
             <span className="mx-auto mt-3 block h-0.5 w-20 bg-accent-500" />
           </>
@@ -120,7 +209,7 @@ export function ProjectorApp() {
           className="mono absolute bottom-[3%] right-[3%] text-[clamp(14px,1.2vw,24px)] uppercase tracking-[0.12em] text-content-muted"
           aria-label="Translation"
         >
-          {live.translation}
+          {verse.translation}
         </span>
       )}
     </div>

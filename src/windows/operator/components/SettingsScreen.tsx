@@ -2,6 +2,7 @@ import { AudioSettings } from "./AudioSettings";
 import { BehaviourSettings } from "./BehaviourSettings";
 import { DisplaySettings } from "./DisplaySettings";
 import { ProjectorLayoutSettings } from "./ProjectorLayoutSettings";
+import { ProjectorTransitionSettings } from "./ProjectorTransitionSettings";
 import { PackSettings } from "./PackSettings";
 import { ServiceSettings } from "./ServiceSettings";
 import { useNavStore, type SettingsSection } from "@/stores/navStore";
@@ -65,6 +66,9 @@ export function SettingsScreen() {
             <DisplaySettings />
             <div className="mt-5">
               <ProjectorLayoutSettings />
+            </div>
+            <div className="mt-5">
+              <ProjectorTransitionSettings />
             </div>
           </>
         )}

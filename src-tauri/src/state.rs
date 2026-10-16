@@ -125,6 +125,18 @@ impl AppState {
             .ok()
             .flatten()
             .is_some_and(|s| s == "true");
+        // The transition and its length (FR-25), or the 400 ms fade.
+        let transition = crate::db::settings::get(&db, crate::commands::output::TRANSITION_SETTING)
+            .ok()
+            .flatten()
+            .and_then(|s| crate::output::staging::ProjectorTransition::parse(&s))
+            .unwrap_or_default();
+        let transition_ms =
+            crate::db::settings::get(&db, crate::commands::output::TRANSITION_MS_SETTING)
+                .ok()
+                .flatten()
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(crate::output::VERSE_TRANSITION_MS);
         Self {
             started,
             started_wall,
@@ -138,7 +150,10 @@ impl AppState {
             current_sermon: Mutex::new(None),
             detection_rows: Mutex::new(std::collections::HashMap::new()),
             staging: Mutex::new(crate::output::staging::Staging::with_settings(
-                layout, auto_live,
+                layout,
+                auto_live,
+                transition,
+                transition_ms,
             )),
             packs,
             outputs: Mutex::new(OutputAssignments::default()),

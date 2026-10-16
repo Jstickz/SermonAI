@@ -3,6 +3,7 @@ import { DetectionStack } from "./components/DetectionStack";
 import { LiveTranscript } from "./components/LiveTranscript";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { StagingPanel } from "./components/StagingPanel";
+import { BlankButton } from "./components/BlankButton";
 import { TabPanel } from "./components/TabPanel";
 import { TABS, useNavStore } from "@/stores/navStore";
 import { useServiceStore } from "@/stores/serviceStore";
@@ -73,6 +74,9 @@ export function OperatorApp() {
             Auto-live on
           </span>
         )}
+        {/* Blank projector (FR-33): the wireframe's top-bar icon button, on
+            every tab, with B as its hotkey. */}
+        <BlankButton />
         <span className="chip">Not in service</span>
       </header>
 

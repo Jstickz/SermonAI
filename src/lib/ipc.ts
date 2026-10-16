@@ -14,6 +14,7 @@ import type {
   OutputAssignments,
   OutputState,
   ProjectorLayout,
+  ProjectorTransition,
   Pack,
   PackProgress,
   PackStatus,
@@ -131,9 +132,13 @@ export const output = {
   setLayout: (layout: ProjectorLayout) => invoke<OutputState>("set_projector_layout", { layout }),
   /** Auto-live on or off (PRD §13.5). Persisted; every window hears. */
   setAutoLive: (enabled: boolean) => invoke<OutputState>("set_auto_live", { enabled }),
-  /** The projector's own paint time for the live verse (M3 DoD). */
-  painted: (liveSinceMs: number, paintedAtMs: number) =>
-    invoke<void>("projector_painted", { liveSinceMs, paintedAtMs }),
+  /** Transition and length, persisted; the next go-live uses it (FR-25). */
+  setTransition: (transition: ProjectorTransition, durationMs: number) =>
+    invoke<OutputState>("set_projector_transition", { transition, durationMs }),
+  /** The projector's own paint time for the live verse (M3 DoD), and how
+   *  long after it the transition settles. */
+  painted: (liveSinceMs: number, paintedAtMs: number, settleMs: number) =>
+    invoke<void>("projector_painted", { liveSinceMs, paintedAtMs, settleMs }),
 };
 
 export const library = {

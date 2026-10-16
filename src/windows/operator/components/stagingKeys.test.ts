@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enterAction } from "./stagingKeys";
+import { enterAction, isBlankHotkey } from "./stagingKeys";
 
 describe("enterAction", () => {
   it("stages the top card when nothing is staged", () => {
@@ -25,5 +25,22 @@ describe("enterAction", () => {
 
   it("shift+enter with no card but a staged verse just goes live", () => {
     expect(enterAction(true, false, true)).toBe("go-live");
+  });
+
+  it("B blanks, bare and outside a text field only (FR-33)", () => {
+    const key = (k: string, mods: Partial<KeyboardEvent> = {}) => ({
+      key: k,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      ...mods,
+    });
+    expect(isBlankHotkey(key("b"), null)).toBe(true);
+    expect(isBlankHotkey(key("B"), null)).toBe(true);
+    expect(isBlankHotkey(key("b", { ctrlKey: true }), null)).toBe(false);
+    expect(isBlankHotkey(key("b", { metaKey: true }), null)).toBe(false);
+    expect(isBlankHotkey(key("x"), null)).toBe(false);
+    const input = document.createElement("input");
+    expect(isBlankHotkey(key("b"), input)).toBe(false);
   });
 });

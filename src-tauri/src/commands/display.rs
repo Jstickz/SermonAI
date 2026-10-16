@@ -58,8 +58,16 @@ pub fn get_output_assignments(state: State<'_, AppState>) -> OutputAssignments {
 }
 
 /// Send the projector output to a display. `None` hides it again.
+///
+/// **Async, and it must stay async.** The first assignment creates the output
+/// window (`windows::ensure_output_window`), and on Windows a webview window
+/// built from inside a *synchronous* command deadlocks: the command runs on
+/// the main thread, and the build waits for that same thread's event loop to
+/// process the creation. Tauri's `WebviewWindowBuilder` docs say so. It froze
+/// the operator's Settings page for five minutes on 16 Oct 2026 and logged
+/// nothing, because the log line comes after the build returns.
 #[tauri::command]
-pub fn set_projector_monitor(
+pub async fn set_projector_monitor(
     app: AppHandle,
     state: State<'_, AppState>,
     monitor_name: Option<String>,
@@ -75,8 +83,9 @@ pub fn set_projector_monitor(
 }
 
 /// Send the stage confidence monitor to a display. `None` hides it again.
+/// Async for the same reason as `set_projector_monitor`.
 #[tauri::command]
-pub fn set_alternate_monitor(
+pub async fn set_alternate_monitor(
     app: AppHandle,
     state: State<'_, AppState>,
     monitor_name: Option<String>,

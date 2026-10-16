@@ -115,6 +115,8 @@ describe("serviceStore", () => {
       blanked: false,
       layout: "verse_reference",
       autoLive: false,
+      transition: "fade",
+      transitionMs: 400,
       liveSinceMs: null,
     });
   });

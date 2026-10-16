@@ -11,6 +11,8 @@
  * the operator who has already read the card.
  *
  * Escape clears the staged slot and is handled where the slot is drawn.
+ * **B** blanks and unblanks the projector (FR-33, wireframe §projector),
+ * and is handled by the top bar's blank button.
  */
 export type EnterAction = "stage" | "go-live" | "stage-and-go-live" | "none";
 
@@ -21,6 +23,17 @@ export function enterAction(hasStaged: boolean, hasTopCard: boolean, shift: bool
   }
   if (hasStaged) return "go-live";
   return hasTopCard ? "stage" : "none";
+}
+
+/** B, bare — no modifier, so Ctrl+B in a browser-like field is not a
+ *  blank — and outside a text field. */
+export function isBlankHotkey(
+  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey">,
+  target: EventTarget | null,
+): boolean {
+  if (e.key !== "b" && e.key !== "B") return false;
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  return !isTypingTarget(target);
 }
 
 /** A keystroke inside a text field belongs to the field, not to staging. */

@@ -162,6 +162,9 @@ export type TranscriptEvent =
  *  output without passing through staging first (PRD §10.2, FR-50). */
 /** What the projector shows beside the verse (PRD §13.6). Mirrors
  *  `ProjectorLayout` in `src-tauri/src/output/staging.rs`. */
+/** Mirrors `ProjectorTransition` in `src-tauri/src/output/staging.rs` (FR-25). */
+export type ProjectorTransition = "fade" | "slide" | "dissolve";
+
 export type ProjectorLayout = "verse_only" | "verse_reference" | "verse_reference_translation";
 
 export interface OutputState {
@@ -171,6 +174,9 @@ export interface OutputState {
   layout: ProjectorLayout;
   /** Auto-live is on (§13.5): confirmed cards above 90% skip staging. */
   autoLive: boolean;
+  /** How verses change on the projector (FR-25), and how long it takes. */
+  transition: ProjectorTransition;
+  transitionMs: number;
   /** Wall-clock ms when `live` went live; the projector reports its paint
    *  against it. Null until something has gone live. */
   liveSinceMs: number | null;

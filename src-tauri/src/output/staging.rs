@@ -81,9 +81,50 @@ impl ProjectorLayout {
     }
 }
 
+/// How one verse gives way to the next on the projector (FR-25, PRD §13.6,
+/// Branding §7.1: the one place real animation budget is spent). Mirrors
+/// `ProjectorTransition` in `src/lib/types.ts`.
+///
+/// - **fade**: the old verse fades out, then the new one fades in.
+/// - **slide**: the old verse lifts away, the new one rises into place.
+/// - **dissolve**: the two cross-fade at once.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectorTransition {
+    #[default]
+    Fade,
+    Slide,
+    Dissolve,
+}
+
+impl ProjectorTransition {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Fade => "fade",
+            Self::Slide => "slide",
+            Self::Dissolve => "dissolve",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "fade" => Some(Self::Fade),
+            "slide" => Some(Self::Slide),
+            "dissolve" => Some(Self::Dissolve),
+            _ => None,
+        }
+    }
+}
+
+/// The longest transition the setting accepts. Branding §7.1 keeps every
+/// animation under 300 ms except this one; a verse that takes longer than a
+/// second and a half to arrive reads as a fault, not a flourish. Zero is
+/// allowed and means instant.
+pub const MAX_TRANSITION_MS: u32 = 1_500;
+
 /// What is staged and what is live. Mirrors `OutputState` in
 /// `src/lib/types.ts`; the field names cross the IPC boundary.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputState {
     pub live: Option<Verse>,
@@ -95,9 +136,27 @@ pub struct OutputState {
     /// Auto-live is on (§13.5). Carried here so every window can show the
     /// indicator from the one event it already listens to.
     pub auto_live: bool,
+    /// How verses change on the projector (FR-25), and how long it takes.
+    pub transition: ProjectorTransition,
+    pub transition_ms: u32,
     /// Wall-clock ms when the live verse went live, so the projector can
     /// report its paint against it (the M3 DoD's staged → live budget).
     pub live_since_ms: Option<u64>,
+}
+
+impl Default for OutputState {
+    fn default() -> Self {
+        Self {
+            live: None,
+            staged: None,
+            blanked: false,
+            layout: ProjectorLayout::default(),
+            auto_live: false,
+            transition: ProjectorTransition::default(),
+            transition_ms: crate::output::VERSE_TRANSITION_MS,
+            live_since_ms: None,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -114,14 +173,39 @@ impl Staging {
     /// auto-live was on. Auto-live survives a restart deliberately — a church
     /// that runs hands-off should not find the setting silently off on
     /// Sunday — and the indicator makes the state visible either way.
-    pub fn with_settings(layout: ProjectorLayout, auto_live: bool) -> Self {
+    pub fn with_settings(
+        layout: ProjectorLayout,
+        auto_live: bool,
+        transition: ProjectorTransition,
+        transition_ms: u32,
+    ) -> Self {
         Self {
             state: OutputState {
                 layout,
                 auto_live,
+                transition,
+                transition_ms: transition_ms.min(MAX_TRANSITION_MS),
                 ..OutputState::default()
             },
         }
+    }
+
+    /// Choose the transition and its length (FR-25). The length is checked
+    /// here, not in the command, so no path can store one the projector
+    /// would make a spectacle of.
+    pub fn set_transition(
+        &mut self,
+        transition: ProjectorTransition,
+        transition_ms: u32,
+    ) -> Result<&OutputState> {
+        if transition_ms > MAX_TRANSITION_MS {
+            return Err(Error::Output(format!(
+                "{transition_ms} ms is too long for a transition. Choose up to {MAX_TRANSITION_MS} ms."
+            )));
+        }
+        self.state.transition = transition;
+        self.state.transition_ms = transition_ms;
+        Ok(&self.state)
     }
 
     pub fn set_layout(&mut self, layout: ProjectorLayout) -> &OutputState {
@@ -353,7 +437,12 @@ mod auto_live_tests {
 
     #[test]
     fn auto_live_goes_straight_to_live_and_leaves_staged_alone() {
-        let mut s = Staging::with_settings(ProjectorLayout::default(), true);
+        let mut s = Staging::with_settings(
+            ProjectorLayout::default(),
+            true,
+            ProjectorTransition::Fade,
+            400,
+        );
         s.stage(verse("Psalm 23:1"));
         let after = s.auto_live_verse(verse("John 3:16"), 5_000).unwrap();
         assert_eq!(after.live.as_ref().unwrap().reference, "John 3:16");
@@ -367,7 +456,12 @@ mod auto_live_tests {
 
     #[test]
     fn auto_live_respects_a_blank_and_is_refused_while_off() {
-        let mut s = Staging::with_settings(ProjectorLayout::default(), true);
+        let mut s = Staging::with_settings(
+            ProjectorLayout::default(),
+            true,
+            ProjectorTransition::Fade,
+            400,
+        );
         s.set_blanked(true);
         s.auto_live_verse(verse("John 3:16"), 1).unwrap();
         assert!(s.state().blanked, "blanking is the operator's act");
@@ -410,7 +504,12 @@ mod layout_tests {
 
     #[test]
     fn going_live_stamps_the_time_and_the_layout_survives_everything() {
-        let mut s = Staging::with_settings(ProjectorLayout::VerseReferenceTranslation, false);
+        let mut s = Staging::with_settings(
+            ProjectorLayout::VerseReferenceTranslation,
+            false,
+            ProjectorTransition::Fade,
+            400,
+        );
         s.stage(Verse {
             reference: "John 3:16".into(),
             translation: "KJV".into(),
@@ -425,5 +524,62 @@ mod layout_tests {
         let json = serde_json::to_value(s.state()).unwrap();
         assert_eq!(json["layout"], "verse_reference_translation");
         assert_eq!(json["liveSinceMs"], 1_760_000_000_000u64);
+    }
+}
+
+#[cfg(test)]
+mod transition_tests {
+    use super::*;
+
+    #[test]
+    fn the_transition_round_trips_and_defaults_to_a_400ms_fade() {
+        for t in [
+            ProjectorTransition::Fade,
+            ProjectorTransition::Slide,
+            ProjectorTransition::Dissolve,
+        ] {
+            assert_eq!(ProjectorTransition::parse(t.as_str()), Some(t));
+            assert_eq!(
+                serde_json::to_string(&t).unwrap(),
+                format!("\"{}\"", t.as_str())
+            );
+        }
+        assert_eq!(ProjectorTransition::parse("wipe"), None);
+        let state = OutputState::default();
+        assert_eq!(state.transition, ProjectorTransition::Fade);
+        assert_eq!(state.transition_ms, 400, "FR-25's default");
+        let json = serde_json::to_value(&state).unwrap();
+        assert_eq!(json["transition"], "fade");
+        assert_eq!(json["transitionMs"], 400);
+    }
+
+    #[test]
+    fn the_length_is_bounded_and_zero_is_instant() {
+        let mut s = Staging::new();
+        s.set_transition(ProjectorTransition::Slide, 0).unwrap();
+        assert_eq!(s.state().transition_ms, 0);
+        s.set_transition(ProjectorTransition::Dissolve, MAX_TRANSITION_MS)
+            .unwrap();
+        let err = s
+            .set_transition(ProjectorTransition::Fade, MAX_TRANSITION_MS + 1)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("too long"), "{err}");
+        assert_eq!(
+            s.state().transition,
+            ProjectorTransition::Dissolve,
+            "a refused change changes nothing"
+        );
+        let s = Staging::with_settings(
+            ProjectorLayout::default(),
+            false,
+            ProjectorTransition::Fade,
+            9_000,
+        );
+        assert_eq!(
+            s.state().transition_ms,
+            MAX_TRANSITION_MS,
+            "a stored value past the cap is clamped on load, not refused"
+        );
     }
 }

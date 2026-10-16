@@ -374,6 +374,28 @@
   .detection.provisional {
     @apply opacity-70;
   }
+  /* Projector verse transitions (FR-25, Branding §7.2 verse-in / verse-out).
+     Durations and easing are set inline by projectorTransitions.ts; the
+     keyframes only say what moves. The slide travels 4vh so it reads the
+     same on a 720p hall screen and a 4K one. Reduced motion is honoured in
+     code, not here: the style is omitted entirely rather than shortened. */
+  @keyframes verseFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes verseFadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes verseSlideIn {
+    from { opacity: 0; transform: translateY(4vh); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes verseSlideOut {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(-4vh); }
+  }
+
   @keyframes cardIn {
     from {
       opacity: 0;

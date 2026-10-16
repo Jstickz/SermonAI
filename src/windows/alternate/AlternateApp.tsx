@@ -10,6 +10,8 @@ export function AlternateApp() {
     blanked: false,
     layout: "verse_reference",
     autoLive: false,
+  transition: "fade",
+  transitionMs: 400,
     liveSinceMs: null,
   });
   const [now, setNow] = useState(() => new Date());

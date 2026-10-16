@@ -34,6 +34,8 @@ const EMPTY_OUTPUTS: OutputState = {
   blanked: false,
   layout: "verse_reference",
   autoLive: false,
+  transition: "fade",
+  transitionMs: 400,
   liveSinceMs: null,
 };
 

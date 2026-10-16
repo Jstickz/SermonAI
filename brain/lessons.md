@@ -69,6 +69,10 @@ Vector alone 70% → 79% with synonyms → 92% with Claude as gated → 99% if e
 
 Display assignments in React state lost track of the live screen on a tab switch (moved to Rust, [[sessions/2026-09-08]]). The Live tab and Settings each kept their own device selection, so choosing a replacement input changed a value the running capture never read (moved to a shared store, [[sessions/2026-09-23]]). The output windows ask for state on mount because the Live tab unmounts on a tab switch ([[sessions/2026-10-16]]).
 
+## A window built inside a synchronous command deadlocks on Windows
+
+Tauri runs a synchronous command on the main thread. Creating a webview window there waits for the main thread's own event loop, which is blocked by the command: the first "Use as projector" froze the Settings page for five minutes and logged nothing, because the log line sits after the build. The window creation had moved from startup into the assignment command on 4 October for cold-start reasons and had not been exercised on the operator's machine since. Rule: any command that may create a window is `async`, and the doc comment on it says why. ([[sessions/2026-10-16]])
+
 ## Operational
 
 - A leftover `sermonai.exe` holds the release binary and fails every cargo build with "Access is denied (os error 5)". [[close-leftover-instances]].

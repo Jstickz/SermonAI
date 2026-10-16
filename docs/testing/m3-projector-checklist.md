@@ -1,12 +1,14 @@
 # M3 projector checklist — staging slot and renderer, by eye
 
-**What this verifies:** M3 deliverables 1, 2 and 3 — a verse travels from a
+**What this verifies:** M3 deliverables 1 to 5 — a verse travels from a
 card to the staged slot to the projector with one keypress, in each of the
 three layouts, with the translation label where the operator decided it goes
-(16 Oct 2026: short abbreviation, small, bottom-right corner); and with
+(16 Oct 2026: short abbreviation, small, bottom-right corner); with
 auto-live on, a confident card reaches the projector with no keypress, with
-the indicator showing. Run on a second monitor; the projector window is
-fullscreen and frameless, so keep the operator window on the primary.
+the indicator showing; verses change by fade, slide or dissolve at the
+length you set; and **B** blanks and unblanks instantly with nothing lost.
+Run on a second monitor; the projector window is fullscreen and frameless,
+so keep the operator window on the primary.
 
 **Build:** `npm run build && node scripts/build-app.mjs`, then
 `src-tauri\target\release\sermonai.exe`. The log is at
@@ -109,12 +111,56 @@ text**, goes straight to the projector. Everything else still waits as a card.
     auto-live on: the chip is there on launch and the switch shows on.
     Turn it off: the chip goes, both switches show off.
 
+## Transitions (deliverable 4)
+
+Settings → Displays & themes → **Transition**, below Projector layout.
+Default is **Fade**, 400 ms. Keep cards arriving, or edit a card to any
+reference and send it live each time.
+
+23. With Fade at 400 ms, send a verse live over another. Expected: the old
+    verse fades out, the screen rests on canvas for a blink, the new verse
+    fades in. Nothing slides. The reference and rule arrive with the verse,
+    not after it.
+24. **Slide.** Expected: the old verse lifts up and away as the new one
+    rises into place from slightly below; the two overlap. **Dissolve.**
+    Expected: the two cross-fade at once, no rest on canvas.
+25. Set the length to **0** and press Enter in the field: the next go-live
+    is instant, no movement at all. Set **1500**: slow, and still finishes.
+    Type **2000**: the field refuses it with a message and goes back to the
+    last value. **Use Default** returns to 400. Quit and relaunch: the
+    transition and length you left are in effect.
+26. Change the projector layout while a verse is live (steps 12 to 14).
+    Expected: the reference, rule and corner label appear and vanish with no
+    transition; the verse does not animate. Send the **same** verse live
+    twice (stage it, Go Live, stage it again, Go Live): it animates both
+    times.
+
+## Blank (deliverable 5)
+
+27. With a verse live, press **B** on the Live tab (click somewhere neutral
+    first). Expected: the projector goes to the dark canvas colour at once,
+    no fade; the top bar's Blank button turns amber and reads "Blanked";
+    the Staging panel shows "Projector blanked"; the Live slot still shows
+    the verse. Press **B** again: the verse is back at once, no fade, no
+    re-animation, exactly where it was. Click the top bar button: same as
+    the key. Switch to Settings and press **B**: it still works. Click into
+    any text field and type **b**: the letter is typed, nothing blanks.
+28. **The DoD line.** Blank, wait a full 60 seconds with transcription
+    running, unblank. Expected: the same verse, instantly, no flicker, and
+    the staged slot (if you had one) is untouched. While blanked, let an
+    auto-live card arrive or Go Live by hand: the projector stays dark, the
+    Live slot shows the new verse, and unblank shows it.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
   `projector painted the live verse staged_to_paint_ms=` for a few go-lives.
   The DoD line is **under 100 ms** to the paint; the first figure is our
   share of it.
-- Anything in steps 6, 9, 14 or 20 that did not look as described.
+- Anything in steps 6, 9, 14, 20, 23 or 27 that did not look as described.
+- A `projector painted the live verse` line from step 25 at 0 ms and one
+  at 1500 ms: `staged_to_paint_ms` should be the same either way, since it
+  measures the first frame, and `transition_settles_after_ms` should read 0
+  and 1750 (fade: 250 out, then 1500 in).
 - For auto-live, the log line `went live by auto-live … staged_to_broadcast_us=`
   followed by its `projector painted the live verse staged_to_paint_ms=`.

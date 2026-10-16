@@ -14,7 +14,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::db::{models::Verse, settings};
 use crate::error::{Error, Result};
-use crate::output::staging::{OutputState, ProjectorLayout};
+use crate::output::staging::{OutputState, ProjectorLayout, ProjectorTransition};
 use crate::state::AppState;
 
 const EVENT: &str = "output:changed";
@@ -22,6 +22,9 @@ const EVENT: &str = "output:changed";
 pub const LAYOUT_SETTING: &str = "projector_layout";
 /// The `settings` key auto-live is kept under: "true" or "false".
 pub const AUTO_LIVE_SETTING: &str = "auto_live";
+/// The `settings` keys the transition and its length are kept under.
+pub const TRANSITION_SETTING: &str = "projector_transition";
+pub const TRANSITION_MS_SETTING: &str = "projector_transition_ms";
 
 /// Wall-clock milliseconds, the same clock the projector's `Date.now()` reads.
 fn unix_ms() -> u64 {
@@ -142,6 +145,40 @@ pub fn set_projector_layout(
     Ok(next)
 }
 
+/// Choose how verses change on the projector and how long it takes (FR-25).
+/// Persisted; the next go-live uses it.
+#[tauri::command]
+pub fn set_projector_transition(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    transition: String,
+    duration_ms: u32,
+) -> Result<OutputState> {
+    let parsed = ProjectorTransition::parse(&transition).ok_or_else(|| {
+        Error::Output(format!(
+            "{transition} is not a transition. Choose fade, slide or dissolve."
+        ))
+    })?;
+    let next = state
+        .staging
+        .lock()
+        .expect("staging lock")
+        .set_transition(parsed, duration_ms)?
+        .clone();
+    {
+        let db = state.db.lock().expect("db lock");
+        settings::set(&db, TRANSITION_SETTING, parsed.as_str())?;
+        settings::set(&db, TRANSITION_MS_SETTING, &duration_ms.to_string())?;
+    }
+    tracing::info!(
+        transition = parsed.as_str(),
+        duration_ms,
+        "projector transition set"
+    );
+    broadcast(&app, &next);
+    Ok(next)
+}
+
 /// Turn auto-live on or off (PRD §13.5, M3 deliverable 2). Persisted, and
 /// broadcast at once so the indicator in every window changes with it.
 #[tauri::command]
@@ -202,10 +239,11 @@ pub fn auto_live(app: &AppHandle, state: &AppState, verse: Verse) -> bool {
 /// the time it went live, so staged → live is measured to the thing itself
 /// (M3 DoD: under 100 ms) rather than to our broadcast.
 #[tauri::command]
-pub fn projector_painted(live_since_ms: u64, painted_at_ms: u64) {
+pub fn projector_painted(live_since_ms: u64, painted_at_ms: u64, settle_ms: u32) {
     tracing::info!(
         staged_to_paint_ms = painted_at_ms.saturating_sub(live_since_ms),
         budget_ms = 100,
+        transition_settles_after_ms = settle_ms,
         "projector painted the live verse"
     );
 }
