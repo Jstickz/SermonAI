@@ -34,6 +34,10 @@ export type SettingsSection =
 interface NavState {
   tab: Tab;
   settingsSection: SettingsSection;
+  /** The command palette (FR-31), opened by Ctrl/Cmd+K or the Search Verse
+   *  button; here so either can open it from anywhere. */
+  paletteOpen: boolean;
+  setPaletteOpen: (open: boolean) => void;
   setTab: (tab: Tab) => void;
   setSettingsSection: (section: SettingsSection) => void;
   /** Open Settings at a named section, in one action. */
@@ -43,6 +47,8 @@ interface NavState {
 export const useNavStore = create<NavState>((set) => ({
   tab: "Live",
   settingsSection: "audio",
+  paletteOpen: false,
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setTab: (tab) => set({ tab }),
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   goToSettings: (settingsSection) => set({ tab: "Settings", settingsSection }),

@@ -105,6 +105,9 @@ export const bible = {
     invoke<Verse>("lookup_passage", { passageId, versionId }),
   search: (query: string, versionId: number) =>
     invoke<Verse[]>("search_verses", { query, versionId }),
+  /** A typed reference as a verse in the current translation (FR-31). Empty
+   *  text means not cached. Rejects with a message naming the input. */
+  resolve: (reference: string) => invoke<Verse>("resolve_reference", { reference }),
 };
 
 export const translations = {

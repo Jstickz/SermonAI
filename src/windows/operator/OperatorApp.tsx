@@ -4,6 +4,7 @@ import { LiveTranscript } from "./components/LiveTranscript";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { StagingPanel } from "./components/StagingPanel";
 import { BlankButton } from "./components/BlankButton";
+import { CommandPalette } from "./components/CommandPalette";
 import { TabPanel } from "./components/TabPanel";
 import { TABS, useNavStore } from "@/stores/navStore";
 import { useServiceStore } from "@/stores/serviceStore";
@@ -142,6 +143,9 @@ export function OperatorApp() {
       <TabPanel active={tab === "Settings"} className="min-h-0 flex-1 overflow-auto p-5">
         <SettingsScreen />
       </TabPanel>
+
+      {/* Ctrl/Cmd+K from any tab (FR-31). */}
+      <CommandPalette />
     </div>
   );
 }

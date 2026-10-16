@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useServiceStore } from "./serviceStore";
+import { RECENT_LIMIT, rememberRecent, useServiceStore } from "./serviceStore";
 import type { Detection, TranscriptSegment } from "@/lib/types";
 
 function segment(id: number, text: string, isFinal: boolean): TranscriptSegment {
@@ -158,5 +158,28 @@ describe("serviceStore", () => {
     store.pinDetection(3, true);
     // Re-pinning goes to the end.
     expect(useServiceStore.getState().pinOrder).toEqual([1, 3]);
+  });
+
+  it("remembers verses that reach a slot, newest first, without repeats (FR-31)", () => {
+    const verse = (reference: string, translation = "KJV") => ({ reference, translation, text: "t" });
+    let recent = rememberRecent([], verse("John 3:16"));
+    recent = rememberRecent(recent, verse("Romans 8:28"));
+    recent = rememberRecent(recent, verse("John 3:16"));
+    expect(recent.map((v) => v.reference)).toEqual(["John 3:16", "Romans 8:28"]);
+    // Another translation of the same verse is its own entry.
+    recent = rememberRecent(recent, verse("John 3:16", "WEB"));
+    expect(recent).toHaveLength(3);
+    for (let i = 0; i < 20; i++) recent = rememberRecent(recent, verse(`Psalm ${i}:1`));
+    expect(recent).toHaveLength(RECENT_LIMIT);
+
+    const store = useServiceStore.getState();
+    store.reset();
+    const outputs = { ...useServiceStore.getState().outputs, staged: verse("Micah 6:8") };
+    store.setOutputs(outputs);
+    // The same slot broadcast again (a blank toggle, say) is not a new arrival.
+    store.setOutputs({ ...outputs, blanked: true });
+    expect(useServiceStore.getState().recent.map((v) => v.reference)).toEqual(["Micah 6:8"]);
+    store.setOutputs({ ...outputs, staged: null, live: verse("Micah 6:8"), blanked: false });
+    expect(useServiceStore.getState().recent).toHaveLength(1);
   });
 });

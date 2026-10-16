@@ -5,8 +5,37 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::bible::translations::{self, TranslationChoice};
 use crate::bible::youversion::{BibleVersion, PORTAL_URL};
+use crate::bible::{cache, reference};
+use crate::db::models::Verse;
 use crate::error::{Error, Result};
 use crate::state::AppState;
+
+/// A typed reference as a verse in the current translation (FR-31, PRD
+/// §13.9; M3 deliverable 7). "john 3 16", "John 3:16" and "1 jn 4 8" all
+/// resolve; the parser owns the spellings. A verse the cache does not hold
+/// comes back with empty text, as a card does, so the palette can say so
+/// rather than wait on a network it may not have.
+#[tauri::command]
+pub fn resolve_reference(state: State<'_, AppState>, reference: String) -> Result<Verse> {
+    let parsed = reference::parse(&reference).map_err(|e| {
+        Error::Bible(format!(
+            "\"{}\" is not a reference: {e}. Try the form \"john 3 16\".",
+            reference.trim()
+        ))
+    })?;
+    let translation = state
+        .default_translation
+        .lock()
+        .expect("translation lock")
+        .clone();
+    let db = state.db.lock().expect("db lock");
+    let cached = cache::lookup_ref(&db, &translation, &parsed)?;
+    Ok(cached.map(|c| c.verse).unwrap_or_else(|| Verse {
+        reference: parsed.display(),
+        translation,
+        text: String::new(),
+    }))
+}
 
 /// Open the YouVersion portal so the operator can accept a version's terms.
 ///

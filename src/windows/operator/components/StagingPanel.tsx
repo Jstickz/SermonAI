@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { output } from "@/lib/ipc";
 import { useServiceStore } from "@/stores/serviceStore";
+import { useNavStore } from "@/stores/navStore";
 import type { Verse } from "@/lib/types";
 import { isTypingTarget, stepDelta } from "./stagingKeys";
 import { AutoLiveSwitch } from "./AutoLiveSwitch";
@@ -23,6 +24,7 @@ import { AutoLiveSwitch } from "./AutoLiveSwitch";
  */
 export function StagingPanel() {
   const outputs = useServiceStore((s) => s.outputs);
+  const openPalette = useNavStore((s) => s.setPaletteOpen);
   const [stepError, setStepError] = useState<string | null>(null);
 
   const step = useCallback(async (delta: 1 | -1) => {
@@ -67,6 +69,14 @@ export function StagingPanel() {
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">Staging</h3>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="btn-secondary min-h-10 !px-3 text-xs"
+            onClick={() => openPalette(true)}
+            title="Search any verse (Ctrl+K)"
+          >
+            Search Verse · Ctrl+K
+          </button>
           {outputs.blanked && <span className="chip">Projector blanked</span>}
           {/* The wireframe puts the switch here as well as in Settings: the
               operator who turns it on mid-service should not have to leave

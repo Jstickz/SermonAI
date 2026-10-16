@@ -1,5 +1,16 @@
 import { create } from "zustand";
-import type { Detection, OutputState, TranscriptSegment } from "@/lib/types";
+import type { Detection, OutputState, TranscriptSegment, Verse } from "@/lib/types";
+
+/** How many recent verses the palette offers (FR-31, "recent verses on top"). */
+export const RECENT_LIMIT = 8;
+
+/** `verse` becomes the most recent; a verse already there moves up rather
+ *  than appearing twice. Same reference in another translation is another
+ *  entry: the operator may want either. */
+export function rememberRecent(recent: Verse[], verse: Verse): Verse[] {
+  const same = (v: Verse) => v.reference === verse.reference && v.translation === verse.translation;
+  return [verse, ...recent.filter((v) => !same(v))].slice(0, RECENT_LIMIT);
+}
 
 /** Live-service state for the operator window. Persisted state lives in SQLite;
  *  this store only holds what the UI needs between events. */
@@ -13,6 +24,8 @@ interface ServiceState {
    *  pinned is 1 for the whole service, whatever arrived when. */
   pinOrder: number[];
   outputs: OutputState;
+  /** Verses staged or sent live this service, newest first (FR-31). */
+  recent: Verse[];
 
   setSermonId: (id: number | null) => void;
   setCapturing: (capturing: boolean) => void;
@@ -55,6 +68,7 @@ export const useServiceStore = create<ServiceState>((set) => ({
   detections: [],
   pinOrder: [],
   outputs: EMPTY_OUTPUTS,
+  recent: [],
 
   setSermonId: (sermonId) => set({ sermonId }),
   setCapturing: (isCapturing) => set({ isCapturing }),
@@ -92,11 +106,31 @@ export const useServiceStore = create<ServiceState>((set) => ({
           : [...state.pinOrder, id]
         : state.pinOrder.filter((p) => p !== id),
     })),
-  clearDetections: () => set({ detections: [], pinOrder: [] }),
+  clearDetections: () => set({ detections: [], pinOrder: [], recent: [] }),
   dismissDetection: (id) => set((state) => ({ detections: state.detections.filter((d) => d.id !== id) })),
   withdrawDetection: (id) => set((state) => ({ detections: state.detections.filter((d) => d.id !== id) })),
-  setOutputs: (outputs) => set({ outputs }),
+  // A verse arriving in either slot is remembered for the palette. Compared
+  // by reference and translation, not identity: every broadcast is a new
+  // object, and a blank toggle must not re-remember the live verse.
+  setOutputs: (outputs) =>
+    set((state) => {
+      let recent = state.recent;
+      const arrived = (next: Verse | null, prev: Verse | null) =>
+        next !== null &&
+        (prev === null || prev.reference !== next.reference || prev.translation !== next.translation);
+      if (arrived(outputs.staged, state.outputs.staged)) recent = rememberRecent(recent, outputs.staged!);
+      if (arrived(outputs.live, state.outputs.live)) recent = rememberRecent(recent, outputs.live!);
+      return { outputs, recent };
+    }),
 
   reset: () =>
-    set({ sermonId: null, isCapturing: false, segments: [], detections: [], pinOrder: [], outputs: EMPTY_OUTPUTS }),
+    set({
+      sermonId: null,
+      isCapturing: false,
+      segments: [],
+      detections: [],
+      pinOrder: [],
+      outputs: EMPTY_OUTPUTS,
+      recent: [],
+    }),
 }));

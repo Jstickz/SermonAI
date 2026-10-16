@@ -189,13 +189,35 @@ reference and send it live each time.
     since pins last for the service. In the log, each pin and unpin appears
     as `operator pinned a detection … pinned=true|false`.
 
+## Command palette (deliverable 7)
+
+34. On any tab press **Ctrl+K**. Expected: the palette opens over the app
+    with the field focused, the current translation's code beside it, and
+    "Type a reference…" below. Press **Escape**: it closes and focus is
+    back where it was. The **Search Verse · Ctrl+K** button in the Staging
+    header opens it too.
+35. Open it and type **john 3 16** (no colon). Expected: within a beat a
+    **Typed** row shows "John 3:16" with the start of the verse. Press
+    **Enter**: the palette closes and John 3:16 is in the Staged slot.
+    Open it again, type **rom 8 28**, press **Shift+Enter**: the palette
+    closes and Romans 8:28 is on the projector, Staged empty. Type
+    **jon 3 16** (misspelt): a message says it is not a reference and
+    suggests the form. Type **jude 25**: Jude 1:25.
+36. Open it with nothing typed. Expected: a **Recent** group lists John
+    3:16 and Romans 8:28, newest first, and ↑↓ move the highlight; Enter
+    on one stages it. Type a reference, press **Tab**: the code beside the
+    field changes to the next bundled translation (KJV → WEB → ASV …) and
+    the Typed row's text changes with it; the Live tab's translation
+    picker shows the same. Click into a card's Edit field and press
+    Ctrl+K: the palette still opens (it is a chord, not a letter).
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
   `projector painted the live verse staged_to_paint_ms=` for a few go-lives.
   The DoD line is **under 100 ms** to the paint; the first figure is our
   share of it.
-- Anything in steps 6, 9, 14, 20, 23, 27, 30 or 32 that did not look as described.
+- Anything in steps 6, 9, 14, 20, 23, 27, 30, 32 or 35 that did not look as described.
 - A `projector painted the live verse` line from step 25 at 0 ms and one
   at 1500 ms: `staged_to_paint_ms` should be the same either way, since it
   measures the first frame, and `transition_settles_after_ms` should read 0

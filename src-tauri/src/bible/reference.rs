@@ -453,6 +453,9 @@ mod tests {
     fn common_references_across_the_canon() {
         // Twenty references a preacher is likely to name in a single service.
         assert_eq!(id("John 3:16"), "JHN.3.16");
+        // The palette's form (PRD §13.9): lower case, spaces for the colon.
+        assert_eq!(id("john 3 16"), "JHN.3.16");
+        assert_eq!(id("1 jn 4 8"), "1JN.4.8");
         assert_eq!(id("Genesis 1:1"), "GEN.1.1");
         assert_eq!(id("Exodus 20:3"), "EXO.20.3");
         assert_eq!(id("Leviticus 19:18"), "LEV.19.18");

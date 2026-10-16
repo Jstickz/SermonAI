@@ -169,6 +169,46 @@
     -webkit-backdrop-filter: blur(8px);
   }
 
+  /* Command palette (wireframe.html §palette, FR-31). Shares the modal
+     backdrop; the card is wider and has no title, since the field is the
+     title. */
+  .palette {
+    @apply w-[640px] max-w-[92vw] overflow-hidden rounded-lg bg-bg-raised shadow-modal;
+  }
+  .palette-input {
+    @apply flex items-center gap-3 border-b border-line-subtle px-5 py-4;
+  }
+  .palette-input input {
+    @apply min-w-0 flex-1 bg-transparent text-base text-content-primary outline-none;
+  }
+  .palette-list {
+    @apply max-h-[400px] overflow-y-auto p-2;
+  }
+  .palette-group {
+    @apply px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-muted;
+  }
+  .palette-item {
+    @apply flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-3 py-2.5;
+  }
+  .palette-item.on {
+    @apply bg-bg-pill;
+  }
+  .palette-item .ref {
+    @apply shrink-0 text-sm font-semibold;
+  }
+  .palette-item .snippet {
+    @apply ml-2 min-w-0 flex-1 font-serif text-[13px] text-content-secondary;
+  }
+  .palette-item .hint {
+    @apply mono shrink-0 text-[11px] text-content-muted;
+  }
+  .palette-footer {
+    @apply flex flex-wrap items-center gap-4 border-t border-line-subtle px-5 py-3 text-[11px] text-content-muted;
+  }
+  .kbd {
+    @apply mono rounded-sm bg-bg-pill px-1.5 py-0.5 text-[10px] text-content-secondary;
+  }
+
   .modal-card {
     @apply w-[560px] max-w-[92vw] rounded-lg bg-bg-raised p-6 shadow-modal;
   }
