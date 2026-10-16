@@ -2,16 +2,37 @@
 
 ## Start every session here
 
-1. Read [docs/MILESTONES.md](docs/MILESTONES.md). State the current milestone
+1. Read [brain/00 Start Here.md](brain/00%20Start%20Here.md) and the newest
+   note in [brain/sessions/](brain/sessions/). That is the project's memory:
+   where we are, the standing rules, and what the last session left open.
+2. Read [docs/MILESTONES.md](docs/MILESTONES.md). State the current milestone
    and blocker before doing anything else.
-2. Read that milestone's Deliverables. Pick the next unticked item.
-3. Read the PRD section that item cites before writing code.
-4. When the item is done, tick it, run the relevant Definition of Done line, and
+3. Read that milestone's Deliverables. Pick the next unticked item.
+4. Read the PRD section that item cites before writing code.
+5. When the item is done, tick it, run the relevant Definition of Done line, and
    update the Status Board if the milestone is complete — in the same commit.
-5. Anything out of scope goes in the **Parked** table at the bottom of
+6. Anything out of scope goes in the **Parked** table at the bottom of
    MILESTONES.md, not into the code.
 
 Milestones are sequential. Do not pull work forward from a later one.
+
+## Keep the memory current
+
+`brain/` is an Obsidian vault (notes linked with `[[wikilinks]]`). It is the
+narrative that connects the sources of truth below; it does not replace them.
+
+- **At session end, and whenever a milestone closes or a decision is made:**
+  write or extend today's `brain/sessions/YYYY-MM-DD.md` (what happened,
+  decisions, parked, next), update the "Where we are" block in
+  `brain/00 Start Here.md`, add a `brain/decisions/` note for any new standing
+  call with its reasoning, and add to `brain/lessons.md` anything learned the
+  hard way. Commit it with the work it describes.
+- A standing decision lives in three places and all three move together: the
+  section below, the PRD, and its `brain/decisions/` note.
+- **Never put keys, tokens, emails or personal data in `brain/`.**
+  `brain/people-and-accounts.md` records which services exist and where their
+  secrets live, never the secrets themselves.
+- `brain/.obsidian/` (Obsidian's own settings) is gitignored; do not commit it.
 
 ## Sources of truth
 
@@ -22,6 +43,7 @@ Milestones are sequential. Do not pull work forward from a later one.
 | How should it look | `docs/BRANDING.md` |
 | What does the screen look like | `docs/wireframe.html` |
 | Why is it built this way | `docs/adr/` |
+| What happened, what we learned, what is open | `brain/` (start at `00 Start Here.md`) |
 
 `docs/PRD.md` §10 and §11 are binding. A deviation means updating the PRD in the
 same PR, not working around it.

@@ -45,3 +45,6 @@ yvp_*.json
 # Published architecture scan. scan.lock.json holds the edit token for the
 # public URL, which is a secret.
 .foglamp/
+
+# Obsidian vault settings (brain/ is the project memory; the app state stays local)
+.obsidian/
