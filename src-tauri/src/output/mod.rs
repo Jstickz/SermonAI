@@ -13,3 +13,5 @@ pub const OBS_OVERLAY_PORT: u16 = 8001;
 
 /// Default projector transition length (FR-25, Branding §7.2 motion.verse-in).
 pub const VERSE_TRANSITION_MS: u32 = 400;
+
+pub mod staging;

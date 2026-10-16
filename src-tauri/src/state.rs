@@ -65,6 +65,10 @@ pub struct AppState {
     /// Candidate id → `detected_scriptures.id`, so an Accept or Reject that
     /// arrives by candidate id finds its row. Cleared at each Start.
     pub detection_rows: Mutex<std::collections::HashMap<u64, i64>>,
+    /// The staged/live pair every output renders from (FR-50). Owned here so
+    /// the operator's panel can ask what is on the projector after a tab
+    /// switch rather than remember.
+    pub staging: Mutex<crate::output::staging::Staging>,
     /// Where the bundled assets are: translation packs, the verse index, the
     /// encoder. Resolved once at startup (see `lib.rs`), because the release
     /// build finds them under Tauri's resource directory and a dev build under
@@ -122,6 +126,7 @@ impl AppState {
             default_translation: Mutex::new(default_translation),
             current_sermon: Mutex::new(None),
             detection_rows: Mutex::new(std::collections::HashMap::new()),
+            staging: Mutex::new(crate::output::staging::Staging::new()),
             packs,
             outputs: Mutex::new(OutputAssignments::default()),
             bible,

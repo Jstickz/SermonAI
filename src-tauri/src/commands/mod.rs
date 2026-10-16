@@ -17,4 +17,5 @@ pub mod bible;
 pub mod credentials;
 pub mod detection;
 pub mod display;
+pub mod output;
 pub mod packs;

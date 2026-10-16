@@ -2,6 +2,7 @@ import { LevelMeter } from "./components/LevelMeter";
 import { DetectionStack } from "./components/DetectionStack";
 import { LiveTranscript } from "./components/LiveTranscript";
 import { SettingsScreen } from "./components/SettingsScreen";
+import { StagingPanel } from "./components/StagingPanel";
 import { TabPanel } from "./components/TabPanel";
 import { TABS, useNavStore } from "@/stores/navStore";
 
@@ -64,16 +65,8 @@ export function OperatorApp() {
           <LiveTranscript />
 
           {/* Staging is a left-column panel under the transcript, not a
-              right-column one — M3 (FR-50). */}
-          <section className="rounded-lg bg-bg-surface p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Staging</h3>
-              <span className="text-xs text-content-muted">M3</span>
-            </div>
-            <p className="mt-2 text-[13px] text-content-muted">
-              Accepted verses wait here before they reach the projector.
-            </p>
-          </section>
+              right-column one (FR-50, wireframe §staging). */}
+          <StagingPanel />
         </div>
 
         <div className="op-col">

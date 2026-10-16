@@ -1,8 +1,22 @@
 import { useCallback, useEffect } from "react";
-import { detections as detectionsApi, on } from "@/lib/ipc";
-import type { Detection } from "@/lib/types";
+import { detections as detectionsApi, on, output } from "@/lib/ipc";
+import type { Detection, Verse } from "@/lib/types";
 import { useServiceStore } from "@/stores/serviceStore";
+import { useTranslationStore } from "@/stores/translationStore";
 import { DetectionCard } from "./DetectionCard";
+import { enterAction, isTypingTarget } from "./stagingKeys";
+
+/** The verse a card stages. A card whose text was not cached still carries
+ *  its reference (§13.3), so the operator can stage it and read it later. */
+function verseOf(d: Detection): Verse {
+  return (
+    d.verse ?? {
+      reference: d.reference,
+      translation: useTranslationStore.getState().current,
+      text: "",
+    }
+  );
+}
 
 /**
  * The right-hand column of the Live tab: detection cards, newest first
@@ -13,9 +27,10 @@ import { DetectionCard } from "./DetectionCard";
  * changes in place rather than appearing twice. The store lives outside this
  * component so the stack survives a tab switch (see TabPanel).
  *
- * Enter stages the top confirmed card (wireframe: "Stage · ↵"), but only when
- * no text field has focus: an operator typing a corrected reference is not
- * staging anything.
+ * Enter does the next thing in the path — stage the top confirmed card, or
+ * send the staged verse live (see `stagingKeys.ts`) — but only when no text
+ * field has focus: an operator typing a corrected reference is not staging
+ * anything.
  */
 export function DetectionStack() {
   const detections = useServiceStore((s) => s.detections);
@@ -44,8 +59,12 @@ export function DetectionStack() {
     };
   }, [addDetection, withdrawDetection]);
 
+  // Stage puts the verse in the staged slot (FR-50) and records the Accept.
+  // The card leaves the stack: it is now in staging, where the operator
+  // reads it again before it goes live.
   const stage = useCallback(
     (d: Detection) => {
+      void output.stage(verseOf(d)).catch(() => undefined);
       void detectionsApi.accept(d.id, d.passageId).catch(() => undefined);
       dismissDetection(d.id);
     },
@@ -68,21 +87,37 @@ export function DetectionStack() {
 
   const expire = useCallback((d: Detection) => dismissDetection(d.id), [dismissDetection]);
 
-  // Enter → stage the top confirmed card.
+  // Enter → stage the top card, or go live with what is staged; Shift+Enter
+  // → both (stagingKeys.ts has the rule and its reasons).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Enter") return;
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-      const top = useServiceStore.getState().detections.find((d) => !d.provisional);
-      if (top) {
-        e.preventDefault();
-        stage(top);
+      if (e.key !== "Enter" || isTypingTarget(e.target)) return;
+      const { detections, outputs } = useServiceStore.getState();
+      const top = detections.find((d) => !d.provisional);
+      const action = enterAction(outputs.staged !== null, top !== undefined, e.shiftKey);
+      if (action === "none") return;
+      e.preventDefault();
+      if (action === "go-live") {
+        void output.goLive().catch(() => undefined);
+        return;
       }
+      if (!top) return; // "stage" and "stage-and-go-live" both need a card
+      if (action === "stage") {
+        stage(top);
+        return;
+      }
+      // Sequenced: the staged slot must hold the card before go_live
+      // promotes it; the two commands share one lock on the backend.
+      void output
+        .stage(verseOf(top))
+        .then(() => output.goLive())
+        .catch(() => undefined);
+      void detectionsApi.accept(top.id, top.passageId).catch(() => undefined);
+      dismissDetection(top.id);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stage]);
+  }, [stage, dismissDetection]);
 
   const waiting = detections.filter((d) => !d.provisional).length;
 

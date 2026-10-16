@@ -34,6 +34,9 @@ pub enum Error {
     #[error("Display error: {0}")]
     Window(String),
 
+    #[error("Output error: {0}")]
+    Output(String),
+
     #[error("Database error: {0}")]
     Db(#[from] rusqlite::Error),
 
