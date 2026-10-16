@@ -109,6 +109,14 @@ test**, in which case ask. The Live tab has no persistence yet, so closing the
 app discards whatever is on it; that is acceptable for a finished test and not
 for one in progress.
 
+## Git
+
+- **Stage by explicit file path only.** Never `git add .`, `git add -A` or a
+  directory. Build the list from `git status --short` and name each file,
+  new files included: a directory add is how two files landed in the wrong
+  commit on 16 Oct 2026. Commit the docs and brain notes that describe a
+  change together with it.
+
 ## Traceability
 
 Every functional requirement is tagged `FR-XX`. Reference the tag in commits,
