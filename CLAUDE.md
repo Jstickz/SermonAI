@@ -133,9 +133,12 @@ update first.
   `src/lib/ipc.ts` and use that. Command and wrapper land in the same commit.
 - Types in `src/lib/types.ts` mirror the Rust structs in
   `src-tauri/src/db/models.rs`. Change both together.
-- Booth constraints are real: 40px minimum hit targets, dark by default, tabular
+- Booth constraints are real: 40px hit targets for the primary controls (Go
+  Live, Transcribe, Blank), the 28px compact tier with 8px spacing for
+  controls inside cards and panels (BRANDING §5.1), dark by default, tabular
   numerals on anything that ticks, no animation longer than 300 ms outside the
-  projector.
+  projector. Everything on the Live tab fits 1366×768 without the window
+  scrolling.
 
 **Backend**
 - One module per architecture layer (PRD §10.2). Business logic lives in the

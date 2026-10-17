@@ -285,6 +285,14 @@ reference and send it live each time.
     **↓ Latest**: the newest line scrolls into view and the control goes
     quiet again. Scroll to the bottom by hand: it goes quiet too.
 
+45. **Density at 1366 × 768.** Window at 1366 × 768, Live tab, three cards
+    waiting and two pins. Expected: the pinned strip, three full cards with
+    their buttons, the transcript with eight or more lines, and the
+    staging panel with both slots are all on screen at once with no
+    window scrollbar; the card buttons are small pills you can still hit
+    without care; Go Live, Transcribe and Blank are the big ones. Press
+    **Aa** three times: the transcript steps small, medium, large and back.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and

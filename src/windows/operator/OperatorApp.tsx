@@ -44,7 +44,7 @@ export function OperatorApp() {
 
   return (
     <div className="flex h-full flex-col bg-bg-canvas">
-      <header className="flex items-center gap-4 border-b border-line-subtle bg-bg-surface px-5 py-3">
+      <header className="flex items-center gap-4 border-b border-line-subtle bg-bg-surface px-4 py-2">
         <span className="font-display font-semibold tracking-[-0.01em]">SermonAI</span>
 
         <nav className="inline-flex gap-0.5 rounded-pill bg-bg-pill p-1">
@@ -52,7 +52,7 @@ export function OperatorApp() {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`rounded-pill px-3.5 py-1.5 text-[13px] transition-colors duration-base ease-brand-out ${
+              className={`rounded-pill px-3 py-1 text-[13px] transition-colors duration-base ease-brand-out ${
                 tab === t ? "bg-bg-raised text-content-primary" : "text-content-secondary hover:text-content-primary"
               }`}
             >

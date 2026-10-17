@@ -18,9 +18,11 @@ export type TranscriptFontSize = "small" | "medium" | "large";
 /** Matches PRD §13.2's font size setting. Three steps, not a slider: a booth
  *  volunteer wants bigger or smaller, not a value to tune. */
 export const FONT_SIZES: Record<TranscriptFontSize, { label: string; className: string }> = {
-  small: { label: "Small", className: "text-[14px]" },
-  medium: { label: "Medium", className: "text-[15px]" },
-  large: { label: "Large", className: "text-[18px]" },
+  // Denser by one step each since 17 Oct (polish item 2); Large is still
+  // a size a tired eye can read from arm's length.
+  small: { label: "Small", className: "text-[13px]" },
+  medium: { label: "Medium", className: "text-[14px]" },
+  large: { label: "Large", className: "text-[17px]" },
 };
 
 const ORDER: TranscriptFontSize[] = ["small", "medium", "large"];

@@ -111,6 +111,12 @@
     @apply inline-flex h-10 w-10 items-center justify-center rounded-pill bg-bg-pill text-content-secondary;
     @apply transition-colors duration-base ease-brand-out hover:bg-bg-hover hover:text-content-primary;
   }
+  /* The compact icon button (BRANDING §5.1 compact tier, 17 Oct 2026):
+     32 px, for panel headers where a 40 px circle outweighs its neighbours. */
+  .btn-icon-sm {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-pill bg-bg-pill text-xs text-content-secondary;
+    @apply transition-colors duration-base ease-brand-out hover:bg-bg-hover hover:text-content-primary;
+  }
 
   .card {
     @apply rounded-lg bg-bg-raised p-6;
@@ -274,7 +280,7 @@
   /* The status strip under the top bar: recording state, service health and
      the input meter (wireframe.html §live-header). */
   .live-header {
-    @apply flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line-subtle bg-bg-sunken px-5 py-3 text-[13px];
+    @apply flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line-subtle bg-bg-sunken px-4 py-1.5 text-xs;
   }
 
   .status-cluster {
@@ -287,8 +293,11 @@
      takes the remainder. Collapses to one column under 1100px, as the
      wireframe's own media query does. */
   .op-shell {
-    @apply grid gap-5 p-5;
-    grid-template-columns: 1fr 480px;
+    @apply grid gap-3 p-3;
+    /* 400 px rather than the wireframe's 480 (17 Oct, polish item 2): at
+       1366 wide the transcript keeps 930 px, and a card's verse still wraps
+       at a readable measure in the denser type below. */
+    grid-template-columns: 1fr 400px;
     /*
      * The row fills the shell and is allowed to shrink below its content,
      * which is what makes the transcript scroll inside its own panel rather
@@ -338,7 +347,7 @@
   }
 
   .transcript-panel {
-    @apply flex min-h-0 flex-1 flex-col gap-3 rounded-lg bg-bg-surface p-5;
+    @apply flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-bg-surface p-4;
   }
 
   .transcript-header {
@@ -346,8 +355,8 @@
   }
 
   .transcript-body {
-    @apply min-h-0 flex-1 overflow-y-auto px-1 py-2 text-[15px] text-content-secondary;
-    line-height: 1.8;
+    @apply min-h-0 flex-1 overflow-y-auto px-1 py-1 text-[14px] text-content-secondary;
+    line-height: 1.6;
     /*
      * No focus ring. The panel is focusable so it can be scrolled from the
      * keyboard with the scrollbar hidden, and the browser drew its default
@@ -394,7 +403,7 @@
   }
 
   .stack-header h3 {
-    @apply text-sm font-semibold text-content-primary;
+    @apply text-[13px] font-semibold text-content-primary;
   }
 
   /*
@@ -407,8 +416,11 @@
    * dimming says "not yet" without a word, and the 200 ms entry keeps under
    * the 300 ms booth limit (CLAUDE.md).
    */
+  /* Dense by design (polish item 2, 17 Oct): a 13" booth laptop shows
+     three cards and the pinned strip without scrolling. Type from
+     BRANDING §3.2: reference body.sm, verse body.sm serif, meta caption. */
   .detection {
-    @apply flex flex-col gap-3 rounded-lg bg-bg-raised p-5;
+    @apply flex flex-col gap-1.5 rounded-lg bg-bg-raised px-3 py-2.5;
     animation: cardIn 200ms var(--ease-brand-out, ease-out);
   }
   /* The pinned strip (FR-64; polish 5b): a fixed, compact height that
@@ -485,7 +497,7 @@
     }
   }
   .detection .top {
-    @apply flex items-center gap-2.5 text-xs text-content-muted;
+    @apply flex items-center gap-2 text-[11px] text-content-muted;
   }
   .detection .top .src-letter {
     @apply mono font-semibold text-content-secondary;
@@ -506,10 +518,10 @@
     @apply bg-content-secondary;
   }
   .detection .ref {
-    @apply text-base font-semibold text-content-primary;
+    @apply text-sm font-semibold text-content-primary;
   }
   .detection .verse-text {
-    @apply font-serif text-[15px] leading-relaxed text-content-secondary;
+    @apply line-clamp-3 font-serif text-[13px] leading-snug text-content-secondary;
     max-height: 4.8em;
     overflow: hidden;
     -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
@@ -525,13 +537,9 @@
     @apply flex gap-2;
   }
   .detection .actions button {
-    @apply min-h-[40px] rounded-md px-3.5 text-[13px];
+    @apply btn-compact;
   }
   .detection .actions button.accept {
-    @apply btn-primary;
-  }
-  .detection .actions button.reject,
-  .detection .actions button.edit {
-    @apply btn-secondary;
+    @apply btn-compact-accent;
   }
 }

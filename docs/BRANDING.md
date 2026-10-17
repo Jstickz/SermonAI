@@ -152,6 +152,8 @@ Based on a 1.250 (major third) modular scale, rounded for pixel comfort.
 | `type.caption` | 12 / 16 | 500 | +1% | Labels, chip text, metadata |
 | `type.micro` | 11 / 14 | 500 | +2% | VU dB labels, ultra-small annotations |
 | `type.scripture.projector` | fluid 64–140 / 1.2 | 400 | -0.5% | Verse on the projector (auto-fit) |
+
+*Live tab density (17 Oct 2026):* cards use `type.body.sm` for the reference and the verse (serif, three lines then clamp), `type.caption` for source and confidence, and the compact button tier; the transcript body is 14 / 1.6 with the Aa control stepping 13 / 14 / 17; the detection column is 400 px wide. The target is three cards and the pinned strip visible at 1366×768 without the window scrolling.
 | `type.scripture.reference` | 22 / 28 | 500 (small caps) | +6% | Reference tag under the verse |
 | `type.scripture.pdf` | 14 / 22 | 400 | 0 | Scripture text inside the summary PDF |
 
@@ -239,7 +241,14 @@ Three tiers. Nothing else.
 
 **Destructive** — same shape as secondary but text `status.danger` and hover background `status.danger.bg`. Requires confirmation for anything irreversible.
 
-**Icon buttons** — 40×40 with `radius.pill`, `bg.pill` background, icon in `text.secondary`. Never smaller than 40×40 for the operator UI so booth touch and shaky-hand clicks land.
+**Icon buttons** — 40×40 with `radius.pill`, `bg.pill` background, icon in `text.secondary`.
+
+**Compact tier** *(added 17 Oct 2026, from testing on a 13" 1366×768 laptop)* — for controls **inside** cards, chips, the pinned strip and panel headers, where a 40 px pill outweighs the content it acts on:
+- Height 28 px, `radius.pill`, padding `space.1` × `space.2.5`, text `type.caption` (12). Three colours: `bg.pill` (compact), `accent.500` with `text.on-accent` (compact-accent, the one act of a card or pin), `status.danger.bg` with `status.danger` text (compact-danger, confirmations only).
+- Compact icon button: 32×32.
+- Neighbouring compact controls keep **8 px** between them, so a miss lands on nothing.
+- The **40 px rule still holds for the primary controls** an operator reaches for under pressure: Go Live, Transcribe, Blank, Enter's targets. Those never shrink.
+- In code: `.btn-compact`, `.btn-compact-accent`, `.btn-compact-danger`, `.btn-icon-sm`, `.switch-sm`.
 
 ### 5.2 Pill Nav
 
@@ -591,7 +600,7 @@ export default {
 - Use exactly one violet accent per view.
 - Keep card interiors on `bg.raised` with no borders; let the surface contrast do the work.
 - Set scripture in Crimson Pro on the projector.
-- Give buttons pill radius and 40px height in the operator UI.
+- Give buttons pill radius and 40px height in the operator UI — the primary ones; in-card and in-panel controls use the 28px compact tier (§5.1).
 - Verify contrast for every text/background pair against WCAG AA.
 
 **Don't**

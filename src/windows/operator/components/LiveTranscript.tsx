@@ -341,7 +341,7 @@ export function LiveTranscript() {
               steps rather than opening a menu: a booth volunteer wants bigger
               or smaller, not a value to tune. */}
           <button
-            className="btn-icon"
+            className="btn-icon-sm"
             onClick={cycleFontSize}
             title={`Text size: ${FONT_SIZES[fontSize].label}`}
             aria-label={`Text size: ${FONT_SIZES[fontSize].label}. Click to change.`}
