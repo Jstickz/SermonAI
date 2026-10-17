@@ -278,6 +278,13 @@ reference and send it live each time.
     too and `sermonai.exe` is gone from Task Manager within a second or
     two; the log ends with "operator window closed; closing the app".
 
+43. **Transcript scrolling.** With transcription running and a few
+    paragraphs on screen, scroll up. Expected: the view stays where you put
+    it, nothing pops up over the text, and the **↓ Latest** control in the
+    panel header turns amber; the footer reads "Scrolled back". Click
+    **↓ Latest**: the newest line scrolls into view and the control goes
+    quiet again. Scroll to the bottom by hand: it goes quiet too.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and

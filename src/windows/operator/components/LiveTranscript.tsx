@@ -219,6 +219,11 @@ export function LiveTranscript() {
    * exactly when they are trying to read it. So scrolling up switches
    * auto-scroll off, and returning to the bottom switches it back on — no
    * setting to find, and the way back is the gesture they already made.
+   *
+   * The way back is also a small **Latest** control in the header (polish
+   * item 4, 17 Oct): always there, lit while the operator is scrolled back,
+   * rather than a button that appears over the text and vanishes again. A
+   * control that comes and goes is one the eye has to find each time.
    */
   const bodyRef = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
@@ -316,6 +321,20 @@ export function LiveTranscript() {
             having to read a verb and work out whether it describes what is
             happening now or what pressing it would do. */}
         <div className="flex shrink-0 items-center gap-3">
+          {/* Back to the newest words (polish item 4): fixed in the header,
+              lit while scrolled back, quiet while following. */}
+          <button
+            type="button"
+            className={`btn-compact ${following ? "text-content-muted" : "bg-status-warning-bg text-status-warning"}`}
+            onClick={() => {
+              setFollowing(true);
+              bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
+            }}
+            title={following ? "Following the newest words" : "Back to the newest words"}
+            aria-pressed={following}
+          >
+            ↓ Latest
+          </button>
           {/* Which translation the next card's text is fetched in (FR-32). */}
           <TranslationPicker />
           {/* The wireframe's "Aa" control (§transcript-header). Cycles three
@@ -408,21 +427,6 @@ export function LiveTranscript() {
           </>
         )}
       </div>
-
-      {!following && (
-        <button
-          className="btn-secondary self-center !py-2 text-[12px]"
-          onClick={() => {
-            setFollowing(true);
-            bodyRef.current?.scrollTo({
-              top: bodyRef.current.scrollHeight,
-              behavior: "smooth",
-            });
-          }}
-        >
-          Jump to Latest
-        </button>
-      )}
 
       <div className="flex items-center justify-between border-t border-line-subtle pt-3 text-xs text-content-muted">
         <span className="flex items-center gap-2">
