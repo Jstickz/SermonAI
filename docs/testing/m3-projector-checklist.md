@@ -177,10 +177,11 @@ reference and send it live each time.
 31. *(revised 17 Oct)* With cards arriving, click **Pin** on one. Expected:
     the card leaves the waiting cards and a **Pinned** strip appears above
     Detections — a short fixed-height row — holding it as **1** with its
-    reference, Go Live · 1 and Unpin; the waiting count drops by one; it is
-    still there after 30 seconds. Pin more: they line up as 2, 3 … and the
-    strip scrolls sideways once it is full; the Detections area below keeps
-    its height. Press **P** with a waiting card at the top: that card is
+    reference, a small Go Live · 1 pill and a × to unpin, all inside the
+    chip; the waiting count drops by one; it is still there after 30
+    seconds. Pin more: they line up as 2, 3 … and once the strip is full a
+    ‹ › pair appears under its right edge that moves it a chip at a time;
+    no scrollbar shows; the Detections area below keeps its height. Press **P** with a waiting card at the top: that card is
     pinned next.
 32. Press **Enter** with pins and no waiting cards: nothing happens. With a
     waiting card: Enter stages the waiting card, never a pin. Press **1**:

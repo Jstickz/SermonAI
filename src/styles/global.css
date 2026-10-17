@@ -425,15 +425,35 @@
   }
   /* The pinned strip (FR-64; polish 5b): a fixed, compact height that
      scrolls sideways, so the waiting cards below keep the column. */
+  /* No visible scrollbar (17 Oct, operator): the arrows under the strip
+     and a wheel or swipe move it. The height holds one row of chips. */
   .pin-strip {
-    @apply mb-2 flex h-[76px] shrink-0 gap-2 overflow-x-auto overflow-y-hidden rounded-lg border border-accent-500/40 bg-bg-sunken p-2;
-    scrollbar-width: thin;
+    @apply flex h-[64px] shrink-0 gap-2 overflow-x-auto overflow-y-hidden scroll-smooth rounded-lg border border-accent-500/40 bg-bg-sunken p-2;
+    scrollbar-width: none;
   }
+  .pin-strip::-webkit-scrollbar {
+    display: none;
+  }
+  /* A chip is sized to its reference, bounded, and clips anything longer:
+     nothing hangs outside it. The two controls are a 24px accent pill with
+     the number — the key that sends it live — and a 20px × to unpin. */
   .pin-chip {
-    @apply flex w-[168px] shrink-0 flex-col justify-between rounded-md bg-bg-raised px-2.5 py-1.5;
+    @apply flex min-w-[140px] max-w-[200px] shrink-0 flex-col justify-between overflow-hidden rounded-md bg-bg-raised px-2 py-1.5;
+  }
+  .pin-chip .pin-go {
+    @apply inline-flex h-6 items-center gap-1 rounded-pill bg-accent-500 px-2 text-[11px] font-semibold text-content-on-accent;
+    @apply transition-colors duration-base ease-brand-out hover:bg-accent-400;
+  }
+  .pin-chip .pin-off {
+    @apply inline-flex h-5 w-5 items-center justify-center rounded-pill bg-bg-pill text-[12px] leading-none text-content-secondary;
+    @apply transition-colors duration-base ease-brand-out hover:bg-bg-hover hover:text-content-primary;
   }
   .pin-number {
     @apply mono inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-accent-500 px-1 text-[10px] font-bold text-content-on-accent;
+  }
+  .pin-nav {
+    @apply inline-flex h-6 w-6 items-center justify-center rounded-pill bg-bg-pill text-xs text-content-secondary;
+    @apply transition-colors duration-base ease-brand-out hover:bg-bg-hover hover:text-content-primary disabled:opacity-30;
   }
 
   /* Compact controls (polish item 2): 28px tall, for inside cards, chips

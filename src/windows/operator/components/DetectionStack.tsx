@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { detections as detectionsApi, on, output } from "@/lib/ipc";
 import type { Detection, Verse } from "@/lib/types";
 import { pinKey, useServiceStore, type Pin } from "@/stores/serviceStore";
@@ -256,11 +256,7 @@ export function DetectionStack() {
               </button>
             )}
           </div>
-          <section className="pin-strip" aria-label="Pinned verses">
-            {pins.map((p, i) => (
-              <PinChip key={pinKey(p.verse)} pin={p} number={i < 9 ? i + 1 : null} onGoLive={goLivePin} onUnpin={unpin} />
-            ))}
-          </section>
+          <PinStrip pins={pins} onGoLive={goLivePin} onUnpin={unpin} />
         </>
       )}
       <div className="stack-header">
@@ -295,9 +291,55 @@ export function DetectionStack() {
   );
 }
 
-/** One pin in the strip: number, reference, Go Live, Unpin. Compact by
- *  design (polish item 2): the verse text is a tooltip, since the point of
- *  a pin is that the operator already knows the verse. */
+/** The strip and its arrows. The scrollbar is hidden (operator, 17 Oct);
+ *  ‹ › under the strip at the right move it a chip at a time, and are shown
+ *  only when there is more than fits. */
+function PinStrip({
+  pins,
+  onGoLive,
+  onUnpin,
+}: {
+  pins: Pin[];
+  onGoLive: (p: Pin) => void;
+  onUnpin: (p: Pin) => void;
+}) {
+  const strip = useRef<HTMLElement>(null);
+  const [overflow, setOverflow] = useState(false);
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    const check = () => setOverflow(el.scrollWidth > el.clientWidth + 2);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [pins.length]);
+  const by = (dir: 1 | -1) => strip.current?.scrollBy({ left: dir * 156, behavior: "smooth" });
+  return (
+    <div className="mb-2">
+      <section ref={strip} className="pin-strip" aria-label="Pinned verses">
+        {pins.map((p, i) => (
+          <PinChip key={pinKey(p.verse)} pin={p} number={i < 9 ? i + 1 : null} onGoLive={onGoLive} onUnpin={onUnpin} />
+        ))}
+      </section>
+      {overflow && (
+        <div className="mt-1 flex justify-end gap-1">
+          <button type="button" className="pin-nav" onClick={() => by(-1)} aria-label="Scroll pins left" title="Earlier pins">
+            ‹
+          </button>
+          <button type="button" className="pin-nav" onClick={() => by(1)} aria-label="Scroll pins right" title="Later pins">
+            ›
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One pin in the strip: number, reference, a small Go Live pill carrying
+ *  the number (the key that sends it live), and a × to unpin. Sized to its
+ *  reference and clipped, so nothing hangs outside the chip. The verse text
+ *  is a tooltip: the point of a pin is that the operator knows the verse. */
 function PinChip({
   pin,
   number,
@@ -311,22 +353,22 @@ function PinChip({
 }) {
   return (
     <div className="pin-chip" title={pin.verse.text || "No cached text in this translation."}>
-      <div className="flex items-center gap-1.5">
-        {number !== null && <span className="pin-number">{number}</span>}
-        <span className="truncate text-[13px] font-semibold">{pin.verse.reference}</span>
-        <span className="mono text-[10px] text-content-muted">{pin.verse.translation}</span>
+      <div className="flex min-w-0 items-center gap-1.5">
+        {number !== null && <span className="pin-number shrink-0">{number}</span>}
+        <span className="min-w-0 truncate text-[12px] font-semibold">{pin.verse.reference}</span>
+        <span className="mono shrink-0 text-[10px] text-content-muted">{pin.verse.translation}</span>
       </div>
-      <div className="mt-1.5 flex items-center gap-1.5">
+      <div className="mt-1 flex items-center justify-between gap-2">
         <button
           type="button"
-          className="btn-compact-accent"
+          className="pin-go"
           onClick={() => onGoLive(pin)}
           title={number !== null ? `Send to the projector (key ${number})` : "Send to the projector"}
         >
           Go Live{number !== null ? ` · ${number}` : ""}
         </button>
-        <button type="button" className="btn-compact" onClick={() => onUnpin(pin)} title="Unpin">
-          Unpin
+        <button type="button" className="pin-off" onClick={() => onUnpin(pin)} title="Unpin" aria-label="Unpin">
+          ×
         </button>
       </div>
     </div>
