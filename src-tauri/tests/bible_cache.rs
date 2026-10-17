@@ -114,8 +114,11 @@ fn the_text_is_the_text() {
         jude.verse.text
     );
 
-    // Something the canon does not have.
-    assert!(lookup(&conn, "KJV", "JHN.3.200").unwrap().is_none());
+    // Something the canon does not have is refused before the cache is asked
+    // (M3 polish item 1, 17 Oct): an error that names the count, never an
+    // empty result that a caller could show as a reference-only verse.
+    let err = lookup(&conn, "KJV", "JHN.3.200").unwrap_err().to_string();
+    assert!(err.contains("John 3 has 36 verses, not 200"), "{err}");
 }
 
 #[test]

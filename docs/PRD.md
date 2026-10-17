@@ -409,7 +409,7 @@ SermonAI wins on four things:
 ### 8.6 Operator Control
 
 - **FR-29:** Live transcript on the operator screen with detected scriptures highlighted.
-- **FR-30:** Each detection presented as a card with Accept, Reject, Edit.
+- **FR-30:** Each detection presented as a card with Accept, Reject, Edit. *(17 Oct 2026, M3 polish item 1:)* every reference the operator types — Edit, the manual override, the command palette — is checked against the canon's chapter and verse counts before anything else happens; one that does not exist is refused with the count ("John 5 has 47 verses, not 150") and can be neither staged nor sent live. The output slots refuse such a verse on their own account too, whatever path sent it.
 - **FR-31:** Command palette (Cmd/Ctrl+K) to search and project any verse.
 - **FR-32:** Switch translation between detections without disrupting the current display.
 - **FR-33:** Blank the projector with a single hotkey.
@@ -755,6 +755,7 @@ sermonai/
 ### 13.3 Scripture Detection Card
 - Reference, verse text, translation, confidence, detection source (regex / semantic / AI).
 - Accept, Reject, Edit. Accept sends to staging (or live if auto-live). Auto-dismiss after 30s.
+- A reference that does not exist in the canon (chapter or verse beyond the book's count, unknown book) is refused wherever it is typed, with the count in the message, and never reaches a slot (17 Oct 2026).
 - **Pin** (FR-64): keeps the card for the service in a Pinned section above the waiting cards, marked and numbered. A pinned card offers Stage, Go Live (straight to the projector) and Unpin, never auto-dismisses, and is never touched by Enter or auto-live. Pins clear at End Service.
 
 ### 13.4 Translation Picker

@@ -243,6 +243,20 @@ reference and send it live each time.
     report lines should look the same as before: the first frame is
     already at the fitted size.
 
+## Polish, 17 Oct
+
+40. **Impossible references are refused everywhere.** Open the palette
+    (Ctrl+K) and type **john 5 150**. Expected: no Typed row; the message
+    "John 5 has 47 verses, not 150"; Enter does nothing. Type **jude 2 1**:
+    "Jude has one chapter, not 2". Type **psalm 151 1**: "Psalms has 150
+    chapters, not 151". Type **john 5 47**: a Typed row; Enter stages it.
+    On a card click **Edit**, type **John 5:150**, Use Reference: the
+    message above the stack names the count and the card is unchanged.
+    With John 5:47 live, press **→**: John 6:1 appears, since that
+    boundary is real; press **←** back to 5:47. With Revelation 22:21
+    live, press **→**: refused, the last verse of Revelation. Nothing in
+    this step changes the projector except the real verses.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and

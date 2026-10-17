@@ -59,7 +59,7 @@ pub fn stage_verse(
         .staging
         .lock()
         .expect("staging lock")
-        .stage(verse)
+        .stage(verse)?
         .clone();
     tracing::info!(reference = %next.staged.as_ref().map(|v| v.reference.as_str()).unwrap_or(""), "staged");
     broadcast(&app, &next);
@@ -144,7 +144,7 @@ pub fn step_verse(app: AppHandle, state: State<'_, AppState>, delta: i32) -> Res
         .staging
         .lock()
         .expect("staging lock")
-        .step_live(next, unix_ms())
+        .step_live(next, unix_ms())?
         .clone();
     broadcast(&app, &state_after);
     tracing::info!(

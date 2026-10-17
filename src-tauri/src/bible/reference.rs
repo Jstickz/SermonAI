@@ -11,7 +11,7 @@
 
 use std::fmt;
 
-use super::books::CANON;
+use super::books::{self, CANON};
 
 /// A parsed reference, addressable as a USFM passage ID.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +71,19 @@ pub enum ParseError {
     MissingNumbers,
     /// Chapter or verse was zero, or a range ran backwards.
     ImpossibleNumbers,
+    /// The book has fewer chapters than that (M3 polish item 1).
+    NoSuchChapter {
+        book: &'static str,
+        chapter: u16,
+        chapters: u8,
+    },
+    /// The chapter has fewer verses than that.
+    NoSuchVerse {
+        book: &'static str,
+        chapter: u16,
+        verse: u16,
+        verses: u8,
+    },
 }
 
 impl fmt::Display for ParseError {
@@ -80,6 +93,23 @@ impl fmt::Display for ParseError {
             ParseError::UnknownBook(book) => write!(f, "no book of the Bible called \"{book}\""),
             ParseError::MissingNumbers => f.write_str("no chapter and verse in that reference"),
             ParseError::ImpossibleNumbers => f.write_str("that chapter and verse cannot exist"),
+            ParseError::NoSuchChapter {
+                book,
+                chapter,
+                chapters,
+            } => {
+                if *chapters == 1 {
+                    write!(f, "{book} has one chapter, not {chapter}")
+                } else {
+                    write!(f, "{book} has {chapters} chapters, not {chapter}")
+                }
+            }
+            ParseError::NoSuchVerse {
+                book,
+                chapter,
+                verse,
+                verses,
+            } => write!(f, "{book} {chapter} has {verses} verses, not {verse}"),
         }
     }
 }
@@ -272,12 +302,41 @@ pub fn parse(reference: &str) -> Result<UsfmRef, ParseError> {
         return Err(ParseError::ImpossibleNumbers);
     }
 
-    Ok(UsfmRef {
+    let parsed = UsfmRef {
         book,
         chapter,
         verse,
         end_verse,
-    })
+    };
+    parsed.validate()?;
+    Ok(parsed)
+}
+
+impl UsfmRef {
+    /// The chapter and every verse named exist in the canon. `parse` calls
+    /// this, so a `UsfmRef` from `parse` is always real; a `UsfmRef` built
+    /// by hand (the vector index, a stepped neighbour) can ask.
+    pub fn validate(&self) -> Result<(), ParseError> {
+        let book = self.book_name();
+        let chapters = books::chapters(self.code()).unwrap_or(0);
+        let Some(verses) = books::verses(self.book, self.chapter) else {
+            return Err(ParseError::NoSuchChapter {
+                book,
+                chapter: self.chapter,
+                chapters,
+            });
+        };
+        let last = self.end_verse.unwrap_or(self.verse);
+        if last > u16::from(verses) {
+            return Err(ParseError::NoSuchVerse {
+                book,
+                chapter: self.chapter,
+                verse: last,
+                verses,
+            });
+        }
+        Ok(())
+    }
 }
 
 /// Split "1 Corinthians 13:4-7" into ("1corinthians", "13:4-7").
@@ -449,10 +508,36 @@ mod tests {
             .passage_id()
     }
 
+    /// M3 polish item 1 (17 Oct 2026): a reference that does not exist is
+    /// refused here, so nothing downstream — the palette, Edit, the regex
+    /// stage, the output slots — can show it. The message names the count.
+    #[test]
+    fn a_reference_that_does_not_exist_is_refused_with_the_count() {
+        let err = |s: &str| parse(s).unwrap_err().to_string();
+        assert_eq!(err("John 5:150"), "John 5 has 47 verses, not 150");
+        assert_eq!(err("Jude 2:1"), "Jude has one chapter, not 2");
+        assert_eq!(err("Psalm 151:1"), "Psalms has 150 chapters, not 151");
+        assert_eq!(err("John 22:1"), "John has 21 chapters, not 22");
+        assert_eq!(err("John 21:26"), "John 21 has 25 verses, not 26");
+        assert_eq!(err("Psalm 23:4-7"), "Psalms 23 has 6 verses, not 7");
+        assert_eq!(
+            err("Revelation 22:22"),
+            "Revelation 22 has 21 verses, not 22"
+        );
+        // Still fine at the edges.
+        assert!(parse("Jude 25").is_ok());
+        assert!(parse("Psalm 23:4-6").is_ok());
+        assert!(parse("Obadiah 21").is_ok());
+    }
+
     #[test]
     fn common_references_across_the_canon() {
         // Twenty references a preacher is likely to name in a single service.
         assert_eq!(id("John 3:16"), "JHN.3.16");
+        // The ends of chapters and books are real references.
+        assert_eq!(id("John 21:25"), "JHN.21.25");
+        assert_eq!(id("Psalm 119:176"), "PSA.119.176");
+        assert_eq!(id("Revelation 22:21"), "REV.22.21");
         // The palette's form (PRD §13.9): lower case, spaces for the colon.
         assert_eq!(id("john 3 16"), "JHN.3.16");
         assert_eq!(id("1 jn 4 8"), "1JN.4.8");

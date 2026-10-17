@@ -19,9 +19,24 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::bible::reference;
 use crate::db::models::Verse;
 use crate::detection::pipeline::Candidate;
 use crate::error::{Error, Result};
+
+/// A verse may enter a slot only if its reference is real (M3 polish item 1,
+/// 17 Oct 2026). Every verse that reaches here was made by the backend from
+/// a parsed reference, so this is the belt to that brace: the one path that
+/// ends on a projector refuses on its own account, whatever sent it.
+fn checked(verse: Verse) -> Result<Verse> {
+    reference::parse(&verse.reference).map_err(|e| {
+        Error::Output(format!(
+            "{} cannot be shown: {e}. Check the reference and try again.",
+            verse.reference
+        ))
+    })?;
+    Ok(verse)
+}
 
 /// Auto-live's line: a card must be **strictly above** this to skip staging
 /// (wireframe §settings: "when confidence is above 90%"). The Claude stage
@@ -234,7 +249,7 @@ impl Staging {
                 "Auto-live is off. Stage the verse and press Go Live.".to_string(),
             ));
         }
-        self.state.live = Some(verse);
+        self.state.live = Some(checked(verse)?);
         self.state.live_since_ms = Some(now_ms);
         Ok(&self.state)
     }
@@ -246,9 +261,9 @@ impl Staging {
     /// Put a verse in the staged slot, replacing whatever was there. Staging
     /// never touches the live slot: the congregation keeps reading the
     /// current verse while the operator lines up the next.
-    pub fn stage(&mut self, verse: Verse) -> &OutputState {
-        self.state.staged = Some(verse);
-        &self.state
+    pub fn stage(&mut self, verse: Verse) -> Result<&OutputState> {
+        self.state.staged = Some(checked(verse)?);
+        Ok(&self.state)
     }
 
     /// Promote staged to live. The staged slot empties, so a second Enter
@@ -272,11 +287,11 @@ impl Staging {
     /// to show, and a staged slot between every step would be the thing in
     /// the way. Unblanks, like Go Live: stepping is an explicit "show this".
     /// The staged slot is left alone.
-    pub fn step_live(&mut self, verse: Verse, now_ms: u64) -> &OutputState {
-        self.state.live = Some(verse);
+    pub fn step_live(&mut self, verse: Verse, now_ms: u64) -> Result<&OutputState> {
+        self.state.live = Some(checked(verse)?);
         self.state.live_since_ms = Some(now_ms);
         self.state.blanked = false;
-        &self.state
+        Ok(&self.state)
     }
 
     /// Escape: empty the staged slot. Live is untouched.
@@ -309,7 +324,7 @@ mod tests {
         let mut s = Staging::new();
         assert_eq!(s.state(), &OutputState::default());
 
-        s.stage(verse("John 3:16"));
+        s.stage(verse("John 3:16")).unwrap();
         assert_eq!(s.state().staged.as_ref().unwrap().reference, "John 3:16");
         assert!(
             s.state().live.is_none(),
@@ -324,7 +339,7 @@ mod tests {
     #[test]
     fn go_live_with_nothing_staged_is_an_error_and_changes_nothing() {
         let mut s = Staging::new();
-        s.stage(verse("Romans 8:28"));
+        s.stage(verse("Romans 8:28")).unwrap();
         s.go_live(1_000).unwrap();
         let before = s.state().clone();
 
@@ -336,12 +351,12 @@ mod tests {
     #[test]
     fn staging_the_next_verse_leaves_the_live_one_alone() {
         let mut s = Staging::new();
-        s.stage(verse("Psalm 23:1"));
+        s.stage(verse("Psalm 23:1")).unwrap();
         s.go_live(1_000).unwrap();
-        s.stage(verse("Psalm 23:2"));
+        s.stage(verse("Psalm 23:2")).unwrap();
         assert_eq!(s.state().live.as_ref().unwrap().reference, "Psalm 23:1");
         assert_eq!(s.state().staged.as_ref().unwrap().reference, "Psalm 23:2");
-        s.stage(verse("Psalm 23:3"));
+        s.stage(verse("Psalm 23:3")).unwrap();
         assert_eq!(
             s.state().staged.as_ref().unwrap().reference,
             "Psalm 23:3",
@@ -352,9 +367,9 @@ mod tests {
     #[test]
     fn escape_clears_staged_only() {
         let mut s = Staging::new();
-        s.stage(verse("Isaiah 41:10"));
+        s.stage(verse("Isaiah 41:10")).unwrap();
         s.go_live(1_000).unwrap();
-        s.stage(verse("Isaiah 41:13"));
+        s.stage(verse("Isaiah 41:13")).unwrap();
         s.clear_staged();
         assert!(s.state().staged.is_none());
         assert_eq!(s.state().live.as_ref().unwrap().reference, "Isaiah 41:10");
@@ -363,7 +378,7 @@ mod tests {
     #[test]
     fn blanking_keeps_the_live_verse_and_go_live_unblanks() {
         let mut s = Staging::new();
-        s.stage(verse("Micah 6:8"));
+        s.stage(verse("Micah 6:8")).unwrap();
         s.go_live(1_000).unwrap();
         s.set_blanked(true);
         assert!(s.state().blanked);
@@ -376,7 +391,7 @@ mod tests {
         assert!(!s.state().blanked);
 
         s.set_blanked(true);
-        s.stage(verse("Micah 6:9"));
+        s.stage(verse("Micah 6:9")).unwrap();
         s.go_live(1_000).unwrap();
         assert!(!s.state().blanked, "Go Live means show it");
     }
@@ -386,7 +401,7 @@ mod tests {
         // Field names cross the IPC boundary; the last mismatch there read
         // "Retrying in NaNs".
         let mut s = Staging::new();
-        s.stage(verse("John 3:16"));
+        s.stage(verse("John 3:16")).unwrap();
         let json = serde_json::to_value(s.state()).unwrap();
         assert_eq!(json["live"], serde_json::Value::Null);
         assert_eq!(json["staged"]["reference"], "John 3:16");
@@ -456,7 +471,7 @@ mod auto_live_tests {
             ProjectorTransition::Fade,
             400,
         );
-        s.stage(verse("Psalm 23:1"));
+        s.stage(verse("Psalm 23:1")).unwrap();
         let after = s.auto_live_verse(verse("John 3:16"), 5_000).unwrap();
         assert_eq!(after.live.as_ref().unwrap().reference, "John 3:16");
         assert_eq!(after.live_since_ms, Some(5_000));
@@ -507,12 +522,12 @@ mod step_tests {
     #[test]
     fn stepping_replaces_live_unblanks_and_leaves_staged_alone() {
         let mut s = Staging::new();
-        s.stage(verse("John 3:16"));
+        s.stage(verse("John 3:16")).unwrap();
         s.go_live(1_000).unwrap();
-        s.stage(verse("Romans 8:28"));
+        s.stage(verse("Romans 8:28")).unwrap();
         s.set_blanked(true);
 
-        let after = s.step_live(verse("John 3:17"), 2_000);
+        let after = s.step_live(verse("John 3:17"), 2_000).unwrap();
         assert_eq!(after.live.as_ref().unwrap().reference, "John 3:17");
         assert_eq!(
             after.live_since_ms,
@@ -521,6 +536,48 @@ mod step_tests {
         );
         assert!(!after.blanked, "stepping means show it");
         assert_eq!(after.staged.as_ref().unwrap().reference, "Romans 8:28");
+    }
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    fn verse(reference: &str) -> Verse {
+        Verse {
+            reference: reference.to_string(),
+            translation: "KJV".to_string(),
+            text: String::new(),
+        }
+    }
+
+    /// M3 polish item 1: the three references from the operator's report,
+    /// at every door into the output slots.
+    #[test]
+    fn a_verse_that_does_not_exist_never_enters_a_slot() {
+        for bad in ["John 5:150", "Jude 2:1", "Psalm 151:1"] {
+            let mut s = Staging::with_settings(
+                ProjectorLayout::default(),
+                true,
+                ProjectorTransition::Fade,
+                0,
+            );
+            let err = s.stage(verse(bad)).unwrap_err().to_string();
+            assert!(err.contains("cannot be shown"), "{bad}: {err}");
+            assert!(s.state().staged.is_none(), "{bad} was staged");
+
+            let err = s.auto_live_verse(verse(bad), 1).unwrap_err().to_string();
+            assert!(err.contains("cannot be shown"), "{bad}: {err}");
+            assert!(s.state().live.is_none(), "{bad} went live by auto-live");
+
+            let err = s.step_live(verse(bad), 1).unwrap_err().to_string();
+            assert!(err.contains("cannot be shown"), "{bad}: {err}");
+            assert!(s.state().live.is_none(), "{bad} went live by stepping");
+        }
+        // The messages carry the count so the operator can fix the number.
+        let mut s = Staging::new();
+        let err = s.stage(verse("John 5:150")).unwrap_err().to_string();
+        assert!(err.contains("John 5 has 47 verses"), "{err}");
     }
 }
 
@@ -559,7 +616,8 @@ mod layout_tests {
             reference: "John 3:16".into(),
             translation: "KJV".into(),
             text: "For God so loved the world".into(),
-        });
+        })
+        .unwrap();
         assert_eq!(s.state().live_since_ms, None);
         s.go_live(1_760_000_000_000).unwrap();
         assert_eq!(s.state().live_since_ms, Some(1_760_000_000_000));
