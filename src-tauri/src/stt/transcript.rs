@@ -245,6 +245,10 @@ pub struct SessionTranscript {
     logged_minute: usize,
     /// Lag per interim result: when words first appeared.
     interim_lags: Vec<f64>,
+    /// The lag of the most recent result, interim or final, so the detection
+    /// path can stamp a candidate with how old its words already were when
+    /// they arrived (polish item 6, 17 Oct). `None` until something counted.
+    last_lag_ms: Option<f64>,
     /// Lag per settled utterance.
     settled_lags: Vec<f64>,
     /// Our own time handling each result: the mutex, the update, the emit.
@@ -265,6 +269,12 @@ pub struct SessionTranscript {
 impl SessionTranscript {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// How old the words of the most recent result already were when they
+    /// arrived: audio handed to the transcriber → result here.
+    pub fn last_lag_ms(&self) -> Option<u64> {
+        self.last_lag_ms.map(|ms| ms.round() as u64)
     }
 
     /// Record how long we spent handling one result.
@@ -293,6 +303,7 @@ impl SessionTranscript {
         // thing we know about.
         if let Some(lag) = self.lag_for_at(end, Instant::now()) {
             self.settled_lags.push(lag);
+            self.last_lag_ms = Some(lag);
         }
 
         self.word_count += text.split_whitespace().count();
@@ -329,6 +340,7 @@ impl SessionTranscript {
         };
         if let Some(lag) = self.lag_for_at(end, now) {
             self.interim_lags.push(lag);
+            self.last_lag_ms = Some(lag);
             self.bucket_interim(end, lag);
         }
     }

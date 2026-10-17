@@ -440,6 +440,7 @@ pub fn run() {
             commands::detection::reject_detection,
             commands::detection::edit_detection,
             commands::detection::pin_detection,
+            commands::detection::detection_rendered,
             commands::bible::resolve_reference,
         ])
         ;

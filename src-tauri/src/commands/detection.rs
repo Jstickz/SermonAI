@@ -98,9 +98,14 @@ pub fn emit_cards(app: &AppHandle, cards: Vec<Candidate>) {
         .clone();
 
     for mut card in cards {
+        let started = std::time::Instant::now();
+        let mut lookup_us = 0u64;
         if !card.provisional && card.verse.is_none() {
             let db = state.db.lock().expect("db lock");
-            match cache::lookup(&db, &translation, &card.passage_id) {
+            let t = std::time::Instant::now();
+            let found = cache::lookup(&db, &translation, &card.passage_id);
+            lookup_us = t.elapsed().as_micros() as u64;
+            match found {
                 Ok(Some(cached)) => card.verse = Some(cached.verse),
                 Ok(None) => tracing::info!(
                     passage = %card.passage_id,
@@ -110,8 +115,11 @@ pub fn emit_cards(app: &AppHandle, cards: Vec<Candidate>) {
                 Err(err) => tracing::warn!(%err, passage = %card.passage_id, "verse lookup failed"),
             }
         }
+        let mut persist_us = 0u64;
         if !card.provisional {
+            let t = std::time::Instant::now();
             persist(&state, &card, &translation);
+            persist_us = t.elapsed().as_micros() as u64;
             if auto_live_qualifies(&card) {
                 let verse = card.verse.clone().expect("qualifies implies text");
                 if crate::commands::output::auto_live(app, &state, verse) {
@@ -121,7 +129,30 @@ pub fn emit_cards(app: &AppHandle, cards: Vec<Candidate>) {
             }
         }
         let _ = app.emit("detection:new", &card);
+        // Our share from the pipeline's door to the event leaving (polish
+        // item 6): the cache lookup, the row, the emit.
+        tracing::info!(
+            id = card.id,
+            provisional = card.provisional,
+            lookup_us,
+            persist_us,
+            emit_total_us = started.elapsed().as_micros() as u64,
+            "card emitted"
+        );
     }
+}
+
+/// The window reports when a card was painted, against the candidate's
+/// own `detected_at_ms` (polish item 6): the last leg of "how long until I
+/// see it", measured where it is seen.
+#[tauri::command]
+pub fn detection_rendered(id: u64, provisional: bool, detected_at_ms: u64, rendered_at_ms: u64) {
+    tracing::info!(
+        id,
+        provisional,
+        detected_to_card_ms = rendered_at_ms.saturating_sub(detected_at_ms),
+        "card rendered"
+    );
 }
 
 /// Tell the window which provisional cards the settled text did not support.

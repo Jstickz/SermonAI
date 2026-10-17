@@ -628,12 +628,12 @@ fn run_detection(app: &AppHandle, event: &TranscriptEvent) {
     let state = app.state::<AppState>();
     let now_ms = unix_ms();
 
-    let rolling = state
-        .session_transcript
-        .lock()
-        .expect("transcript lock")
-        .rolling();
+    let (rolling, event_lag_ms) = {
+        let transcript = state.session_transcript.lock().expect("transcript lock");
+        (transcript.rolling(), transcript.last_lag_ms())
+    };
 
+    let started = std::time::Instant::now();
     let (cards, withdrawn, request) = {
         let mut pipeline = state.pipeline.lock().expect("pipeline lock");
         let request = match event {
@@ -650,6 +650,30 @@ fn run_detection(app: &AppHandle, event: &TranscriptEvent) {
         };
         (pipeline.drain(), pipeline.take_withdrawn(), request)
     };
+    let pipeline_us = started.elapsed().as_micros() as u64;
+
+    // Where the time goes for a direct reference (polish item 6, 17 Oct):
+    // one line per candidate as it leaves the pipeline. `event_lag_ms` is
+    // Deepgram's share — how old these words were on arrival — and
+    // `pipeline_us` is the regex and vector stages' share. The emitter and
+    // the window add their own lines, keyed by the same id.
+    let kind = match event {
+        TranscriptEvent::Interim { .. } => "interim",
+        TranscriptEvent::Final { .. } => "final",
+        TranscriptEvent::Closed { .. } => "closed",
+    };
+    for card in &cards {
+        tracing::info!(
+            id = card.id,
+            passage = %card.passage_id,
+            stage = ?card.source,
+            provisional = card.provisional,
+            event = kind,
+            event_lag_ms = event_lag_ms.unwrap_or(0),
+            pipeline_us,
+            "candidate raised"
+        );
+    }
 
     emit_withdrawals(app, &withdrawn);
     emit_cards(app, cards);

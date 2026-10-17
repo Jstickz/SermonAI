@@ -181,6 +181,10 @@ export const detections = {
    *  service default; a code shows this card in that version only. */
   edit: (id: number, reference: string, translation: string | null) =>
     invoke<Detection>("edit_detection", { id, reference, translation }),
+  /** The window painted this card (polish item 6): the last leg of the
+   *  detection path, measured where it is seen. */
+  rendered: (id: number, provisional: boolean, detectedAtMs: number, renderedAtMs: number) =>
+    invoke<void>("detection_rendered", { id, provisional, detectedAtMs, renderedAtMs }),
   /** Pin or unpin a card as an anchor verse (FR-64); written to its row. */
   pin: (id: number, passageId: string, pinned: boolean) =>
     invoke<void>("pin_detection", { id, passageId, pinned }),

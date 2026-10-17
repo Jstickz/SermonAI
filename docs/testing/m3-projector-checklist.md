@@ -298,6 +298,13 @@ reference and send it live each time.
     sheet, one line each, the rule about text fields above them; Escape or
     Close shuts it and focus returns to the button.
 
+47. **Where the time goes for a direct reference** (polish item 6; a
+    measurement run, nothing to look at). Transcribe on, the test sermon
+    playing, for three minutes. Then send every log line that says
+    `candidate raised`, `card emitted` or `card rendered`, plus the
+    `lag until words appear` and `lag until an utterance is confirmed`
+    lines printed when you stop. Each card's three lines share an `id`.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and

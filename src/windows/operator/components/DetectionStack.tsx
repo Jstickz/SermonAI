@@ -63,7 +63,17 @@ export function DetectionStack() {
     let unlistenNew: (() => void) | undefined;
     let unlistenWithdraw: (() => void) | undefined;
 
-    void on("detection:new", (card) => addDetection(card)).then((fn) => {
+    void on("detection:new", (card) => {
+      addDetection(card);
+      // Two frames after the store update: the first is React's commit,
+      // the second the paint of it. The same method as the projector's
+      // paint report, so the two legs add up.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          void detectionsApi.rendered(card.id, card.provisional, card.detectedAtMs, Date.now()).catch(() => undefined);
+        });
+      });
+    }).then((fn) => {
       if (cancelled) fn();
       else unlistenNew = fn;
     });
