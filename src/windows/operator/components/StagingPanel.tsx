@@ -65,13 +65,13 @@ export function StagingPanel() {
   const live = outputs.live;
 
   return (
-    <section className="rounded-lg bg-bg-raised p-5">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section className="rounded-lg bg-bg-raised p-4">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">Staging</h3>
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="btn-secondary min-h-10 !px-3 text-xs"
+            className="btn-compact"
             onClick={() => openPalette(true)}
             title="Search any verse (Ctrl+K)"
           >
@@ -86,9 +86,9 @@ export function StagingPanel() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2.5">
         <Slot
-          label={staged ? "Staged · press ↵ to go live" : "Staged"}
+          label={staged ? "Staged · ↵ goes live" : "Staged"}
           verse={staged}
           empty="Nothing staged. Stage a card, or press ↵ on the top one."
           live={false}
@@ -101,34 +101,38 @@ export function StagingPanel() {
         />
       </div>
 
-      <button
-        type="button"
-        className="btn-primary mt-3 w-full !py-3 disabled:opacity-40"
-        disabled={!staged}
-        onClick={() => void output.goLive().catch(() => undefined)}
-        title={staged ? "Send the staged verse to the projector" : "Stage a verse first"}
-      >
-        Go Live · Enter
-      </button>
-
-      <div className="mt-3 flex items-center gap-2">
+      {/* One row (polish item 3): the primary action keeps its full hit
+          target; the step buttons are compact at its sides so the slots
+          above keep the panel's height and the transcript gets the rest. */}
+      <div className="mt-2.5 flex items-center gap-2">
         <button
           type="button"
-          className="btn-secondary min-h-10 flex-1 disabled:opacity-40"
+          className="btn-compact disabled:opacity-40"
           disabled={!live}
           onClick={() => void step(-1)}
-          title={live ? "Show the verse before this one" : "Nothing is live"}
+          title={live ? "Previous verse (←)" : "Nothing is live"}
+          aria-label="Previous verse"
         >
-          ← Previous Verse
+          ← Prev
         </button>
         <button
           type="button"
-          className="btn-secondary min-h-10 flex-1 disabled:opacity-40"
+          className="btn-primary h-10 flex-1 !py-0 text-[13px] disabled:opacity-40"
+          disabled={!staged}
+          onClick={() => void output.goLive().catch(() => undefined)}
+          title={staged ? "Send the staged verse to the projector (Enter)" : "Stage a verse first"}
+        >
+          Go Live · ↵
+        </button>
+        <button
+          type="button"
+          className="btn-compact disabled:opacity-40"
           disabled={!live}
           onClick={() => void step(1)}
-          title={live ? "Show the verse after this one" : "Nothing is live"}
+          title={live ? "Next verse (→)" : "Nothing is live"}
+          aria-label="Next verse"
         >
-          Next Verse →
+          Next →
         </button>
       </div>
       {stepError && <p className="mt-2 text-xs text-status-warning">{stepError}</p>}
@@ -156,7 +160,7 @@ function Slot({
     ? "border border-accent-500 bg-gradient-to-b from-accent-900/30 to-transparent"
     : "border border-dashed border-line-default bg-bg-sunken";
   return (
-    <div className={`flex min-h-[130px] flex-col gap-1.5 rounded-md p-3.5 ${frame}`}>
+    <div className={`flex min-h-[96px] flex-col gap-1 rounded-md px-3 py-2.5 ${frame}`}>
       <div
         className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${
           live ? "text-accent-500" : "text-content-muted"
@@ -183,7 +187,7 @@ function Slot({
             {verse.reference}
             <span className="mono ml-2 text-content-muted">{verse.translation}</span>
           </div>
-          <p className="line-clamp-4 font-serif text-[13px] leading-normal text-content-secondary">
+          <p className="line-clamp-3 font-serif text-[13px] leading-snug text-content-secondary">
             {verse.text || "No cached text in this translation."}
           </p>
         </>

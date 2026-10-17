@@ -266,6 +266,13 @@ reference and send it live each time.
     it off from either slot: the pin leaves the strip. Pin a verse that is
     already pinned from a card: nothing doubles.
 
+42. **Staging panel, 1366 × 768.** With the window at 1366 × 768 (or a 13"
+    laptop), Live tab, a verse staged and another live: both slots show the
+    reference and three lines of text without the panel scrolling; one row
+    under them holds **← Prev**, **Go Live · ↵** (the wide one) and
+    **Next →**; the transcript above shows at least eight lines. Nothing
+    on the Live tab needs the window to scroll.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
