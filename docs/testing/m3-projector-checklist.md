@@ -273,6 +273,11 @@ reference and send it live each time.
     **Next →**; the transcript above shows at least eight lines. Nothing
     on the Live tab needs the window to scroll.
 
+44. **Closing closes.** With the projector assigned and a verse live, close
+    the operator window with its ✕. Expected: the projector window goes
+    too and `sermonai.exe` is gone from Task Manager within a second or
+    two; the log ends with "operator window closed; closing the app".
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and

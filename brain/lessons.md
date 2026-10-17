@@ -73,6 +73,10 @@ Display assignments in React state lost track of the live screen on a tab switch
 
 Tauri runs a synchronous command on the main thread. Creating a webview window there waits for the main thread's own event loop, which is blocked by the command: the first "Use as projector" froze the Settings page for five minutes and logged nothing, because the log line sits after the build. The window creation had moved from startup into the assignment command on 4 October for cold-start reasons and had not been exercised on the operator's machine since. Rule: any command that may create a window is `async`, and the doc comment on it says why. ([[sessions/2026-10-16]])
 
+## An output window kept the process alive
+
+Closing the operator window did not close the app: the fullscreen, frameless projector window stayed, with no way to close it, and the process held the release binary. That was the 16 Oct "stuck instance" and every stray `sermonai.exe` since. Output windows have no life of their own; the operator window's close now exits the app (17 Oct). ([[sessions/2026-10-17]])
+
 ## Operational
 
 - A leftover `sermonai.exe` holds the release binary and fails every cargo build with "Access is denied (os error 5)". [[close-leftover-instances]].

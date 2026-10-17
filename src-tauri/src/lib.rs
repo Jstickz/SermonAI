@@ -231,6 +231,20 @@ pub fn run() {
                 })
                 .build(),
         )
+        // Closing the operator window closes the app. Without this, the
+        // process lived on with only the projector window — fullscreen,
+        // frameless, no way to close it — which is what the operator found
+        // "stuck" on 16 Oct and what left stray sermonai.exe instances
+        // holding the binary (CLAUDE.md, leftover instances). The output
+        // windows are the operator's; they have no life of their own.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if window.label() == windows::OPERATOR_LABEL {
+                    tracing::info!("operator window closed; closing the app");
+                    window.app_handle().exit(0);
+                }
+            }
+        })
         .setup(move |app| {
             // Everything before this line is Tauri's: plugin init and the
             // operator window from tauri.conf.json, which Tauri creates
