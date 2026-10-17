@@ -415,7 +415,7 @@ SermonAI wins on four things:
 - **FR-33:** Blank the projector with a single hotkey.
 - **FR-50 (new):** **Staging area.** Accepted or searched verses land in a staging slot on the operator screen first; a single action ("Go Live", Enter, or remote tap) sends the staged verse to output. Auto-live mode is available as an opt-in setting for hands-off operation.
 - **FR-51 (new):** Navigate the currently displayed passage verse by verse (next / previous) from keyboard and remote.
-- **FR-64 (new, 16 Oct 2026):** **Pinned detections.** A confirmed detection card can be pinned as an anchor verse. A pinned card never auto-dismisses, sits in its own section at the top of the detection column, and can be staged or sent live any number of times without unpinning; Go Live on a pinned card skips the staged slot, since the operator has already read it. Pinned cards are outside Enter's path, outside the waiting count, and outside auto-live. Pins last for the service and are written to the detection's row so the summary PDF can mark anchor verses (§13.11) and a recovered service can restore them (FR-34, M4). Keyboard: P pins the top waiting card; 1 to 9 send the Nth pinned card live (§13.12). The remote gains Pin in M7 (FR-54).
+- **FR-64 (new, 16 Oct 2026):** **Pinned detections.** A confirmed detection card can be pinned as an anchor verse. A pinned card never auto-dismisses, sits in its own section at the top of the detection column, and can be staged or sent live any number of times without unpinning; Go Live on a pinned card skips the staged slot, since the operator has already read it. Pinned cards are outside Enter's path, outside the waiting count, and outside auto-live. Pins last for the service and are written to the detection's row so the summary PDF can mark anchor verses (§13.11) and a recovered service can restore them (FR-34, M4). Keyboard: P pins the top waiting card; 1 to 9 send the Nth pinned card live (§13.18). The remote gains Pin in M7 (FR-54).
 
 ### 8.7 Phone Remote *(new in v2.0)*
 
@@ -843,7 +843,7 @@ sermonai/
 
 ---
 
-### 13.12 Keyboard Shortcuts *(new, 16 Oct 2026)*
+### 13.18 Keyboard Shortcuts *(new, 16 Oct 2026)*
 
 Every critical function has one key (§9.4). All of these are bare keys unless
 marked, and **none fires while a text field has focus**: a keystroke inside a

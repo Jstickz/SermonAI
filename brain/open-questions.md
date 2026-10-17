@@ -14,7 +14,7 @@ Things not yet decided or not yet verified. When one closes, move its answer int
 
 - [x] ~~Deliverable 3 awaits the operator's eye~~ Run 16 Oct on f261934: steps 1–27 passed, staged → paint median 10 ms.
 - [ ] **Checklist steps 28–39 await the operator:** the 60-second blank (DoD), the 12-verse passage by keyboard (DoD), the pinned cards, the palette, the override and auto-fit, on the build after deliverable 9.
-- [ ] **M3 exit gate:** a non-developer runs a 15-minute mock service with only the keyboard and a printed §13.12. Needs a second person and a printout.
+- [ ] **M3 exit gate:** a non-developer runs a 15-minute mock service with only the keyboard and a printed §13.18 (`docs/testing/cheat-sheet.pdf`). Needs a second person and a printout.
 - [ ] **Pins across a restart and in the PDF** are M4's: the `pinned` column is written now and read then (FR-34, §13.11). The remote's Pin is M7's (FR-54).
 - [ ] **The picker cannot tell which loopback Windows is playing through.** Parked in MILESTONES; the Windows default output moved to a DELL monitor's HDMI audio when the projector went fullscreen there.
 - [ ] **Manual Go Live does not mark `went_live`** on the detection row; auto-live does. Carry the detection id through `stage_verse` with deliverables 7–8 (parked in MILESTONES).

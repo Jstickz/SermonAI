@@ -2,17 +2,17 @@
 
 This folder is the project's memory. It is an Obsidian vault: open `brain/` in Obsidian and the graph shows how the notes connect. Read this note and the newest note in `sessions/` before `docs/MILESTONES.md`. Then follow CLAUDE.md as usual.
 
-**Last updated:** 16 October 2026 (vault created and backfilled).
+**Last updated:** 17 October 2026.
 
 ## Where we are
 
 - **Milestone:** M3 Staging & Projector Output (window 20 Oct to 2 Nov 2026; started early on 16 Oct). M0, M1 and M2 are done on Windows; M1 and M2 have **not** closed on macOS ([[macos-parked-knowingly]]).
 - **Branch:** `m2-detection`, ahead of `main`, carries M2's close and M3's first work.
-- **M3 state:** every deliverable, 1 to 10, ticked; the operator ran `docs/testing/m3-projector-checklist.md` steps 1–27 on 16 Oct on commit f261934, all matched, staged → paint 5–59 ms (median 10) against the 100 ms DoD. Steps 28–39 (the 60-second blank and the 12-verse passage, both DoD lines, the pins, the palette, the override and auto-fit) await the operator. Then the M3 DoD's remaining lines — the end-to-end run of the M1 sermon with no typing, which the checklist's loopback run already covers on Windows — and the exit gate: a non-developer's 15-minute mock service with keyboard and the §13.12 cheat sheet. macOS is parked as before.
-- [[enter-does-the-next-thing]] now has a second clause: a pinned card is never the next thing; it goes live by its own controls or its number (PRD §13.12 is the shortcut table).
+- **M3 state:** every deliverable, 1 to 10, ticked; the operator ran `docs/testing/m3-projector-checklist.md` steps 1–27 on 16 Oct on commit f261934, all matched, staged → paint 5–59 ms (median 10) against the 100 ms DoD. Steps 28–39 (the 60-second blank and the 12-verse passage, both DoD lines, the pins, the palette, the override and auto-fit) await the operator. Then the M3 DoD's remaining lines — the end-to-end run of the M1 sermon with no typing, which the checklist's loopback run already covers on Windows — and the exit gate: a non-developer's 15-minute mock service with keyboard and the §13.18 cheat sheet. macOS is parked as before.
+- [[enter-does-the-next-thing]] now has a second clause: a pinned card is never the next thing; it goes live by its own controls or its number (PRD §13.18 is the shortcut table).
 - **Merge plan:** `m2-detection` merges to `main` at M3 close, not before (operator, 16 Oct).
 - **Blocker in code:** none. **Blockers outside code:** the gateway's Cloudflare account, a Mac, real church hardware ([[open-questions]]).
-- **Newest session:** [[sessions/2026-10-16]].
+- **Newest session:** [[sessions/2026-10-17]]. The printed cheat sheet for the exit gate is `docs/testing/cheat-sheet.pdf`.
 
 ## What SermonAI is, in four lines
 

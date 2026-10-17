@@ -17,7 +17,7 @@
  * staging panel beside the Live slot; bare arrows, outside text fields,
  * where they would otherwise move a caret. **P** pins the top waiting card
  * and **1** to **9** send the Nth pinned card live (FR-64); both bare and
- * outside text fields. PRD §13.12 is the table of all of them.
+ * outside text fields. PRD §13.18 is the table of all of them.
  */
 export type EnterAction = "stage" | "go-live" | "stage-and-go-live" | "none";
 

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SermonAI operator cheat sheet</title>
+<!--
+  Print source for docs/testing/cheat-sheet.pdf (PRD §13.18, M3 exit gate).
+  One A4 page, large type, black on white: it is read in a dark booth by
+  someone who has not used the app before. Regenerate the PDF with:
+
+    "C:\Program Files\Google\Chrome\Application\chrome.exe" --headless=new
+      --disable-gpu --no-pdf-header-footer --user-data-dir=%TEMP%\chrome-print
+      --print-to-pdf="D:\Projects\SermonAI\docs\testing\cheat-sheet.pdf"
+      "file:///D:/Projects/SermonAI/docs/testing/cheat-sheet.html"
+
+  Edge's headless mode hung on this machine while a profile was open; Chrome
+  with its own profile directory does not.
+
+  Keep the keys in step with §13.18 and src/windows/operator/components/stagingKeys.ts.
+-->
+<style>
+  @page { size: A4; margin: 14mm 16mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+  body {
+    font-family: "Segoe UI", Inter, Arial, sans-serif;
+    font-size: 13.5pt; line-height: 1.28;
+    width: 178mm;
+  }
+  h1 { font-size: 22pt; margin: 0 0 1.5mm; letter-spacing: -0.01em; }
+  .sub { font-size: 11pt; color: #333; margin: 0 0 4mm; }
+  .path {
+    display: flex; align-items: center; gap: 4mm;
+    border: 1.2pt solid #000; border-radius: 3mm; padding: 2.5mm 5mm; margin: 0 0 4mm;
+    font-size: 13pt;
+  }
+  .path b { font-size: 15pt; }
+  .path .arrow { font-size: 18pt; }
+  h2 { font-size: 11pt; text-transform: uppercase; letter-spacing: 0.12em; margin: 4mm 0 1.5mm; color: #333; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1.8mm 2mm; border-bottom: 0.6pt solid #999; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.key { width: 42mm; white-space: nowrap; }
+  kbd {
+    display: inline-block; font-family: Consolas, "Courier New", monospace;
+    font-size: 13.5pt; font-weight: 700;
+    border: 1.4pt solid #000; border-radius: 2mm; padding: 0.6mm 2.4mm; margin-right: 1mm;
+    background: #fff;
+  }
+  .panic kbd { background: #000; color: #fff; }
+  .note { font-size: 11pt; color: #222; margin: 4mm 0 0; }
+  .note b { color: #000; }
+  .foot { font-size: 9.5pt; color: #555; margin-top: 4mm; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+  <h1>SermonAI — keys for the service</h1>
+  <p class="sub">Every key works with no text box selected. If a box has the cursor, click anywhere empty first.</p>
+
+  <div class="path">
+    <span><b>Card</b><br><span style="font-size:11pt">a verse the app heard</span></span>
+    <span class="arrow">→</span>
+    <span><b>Staged</b><br><span style="font-size:11pt">you read it once more</span></span>
+    <span class="arrow">→</span>
+    <span><b>Live</b><br><span style="font-size:11pt">on the projector</span></span>
+  </div>
+
+  <h2>Every service</h2>
+  <table>
+    <tr><td class="key"><kbd>Enter</kbd></td><td>The next step. Nothing staged: stage the top card. Something staged: send it live.</td></tr>
+    <tr><td class="key"><kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>Top card straight to the projector.</td></tr>
+    <tr><td class="key"><kbd>Esc</kbd></td><td>Clear the staged verse. The projector keeps what it has.</td></tr>
+    <tr><td class="key"><kbd>→</kbd> <kbd>←</kbd></td><td>Next or previous verse of the passage on the projector.</td></tr>
+  </table>
+
+  <h2>Finding a verse</h2>
+  <table>
+    <tr><td class="key"><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Search any verse. Type <b>john 3 16</b>. <kbd>Enter</kbd> stages it, <kbd>Shift</kbd>+<kbd>Enter</kbd> sends it live, <kbd>Tab</kbd> changes translation, <kbd>Esc</kbd> closes.</td></tr>
+    <tr><td class="key"><kbd>P</kbd></td><td>Pin the top card. Pinned verses stay all service, at the top of the list.</td></tr>
+    <tr><td class="key"><kbd>1</kbd> … <kbd>9</kbd></td><td>Send pinned verse 1 to 9 to the projector, any time, as often as needed.</td></tr>
+  </table>
+
+  <h2 class="panic">If something is wrong</h2>
+  <table class="panic">
+    <tr><td class="key"><kbd>B</kbd></td><td><b>Blank the projector at once.</b> Press <kbd>B</kbd> again to bring the verse back. Nothing is lost.</td></tr>
+    <tr><td class="key"><kbd>Esc</kbd></td><td>Wrong verse staged? Clear it. It never reached the screen.</td></tr>
+  </table>
+
+  <p class="note"><b>Before the service:</b> Live tab → choose the input → switch <b>Transcribe</b> on. Cards appear on the right as scripture is spoken; a card nobody touches leaves after 30 seconds. <b>Auto-live off</b> means nothing reaches the projector without you.</p>
+
+  <div class="foot"><span>SermonAI · operator cheat sheet · PRD §13.18</span><span>October 2026</span></div>
+</body>
+</html>
