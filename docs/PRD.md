@@ -849,7 +849,9 @@ sermonai/
 Every critical function has one key (§9.4). All of these are bare keys unless
 marked, and **none fires while a text field has focus**: a keystroke inside a
 field belongs to the field. The printed cheat sheet for the M3 exit gate is
-this table.
+this table. *(17 Oct 2026)* This table, the Keyboard shortcuts modal at the
+bottom of Settings and `src/lib/shortcuts.ts` are one list: a test parses
+the table below and fails if the code's list differs, cell for cell.
 
 | Key | Does | Where | FR |
 |---|---|---|---|

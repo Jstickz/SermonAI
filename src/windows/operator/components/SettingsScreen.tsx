@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { AudioSettings } from "./AudioSettings";
+import { ShortcutsModal } from "./ShortcutsModal";
 import { BehaviourSettings } from "./BehaviourSettings";
 import { DisplaySettings } from "./DisplaySettings";
 import { ProjectorLayoutSettings } from "./ProjectorLayoutSettings";
@@ -42,6 +44,7 @@ export function SettingsScreen() {
   // operator straight here when a service has no key. See navStore.
   const section = useNavStore((s) => s.settingsSection);
   const setSection = useNavStore((s) => s.setSettingsSection);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   return (
     <div className="settings-layout">
@@ -56,7 +59,18 @@ export function SettingsScreen() {
             {s.label}
           </button>
         ))}
+        {/* Not a section: a reference, from one source with PRD §13.18
+            (polish item 7). Last, under a rule, so the list of sections
+            above stays the wireframe's. */}
+        <button
+          type="button"
+          className="mt-2 border-t border-line-subtle pt-3 text-content-secondary"
+          onClick={() => setShortcutsOpen(true)}
+        >
+          Keyboard shortcuts
+        </button>
       </nav>
+      {shortcutsOpen && <ShortcutsModal onDismiss={() => setShortcutsOpen(false)} />}
 
       <div className="settings-content">
         {section === "general" && <BehaviourSettings />}

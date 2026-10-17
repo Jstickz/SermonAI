@@ -293,6 +293,11 @@ reference and send it live each time.
     without care; Go Live, Transcribe and Blank are the big ones. Press
     **Aa** three times: the transcript steps small, medium, large and back.
 
+46. **Shortcuts in Settings.** Settings → the bottom of the section list →
+    **Keyboard shortcuts**. Expected: a modal with every key from the cheat
+    sheet, one line each, the rule about text fields above them; Escape or
+    Close shuts it and focus returns to the button.
+
 ## What to send me
 
 - The log lines `went live … staged_to_broadcast_us=` and
