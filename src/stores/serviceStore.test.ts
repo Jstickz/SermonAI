@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { RECENT_LIMIT, rememberRecent, useServiceStore } from "./serviceStore";
+import { RECENT_LIMIT, pinKey, rememberRecent, useServiceStore } from "./serviceStore";
 import type { Detection, TranscriptSegment } from "@/lib/types";
 
 function segment(id: number, text: string, isFinal: boolean): TranscriptSegment {
@@ -19,7 +19,6 @@ function detection(id: number, provisional = false): Detection {
     // Null until the Bible cache has the text (M2 deliverable 5).
     verse: null,
     wentLive: false,
-    pinned: false,
   };
 }
 
@@ -122,42 +121,30 @@ describe("serviceStore", () => {
     });
   });
 
-  it("keeps a pin when the card is replaced under its id, and clears for a new service (FR-64)", () => {
+  it("pins are their own list: numbered by pin order, deduplicated, and they outlive the cards (FR-64)", () => {
     const store = useServiceStore.getState();
     store.reset();
-    store.addDetection(detection(1));
-    store.pinDetection(1, true);
-    expect(useServiceStore.getState().detections[0]?.pinned).toBe(true);
-
-    // An Edit comes back as a new card under the same id; the pin is the
-    // operator's and survives it.
-    store.addDetection({ ...detection(1), reference: "John 3:17" });
-    const replaced = useServiceStore.getState().detections[0];
-    expect(replaced?.reference).toBe("John 3:17");
-    expect(replaced?.pinned).toBe(true);
-
-    store.pinDetection(1, false);
-    expect(useServiceStore.getState().detections[0]?.pinned).toBe(false);
-
-    store.pinDetection(1, true);
-    store.clearDetections();
-    expect(useServiceStore.getState().detections).toHaveLength(0);
-    expect(useServiceStore.getState().pinOrder).toEqual([]);
-  });
-
-  it("numbers pinned cards by when they were pinned, not when they arrived (FR-64)", () => {
-    const store = useServiceStore.getState();
-    store.reset();
+    const verse = (reference: string, translation = "KJV") => ({ reference, translation, text: "t" });
     store.addDetection(detection(1));
     store.addDetection(detection(2));
-    store.addDetection(detection(3)); // newest, top of the stack
-    store.pinDetection(3, true);
-    store.pinDetection(1, true);
-    expect(useServiceStore.getState().pinOrder).toEqual([3, 1]);
-    store.pinDetection(3, false);
-    store.pinDetection(3, true);
-    // Re-pinning goes to the end.
-    expect(useServiceStore.getState().pinOrder).toEqual([1, 3]);
+    store.addPin(verse("John 3:16"), 2, "JHN.3.16");
+    store.addPin(verse("Romans 8:28"), null);
+    store.addPin(verse("John 3:16"), 1, "JHN.3.16"); // already pinned: keeps its place
+    expect(useServiceStore.getState().pins.map((p) => p.verse.reference)).toEqual(["John 3:16", "Romans 8:28"]);
+    expect(useServiceStore.getState().pins[0]?.detectionId).toBe(2);
+    // Another translation of the same verse is another pin.
+    store.addPin(verse("John 3:16", "WEB"), null);
+    expect(useServiceStore.getState().pins).toHaveLength(3);
+
+    // A new service clears the cards, never the pins (polish 5d).
+    store.clearDetections();
+    expect(useServiceStore.getState().detections).toHaveLength(0);
+    expect(useServiceStore.getState().pins).toHaveLength(3);
+
+    store.removePin(pinKey(verse("Romans 8:28")));
+    expect(useServiceStore.getState().pins.map((p) => p.verse.reference)).toEqual(["John 3:16", "John 3:16"]);
+    store.clearPins();
+    expect(useServiceStore.getState().pins).toEqual([]);
   });
 
   it("remembers verses that reach a slot, newest first, without repeats (FR-31)", () => {

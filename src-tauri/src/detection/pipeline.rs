@@ -102,10 +102,6 @@ pub struct Candidate {
     /// sees what went up; it is not waiting for a decision.
     #[serde(default)]
     pub went_live: bool,
-    /// The operator pinned the card as an anchor verse (FR-64). Set by the
-    /// window, never by a stage; carried here so the mirror type is exact.
-    #[serde(default)]
-    pub pinned: bool,
 }
 
 /// The pipeline wants Claude asked about this buffer. The caller owns the
@@ -489,7 +485,6 @@ fn candidate(
         detected_at_ms: now_ms,
         verse: None,
         went_live: false,
-        pinned: false,
     }
 }
 

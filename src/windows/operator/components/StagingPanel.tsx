@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { output } from "@/lib/ipc";
-import { useServiceStore } from "@/stores/serviceStore";
+import { pinKey, useServiceStore } from "@/stores/serviceStore";
 import { useNavStore } from "@/stores/navStore";
 import type { Verse } from "@/lib/types";
 import { isTypingTarget, stepDelta } from "./stagingKeys";
@@ -147,6 +147,11 @@ function Slot({
   empty: string;
   live: boolean;
 }) {
+  // Pin after the fact (polish 5e): a switch in the slot, like Auto-live.
+  const pins = useServiceStore((s) => s.pins);
+  const addPin = useServiceStore((s) => s.addPin);
+  const removePin = useServiceStore((s) => s.removePin);
+  const pinned = verse !== null && pins.some((p) => pinKey(p.verse) === pinKey(verse));
   const frame = live
     ? "border border-accent-500 bg-gradient-to-b from-accent-900/30 to-transparent"
     : "border border-dashed border-line-default bg-bg-sunken";
@@ -159,6 +164,18 @@ function Slot({
       >
         {live && verse && <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-500" />}
         {label}
+        {verse && (
+          <label className="ml-auto flex cursor-pointer items-center gap-1.5 normal-case tracking-normal">
+            <span className="text-[10px] text-content-muted">Pin</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={pinned}
+              className="switch switch-sm"
+              onClick={() => (pinned ? removePin(pinKey(verse)) : addPin(verse, null))}
+            />
+          </label>
+        )}
       </div>
       {verse ? (
         <>

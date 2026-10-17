@@ -219,7 +219,6 @@ pub fn edit_detection(
         detected_at_ms: unix_ms(),
         verse,
         went_live: false,
-        pinned: false,
     };
     tracing::info!(id, passage = %card.passage_id, %translation, "operator edited a detection");
     // A new row, not an update: the operator named a different verse, and

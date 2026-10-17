@@ -50,9 +50,6 @@ export interface Detection {
   /** Auto-live sent this card to the projector as it arrived (§13.5). It is
    *  shown, not waiting: no Stage button, and Enter skips it. */
   wentLive: boolean;
-  /** Pinned as an anchor verse (FR-64): never auto-dismissed, sent live any
-   *  number of times, never touched by Enter or auto-live. */
-  pinned: boolean;
 }
 
 /**

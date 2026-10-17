@@ -1,33 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { detections as detectionsApi, on, output } from "@/lib/ipc";
 import type { Detection, Verse } from "@/lib/types";
-import { useServiceStore } from "@/stores/serviceStore";
+import { pinKey, useServiceStore, type Pin } from "@/stores/serviceStore";
 import { useTranslationStore } from "@/stores/translationStore";
 import { DetectionCard } from "./DetectionCard";
 import { enterAction, isPinHotkey, isTypingTarget, pinnedIndex } from "./stagingKeys";
 
-/** A card the operator can still act on: confirmed, not already put on the
- *  projector by auto-live, and not pinned. Enter and the "waiting" count use
- *  the same rule, so the count never promises a card Enter will not take; a
- *  pinned card goes live only by its own controls (FR-64). */
-export function isWaiting(d: Pick<Detection, "provisional" | "wentLive" | "pinned">): boolean {
-  return !d.provisional && !d.wentLive && !d.pinned;
-}
-
-/** Pinned cards in the order they were pinned, so the numbers 1–9 stay
- *  stable as more are pinned: the first verse pinned is 1 for the whole
- *  service, whatever arrived when. The store keeps that order. */
-export function pinnedInOrder<T extends Pick<Detection, "id" | "pinned">>(
-  detections: T[],
-  pinOrder: number[],
-): T[] {
-  const byId = new Map(detections.filter((d) => d.pinned).map((d) => [d.id, d]));
-  return pinOrder.map((id) => byId.get(id)).filter((d): d is T => d !== undefined);
+/** A card the operator can still act on: confirmed, and not already put on
+ *  the projector by auto-live. Enter and the "waiting" count use the same
+ *  rule, so the count never promises a card Enter will not take. */
+export function isWaiting(d: Pick<Detection, "provisional" | "wentLive">): boolean {
+  return !d.provisional && !d.wentLive;
 }
 
 /** The verse a card stages. A card whose text was not cached still carries
  *  its reference (§13.3), so the operator can stage it and read it later. */
-function verseOf(d: Detection): Verse {
+export function verseOf(d: Detection): Verse {
   return (
     d.verse ?? {
       reference: d.reference,
@@ -38,8 +26,8 @@ function verseOf(d: Detection): Verse {
 }
 
 /**
- * The right-hand column of the Live tab: detection cards, newest first
- * (wireframe.html §op-col "Detections").
+ * The right-hand column of the Live tab: the pinned strip, then detection
+ * cards newest first (wireframe.html §op-col "Detections").
  *
  * Subscribes to `detection:new` and `detection:withdraw` and hands both to
  * the service store, which upserts by id — so a provisional card firming up
@@ -51,18 +39,24 @@ function verseOf(d: Detection): Verse {
  * field has focus: an operator typing a corrected reference is not staging
  * anything.
  *
- * Pinned cards (FR-64, deliverable 10) sit in their own section above the
- * waiting ones. P pins the top waiting card; 1 to 9 send the Nth pinned
- * card live. Staging or sending a pinned card never dismisses or unpins
- * it, and Enter never reaches it.
+ * Pins (FR-64; 17 Oct polish item 5): a pin is a verse kept for the
+ * service, not a card. Pinning a card moves it out of the waiting cards and
+ * into the strip; a staged or live verse can be pinned from its slot with no
+ * card at all. The strip is a fixed, compact height and scrolls sideways,
+ * so the waiting cards below keep the column's height. A pin offers Go Live
+ * — straight to the projector, the operator has read it — and Unpin; P pins
+ * the top waiting card; 1 to 9 send the Nth pin live. Pins outlive
+ * Transcribe being switched off and on, and go only by Unpin or Clear all.
  */
 export function DetectionStack() {
   const detections = useServiceStore((s) => s.detections);
+  const pins = useServiceStore((s) => s.pins);
   const addDetection = useServiceStore((s) => s.addDetection);
   const dismissDetection = useServiceStore((s) => s.dismissDetection);
   const withdrawDetection = useServiceStore((s) => s.withdrawDetection);
-  const pinDetection = useServiceStore((s) => s.pinDetection);
-  const pinOrder = useServiceStore((s) => s.pinOrder);
+  const addPin = useServiceStore((s) => s.addPin);
+  const removePin = useServiceStore((s) => s.removePin);
+  const clearPins = useServiceStore((s) => s.clearPins);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,34 +81,65 @@ export function DetectionStack() {
 
   // Stage puts the verse in the staged slot (FR-50) and records the Accept.
   // The card leaves the stack: it is now in staging, where the operator
-  // reads it again before it goes live. A pinned card stays: it is kept for
-  // the next time.
+  // reads it again before it goes live.
   const stage = useCallback(
     (d: Detection) => {
       void output.stage(verseOf(d)).catch(() => undefined);
       void detectionsApi.accept(d.id, d.passageId).catch(() => undefined);
-      if (!d.pinned) dismissDetection(d.id);
+      dismissDetection(d.id);
     },
     [dismissDetection],
   );
 
-  // A pinned card straight to the projector: stage then go live, sequenced
-  // on the backend's one lock. The operator has read this card already.
-  const goLivePinned = useCallback((d: Detection) => {
+  // Pin a card: it leaves the waiting cards for the strip, and its row is
+  // marked for the PDF (M4).
+  const pinCard = useCallback(
+    (d: Detection) => {
+      addPin(verseOf(d), d.id);
+      void detectionsApi.pin(d.id, d.passageId, true).catch(() => undefined);
+      dismissDetection(d.id);
+    },
+    [addPin, dismissDetection],
+  );
+
+  // A pin straight to the projector: stage then go live, sequenced on the
+  // backend's one lock. The pin stays.
+  const goLivePin = useCallback((p: Pin) => {
     void output
-      .stage(verseOf(d))
+      .stage(p.verse)
       .then(() => output.goLive())
       .catch(() => undefined);
-    void detectionsApi.accept(d.id, d.passageId).catch(() => undefined);
+    if (p.detectionId !== null) {
+      void detectionsApi.accept(p.detectionId, p.passageId ?? "").catch(() => undefined);
+    }
   }, []);
 
-  const pin = useCallback(
-    (d: Detection, pinned: boolean) => {
-      pinDetection(d.id, pinned);
-      void detectionsApi.pin(d.id, d.passageId, pinned).catch(() => undefined);
+  const unpin = useCallback(
+    (p: Pin) => {
+      removePin(pinKey(p.verse));
+      if (p.detectionId !== null) {
+        void detectionsApi.pin(p.detectionId, p.passageId ?? "", false).catch(() => undefined);
+      }
     },
-    [pinDetection],
+    [removePin],
   );
+
+  // Clear all: the only bulk removal, behind a quick confirm (FR-64 5c).
+  const [confirmClear, setConfirmClear] = useState(false);
+  useEffect(() => {
+    if (!confirmClear) return;
+    const id = window.setTimeout(() => setConfirmClear(false), 5_000);
+    return () => window.clearTimeout(id);
+  }, [confirmClear]);
+  const clearAll = useCallback(() => {
+    for (const p of useServiceStore.getState().pins) {
+      if (p.detectionId !== null) {
+        void detectionsApi.pin(p.detectionId, p.passageId ?? "", false).catch(() => undefined);
+      }
+    }
+    clearPins();
+    setConfirmClear(false);
+  }, [clearPins]);
 
   const reject = useCallback(
     (d: Detection) => {
@@ -136,27 +161,27 @@ export function DetectionStack() {
 
   const expire = useCallback((d: Detection) => dismissDetection(d.id), [dismissDetection]);
 
-  // P → pin the top waiting card; 1–9 → the Nth pinned card live (FR-64).
+  // P → pin the top waiting card; 1–9 → the Nth pin live (FR-64).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const { detections, pinOrder } = useServiceStore.getState();
+      const { detections, pins } = useServiceStore.getState();
       if (isPinHotkey(e, e.target)) {
         const top = detections.find(isWaiting);
         if (!top) return;
         e.preventDefault();
-        pin(top, true);
+        pinCard(top);
         return;
       }
       const index = pinnedIndex(e, e.target);
       if (index < 0) return;
-      const target = pinnedInOrder(detections, pinOrder)[index];
+      const target = pins[index];
       if (!target) return;
       e.preventDefault();
-      goLivePinned(target);
+      goLivePin(target);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [pin, goLivePinned]);
+  }, [pinCard, goLivePin]);
 
   // Enter → stage the top card, or go live with what is staged; Shift+Enter
   // → both (stagingKeys.ts has the rule and its reasons).
@@ -191,32 +216,39 @@ export function DetectionStack() {
   }, [stage, dismissDetection]);
 
   const waiting = detections.filter(isWaiting).length;
-  const pinned = pinnedInOrder(detections, pinOrder);
-  const unpinned = detections.filter((d) => !d.pinned);
 
   return (
     <>
-      {pinned.length > 0 && (
+      {pins.length > 0 && (
         <>
           <div className="stack-header">
-            <h3>Pinned</h3>
-            <span className="count mono text-xs text-content-muted">
-              {pinned.length <= 9 ? "1–9 sends live" : `${pinned.length} pinned`}
-            </span>
+            <h3>
+              Pinned <span className="mono text-xs font-normal text-content-muted">{pins.length}</span>
+            </h3>
+            {confirmClear ? (
+              <span className="flex items-center gap-1.5 text-xs">
+                <span className="text-content-secondary">Clear {pins.length}?</span>
+                <button type="button" className="btn-compact-danger" onClick={clearAll} autoFocus>
+                  Clear
+                </button>
+                <button type="button" className="btn-compact" onClick={() => setConfirmClear(false)}>
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="btn-compact"
+                onClick={() => setConfirmClear(true)}
+                title="Remove every pin"
+              >
+                Clear all
+              </button>
+            )}
           </div>
-          <section className="mb-3 flex flex-col gap-3 rounded-lg border border-accent-900/60 bg-bg-sunken p-2">
-            {pinned.map((d, i) => (
-              <DetectionCard
-                key={d.id}
-                detection={d}
-                onStage={stage}
-                onReject={reject}
-                onEdit={edit}
-                onExpire={expire}
-                onPin={pin}
-                onGoLive={goLivePinned}
-                pinnedNumber={i < 9 ? i + 1 : null}
-              />
+          <section className="pin-strip" aria-label="Pinned verses">
+            {pins.map((p, i) => (
+              <PinChip key={pinKey(p.verse)} pin={p} number={i < 9 ? i + 1 : null} onGoLive={goLivePin} onUnpin={unpin} />
             ))}
           </section>
         </>
@@ -230,13 +262,13 @@ export function DetectionStack() {
       {editError && (
         <p className="mb-2 rounded-md bg-status-warning-bg px-3 py-2 text-xs text-status-warning">{editError}</p>
       )}
-      <section className="scroll-hidden flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-        {unpinned.length === 0 ? (
-          <p className="rounded-lg bg-bg-surface p-5 text-[13px] text-content-muted">
+      <section className="scroll-hidden flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+        {detections.length === 0 ? (
+          <p className="rounded-lg bg-bg-surface p-4 text-[13px] text-content-muted">
             Scripture detected in the transcript will appear here as cards.
           </p>
         ) : (
-          unpinned.map((d) => (
+          detections.map((d) => (
             <DetectionCard
               key={d.id}
               detection={d}
@@ -244,12 +276,49 @@ export function DetectionStack() {
               onReject={reject}
               onEdit={edit}
               onExpire={expire}
-              onPin={pin}
-              onGoLive={goLivePinned}
+              onPin={pinCard}
             />
           ))
         )}
       </section>
     </>
+  );
+}
+
+/** One pin in the strip: number, reference, Go Live, Unpin. Compact by
+ *  design (polish item 2): the verse text is a tooltip, since the point of
+ *  a pin is that the operator already knows the verse. */
+function PinChip({
+  pin,
+  number,
+  onGoLive,
+  onUnpin,
+}: {
+  pin: Pin;
+  number: number | null;
+  onGoLive: (p: Pin) => void;
+  onUnpin: (p: Pin) => void;
+}) {
+  return (
+    <div className="pin-chip" title={pin.verse.text || "No cached text in this translation."}>
+      <div className="flex items-center gap-1.5">
+        {number !== null && <span className="pin-number">{number}</span>}
+        <span className="truncate text-[13px] font-semibold">{pin.verse.reference}</span>
+        <span className="mono text-[10px] text-content-muted">{pin.verse.translation}</span>
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <button
+          type="button"
+          className="btn-compact-accent"
+          onClick={() => onGoLive(pin)}
+          title={number !== null ? `Send to the projector (key ${number})` : "Send to the projector"}
+        >
+          Go Live{number !== null ? ` · ${number}` : ""}
+        </button>
+        <button type="button" className="btn-compact" onClick={() => onUnpin(pin)} title="Unpin">
+          Unpin
+        </button>
+      </div>
+    </div>
   );
 }

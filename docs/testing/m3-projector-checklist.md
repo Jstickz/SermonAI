@@ -174,24 +174,26 @@ reference and send it live each time.
 
 ## Pinned cards (deliverable 10)
 
-31. With cards arriving, click **Pin** on one. Expected: it moves into a
-    **Pinned** section above Detections, with an accent frame and a
-    "Pinned · 1" chip; the waiting count drops by one; it is still there
-    after 30 seconds. Pin a second card: it is "Pinned · 2", under the
-    first. Press **P** with a waiting card at the top: that card is pinned
-    as 3.
-32. Press **Enter** with pinned cards and no waiting ones: nothing happens.
-    With a waiting card: Enter stages the waiting card, never a pinned one.
-    Press **1**: pinned card 1 goes straight to the projector, with no stop
-    in the staged slot, and stays pinned. Click its **Stage** button: it
-    appears in the Staged slot and the card stays. Press **1** again later:
-    it goes live again. Click into any text field and type **p** or **1**:
-    the letter is typed, nothing pins or goes live.
-33. Click **Unpin** on card 2: it returns to the waiting cards and leaves
-    after 30 seconds; the remaining pinned cards keep their numbers in pin
-    order. Switch Transcribe off and on again: the pinned section is empty,
-    since pins last for the service. In the log, each pin and unpin appears
-    as `operator pinned a detection … pinned=true|false`.
+31. *(revised 17 Oct)* With cards arriving, click **Pin** on one. Expected:
+    the card leaves the waiting cards and a **Pinned** strip appears above
+    Detections — a short fixed-height row — holding it as **1** with its
+    reference, Go Live · 1 and Unpin; the waiting count drops by one; it is
+    still there after 30 seconds. Pin more: they line up as 2, 3 … and the
+    strip scrolls sideways once it is full; the Detections area below keeps
+    its height. Press **P** with a waiting card at the top: that card is
+    pinned next.
+32. Press **Enter** with pins and no waiting cards: nothing happens. With a
+    waiting card: Enter stages the waiting card, never a pin. Press **1**:
+    pin 1 goes straight to the projector, with no stop in the staged slot,
+    and stays pinned. Press **1** again later: it goes live again. Click
+    into any text field and type **p** or **1**: the letter is typed,
+    nothing pins or goes live. A pin has no Stage button.
+33. Click **Unpin** on pin 2: it leaves the strip; the others keep their
+    numbers in pin order. Switch Transcribe off and on again: the cards
+    clear, **the pins stay**. Click **Clear all** in the Pinned header: it
+    asks "Clear N?"; **Keep** leaves them; **Clear** empties the strip. In
+    the log each pin and unpin from a card appears as `operator pinned a
+    detection … pinned=true|false`.
 
 ## Command palette (deliverable 7)
 
@@ -256,6 +258,13 @@ reference and send it live each time.
     boundary is real; press **←** back to 5:47. With Revelation 22:21
     live, press **→**: refused, the last verse of Revelation. Nothing in
     this step changes the projector except the real verses.
+
+41. **Pin from a slot.** Stage a verse by any route. Expected: a small
+    **Pin** switch in the Staged slot's header, off. Switch it on: the verse
+    appears in the Pinned strip with the next number; the switch reads on.
+    Send it live: the Live slot's switch is on for the same verse. Switch
+    it off from either slot: the pin leaves the strip. Pin a verse that is
+    already pinned from a card: nothing doubles.
 
 ## What to send me
 

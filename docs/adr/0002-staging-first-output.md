@@ -38,3 +38,13 @@ distinction is carried by position as well as by colour.
   printed cheat sheet.
 - Auto-live has to be built anyway for churches that want hands-off operation,
   so both paths need testing.
+
+## Amendment, 17 Oct 2026: pinned verses
+
+A pinned verse (FR-64) offers Go Live without a stop in the staged slot. This
+is the second exception after auto-live, and it is of the same kind: the
+operator read the verse when they pinned it, and the pin is itself the
+decision. Everything else still passes through staging. The strip's Go Live
+uses the same two commands, stage then go live, under the backend's one lock,
+so the state machine is unchanged; only the operator's keypress between them
+is gone.

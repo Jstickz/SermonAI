@@ -29,11 +29,9 @@ import { useTranslationStore } from "@/stores/translationStore";
  * A provisional card is never auto-dismissed here; its lifetime belongs to
  * the settled text.
  *
- * **Pinned** (FR-64): an anchor verse the pastor keeps returning to. Never
- * auto-dismissed; Stage and Go Live any number of times, neither of which
- * unpins it; Go Live skips the staged slot, since the operator has read
- * this card already. Shown in its own section with its number, which is
- * the key that sends it live. Unpin returns it to the waiting cards.
+ * **Pin** (FR-64) moves the card out of the waiting cards into the pinned
+ * strip above, where it keeps its number for the service; the strip, not
+ * the card, has the pinned behaviour (DetectionStack).
  *
  * A third state, from auto-live (§13.5): **went live**. The backend put the
  * verse on the projector as the card was emitted. The card is still shown —
@@ -58,16 +56,15 @@ export function sourceBadge(source: DetectionSource): { letter: string; label: s
 }
 
 /** Whether the operator may stage this card. Never while provisional, and
- *  not once auto-live has already shown it. A pinned card can always be
- *  staged: that is what it is for. */
-export function canStage(detection: Pick<Detection, "provisional" | "wentLive" | "pinned">): boolean {
-  if (detection.pinned) return true;
+ *  not once auto-live has already shown it. */
+export function canStage(detection: Pick<Detection, "provisional" | "wentLive">): boolean {
   return !detection.provisional && !detection.wentLive;
 }
 
-/** Whether the card offers Pin: confirmed, not pinned, not already shown. */
-export function canPin(detection: Pick<Detection, "provisional" | "wentLive" | "pinned">): boolean {
-  return !detection.provisional && !detection.wentLive && !detection.pinned;
+/** Whether the card offers Pin: the same rule — a card that can be staged
+ *  can be kept. */
+export function canPin(detection: Pick<Detection, "provisional" | "wentLive">): boolean {
+  return canStage(detection);
 }
 
 /** 0.978 → 98. Rounded, never over 100. */
@@ -85,8 +82,6 @@ export function DetectionCard({
   onEdit,
   onExpire,
   onPin,
-  onGoLive,
-  pinnedNumber,
 }: {
   detection: Detection;
   onStage: (d: Detection) => void;
@@ -94,13 +89,8 @@ export function DetectionCard({
   /** Corrected reference and, when changed, translation code (FR-30). */
   onEdit: (d: Detection, reference: string, translation: string | null) => void;
   onExpire: (d: Detection) => void;
-  /** Pin (true) or unpin (false) the card (FR-64). */
-  onPin: (d: Detection, pinned: boolean) => void;
-  /** Pinned cards only: straight to the projector. */
-  onGoLive: (d: Detection) => void;
-  /** Pinned cards only: 1-based position, the key that sends it live; null
-   *  past the ninth. */
-  pinnedNumber?: number | null;
+  /** Pin the card (FR-64): it moves to the strip. */
+  onPin: (d: Detection) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(detection.reference);
@@ -116,27 +106,21 @@ export function DetectionCard({
   const percent = confidencePercent(detection.confidence);
 
   // Auto-dismiss, confirmed cards only, reset if the card changes state
-  // (a provisional card firming up starts its 30 s then). Never a pinned
-  // card: outliving the 30 s is the point of the pin.
+  // (a provisional card firming up starts its 30 s then).
   useEffect(() => {
-    if (detection.provisional || detection.pinned || editing) return;
+    if (detection.provisional || editing) return;
     const timer = window.setTimeout(() => onExpire(detection), AUTO_DISMISS_MS);
     return () => window.clearTimeout(timer);
   }, [detection, editing, onExpire]);
 
   return (
     <article
-      className={`detection ${detection.provisional ? "provisional" : ""} ${detection.pinned ? "pinned" : ""}`}
+      className={`detection ${detection.provisional ? "provisional" : ""}`}
       aria-label={`${detection.reference}, ${badge.label}, ${percent}% confidence${
         detection.provisional ? ", unconfirmed" : detection.wentLive ? ", on the projector" : ""
-      }${detection.pinned ? ", pinned" : ""}`}
+      }`}
     >
       <div className="top">
-        {detection.pinned && (
-          <span className="chip mr-1 bg-accent-900/40 text-accent-500" title="Press this number to send it live">
-            {pinnedNumber ? `Pinned · ${pinnedNumber}` : "Pinned"}
-          </span>
-        )}
         <span className={`dot ${badge.dot}`} aria-hidden="true" />
         <span className="src-letter">{badge.letter}</span>
         <span>
@@ -214,20 +198,7 @@ export function DetectionCard({
           </button>
         </form>
       ) : (
-        !detection.provisional &&
-        (detection.pinned ? (
-          <div className="actions">
-            <button className="accept" onClick={() => onStage(detection)}>
-              Stage
-            </button>
-            <button className="accept" onClick={() => onGoLive(detection)}>
-              Go Live{pinnedNumber ? ` · ${pinnedNumber}` : ""}
-            </button>
-            <button className="edit" onClick={() => onPin(detection, false)}>
-              Unpin
-            </button>
-          </div>
-        ) : (
+        !detection.provisional && (
           <div className="actions">
             {canStage(detection) && (
               <button className="accept" onClick={() => onStage(detection)}>
@@ -235,7 +206,7 @@ export function DetectionCard({
               </button>
             )}
             {canPin(detection) && (
-              <button className="edit" onClick={() => onPin(detection, true)} title="Keep this card for the service">
+              <button className="edit" onClick={() => onPin(detection)} title="Keep this verse for the service (P)">
                 Pin
               </button>
             )}
@@ -254,7 +225,7 @@ export function DetectionCard({
               Edit
             </button>
           </div>
-        ))
+        )
       )}
     </article>
   );

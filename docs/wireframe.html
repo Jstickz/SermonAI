@@ -1085,23 +1085,21 @@
              for the service. Own section, accent frame, numbered; the number is
              the key that sends it live. Never auto-dismissed, never Enter's. -->
         <div class="stack-header">
-          <h3>Pinned</h3>
-          <span class="count">1–9 sends live</span>
+          <h3>Pinned <span class="count">2</span></h3>
+          <button class="btn-secondary" style="font-size: 11px; padding: 4px 10px;">Clear all</button>
         </div>
-        <div style="border: 1px solid var(--a-800); border-radius: 10px; padding: 8px; margin-bottom: 12px; background: var(--bg-sunken);">
-          <div class="detection" style="border: 1px solid var(--a-500);">
-            <div class="top">
-              <span class="chip" style="color: var(--a-500);">Pinned · 1</span>
-              <span class="dot regex"></span><span class="src-letter">R</span> · Direct reference · 98% confidence
-            </div>
-            <div class="ref">Jeremiah 29:11</div>
-            <div class="verse-text">For I know the thoughts that I think toward you, saith the Lord, thoughts of peace, and not of evil, to give you an expected end.</div>
-            <div class="confidence-bar"><div style="width:98%"></div></div>
-            <div class="actions">
-              <button class="accept">Stage</button>
-              <button class="accept">Go Live · 1</button>
-              <button class="edit">Unpin</button>
-            </div>
+        <!-- 17 Oct 2026: a compact strip, fixed height, scrolls sideways. Each
+             pin: number, reference, Go Live, Unpin. No Stage: the operator
+             read the verse when they pinned it. Pins survive Transcribe off
+             and on; only Unpin or Clear all removes them. -->
+        <div style="display: flex; gap: 8px; overflow-x: auto; height: 76px; border: 1px solid var(--a-800); border-radius: 10px; padding: 8px; margin-bottom: 12px; background: var(--bg-sunken);">
+          <div style="flex: 0 0 168px; background: var(--bg-raised); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="font-size: 13px; font-weight: 600;"><span class="chip" style="background: var(--a-500); color: var(--text-on-accent); padding: 0 5px; font-size: 10px;">1</span> Jeremiah 29:11 <span class="mono" style="font-size: 10px; color: var(--text-muted);">KJV</span></div>
+            <div style="display: flex; gap: 6px;"><button class="btn-primary" style="font-size: 11px; padding: 4px 10px;">Go Live · 1</button><button class="btn-secondary" style="font-size: 11px; padding: 4px 10px;">Unpin</button></div>
+          </div>
+          <div style="flex: 0 0 168px; background: var(--bg-raised); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="font-size: 13px; font-weight: 600;"><span class="chip" style="background: var(--a-500); color: var(--text-on-accent); padding: 0 5px; font-size: 10px;">2</span> Romans 8:28 <span class="mono" style="font-size: 10px; color: var(--text-muted);">KJV</span></div>
+            <div style="display: flex; gap: 6px;"><button class="btn-primary" style="font-size: 11px; padding: 4px 10px;">Go Live · 2</button><button class="btn-secondary" style="font-size: 11px; padding: 4px 10px;">Unpin</button></div>
           </div>
         </div>
 

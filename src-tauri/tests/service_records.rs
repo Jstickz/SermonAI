@@ -44,7 +44,6 @@ fn candidate(id: u64, passage_id: &str, source: DetectionSource, confidence: f32
         detected_at_ms: 0,
         verse: None,
         went_live: false,
-        pinned: false,
     }
 }
 

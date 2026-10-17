@@ -12,6 +12,21 @@ export function rememberRecent(recent: Verse[], verse: Verse): Verse[] {
   return [verse, ...recent.filter((v) => !same(v))].slice(0, RECENT_LIMIT);
 }
 
+/** A pinned verse (FR-64): kept until Unpin or Clear all. `detectionId` is
+ *  the card it came from, for the row the PDF reads; null when pinned from
+ *  a slot. */
+export interface Pin {
+  verse: Verse;
+  detectionId: number | null;
+  passageId: string | null;
+}
+
+/** Pins are keyed by reference and translation: the same verse in another
+ *  translation is another pin, and the same verse twice is one. */
+export function pinKey(verse: Pick<Verse, "reference" | "translation">): string {
+  return `${verse.reference}·${verse.translation}`;
+}
+
 /** Live-service state for the operator window. Persisted state lives in SQLite;
  *  this store only holds what the UI needs between events. */
 interface ServiceState {
@@ -20,9 +35,9 @@ interface ServiceState {
   peakDbfs: number;
   segments: TranscriptSegment[];
   detections: Detection[];
-  /** Ids of pinned cards in the order they were pinned (FR-64). The first
-   *  pinned is 1 for the whole service, whatever arrived when. */
-  pinOrder: number[];
+  /** Pinned verses in the order they were pinned (FR-64): the first pinned
+   *  is 1 until it is unpinned, whatever else happens. */
+  pins: Pin[];
   outputs: OutputState;
   /** Verses staged or sent live this service, newest first (FR-31). */
   recent: Verse[];
@@ -40,10 +55,13 @@ interface ServiceState {
   /** A provisional candidate the settled text did not support. Same removal
    *  as dismiss, named separately so a reader knows nobody clicked. */
   withdrawDetection: (id: number) => void;
-  /** Pin or unpin a card (FR-64). Unpinning puts it back among the waiting
-   *  cards, where its 30 s starts again. */
-  pinDetection: (id: number, pinned: boolean) => void;
-  /** A new service starts with no cards: pins last for the service. */
+  /** Pin a verse (FR-64). Already pinned: nothing changes, it keeps its place. */
+  addPin: (verse: Verse, detectionId: number | null, passageId?: string | null) => void;
+  removePin: (key: string) => void;
+  /** Clear all: the only bulk removal (polish 5c). */
+  clearPins: () => void;
+  /** A new service starts with no cards. Pins stay (polish 5d): they go
+   *  only by Unpin or Clear all. */
   clearDetections: () => void;
   setOutputs: (outputs: OutputState) => void;
   reset: () => void;
@@ -66,7 +84,7 @@ export const useServiceStore = create<ServiceState>((set) => ({
   peakDbfs: -60,
   segments: [],
   detections: [],
-  pinOrder: [],
+  pins: [],
   outputs: EMPTY_OUTPUTS,
   recent: [],
 
@@ -86,27 +104,23 @@ export const useServiceStore = create<ServiceState>((set) => ({
   // Newest first: the card stack grows downward from the top of the column.
   // A known id is replaced in place, keeping its position: a candidate firming
   // up from provisional to confirmed should not jump to the top as if new.
-  // The pin is the operator's, not the backend's, so a replacement (an Edit
-  // coming back under the same id) keeps it.
   addDetection: (detection) =>
     set((state) => {
       const index = state.detections.findIndex((d) => d.id === detection.id);
       if (index === -1) return { detections: [detection, ...state.detections] };
       const detections = [...state.detections];
-      const pinned = detections[index]?.pinned ?? false;
-      detections[index] = { ...detection, pinned };
+      detections[index] = detection;
       return { detections };
     }),
-  pinDetection: (id, pinned) =>
-    set((state) => ({
-      detections: state.detections.map((d) => (d.id === id ? { ...d, pinned } : d)),
-      pinOrder: pinned
-        ? state.pinOrder.includes(id)
-          ? state.pinOrder
-          : [...state.pinOrder, id]
-        : state.pinOrder.filter((p) => p !== id),
-    })),
-  clearDetections: () => set({ detections: [], pinOrder: [], recent: [] }),
+  addPin: (verse, detectionId, passageId = null) =>
+    set((state) => {
+      const key = pinKey(verse);
+      if (state.pins.some((p) => pinKey(p.verse) === key)) return {};
+      return { pins: [...state.pins, { verse, detectionId, passageId }] };
+    }),
+  removePin: (key) => set((state) => ({ pins: state.pins.filter((p) => pinKey(p.verse) !== key) })),
+  clearPins: () => set({ pins: [] }),
+  clearDetections: () => set({ detections: [], recent: [] }),
   dismissDetection: (id) => set((state) => ({ detections: state.detections.filter((d) => d.id !== id) })),
   withdrawDetection: (id) => set((state) => ({ detections: state.detections.filter((d) => d.id !== id) })),
   // A verse arriving in either slot is remembered for the palette. Compared
@@ -129,7 +143,7 @@ export const useServiceStore = create<ServiceState>((set) => ({
       isCapturing: false,
       segments: [],
       detections: [],
-      pinOrder: [],
+      pins: [],
       outputs: EMPTY_OUTPUTS,
       recent: [],
     }),

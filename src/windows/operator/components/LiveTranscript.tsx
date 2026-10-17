@@ -255,7 +255,7 @@ export function LiveTranscript() {
         setLatency(null);
         setDeviceLost(null);
         lastEnd.current = null;
-        // Pins last for the service (FR-64); a new one starts clean.
+        // A new service starts with no cards. Pins stay (FR-64, 17 Oct).
         useServiceStore.getState().clearDetections();
         setCapture(await audio.start(device, true));
       } else {

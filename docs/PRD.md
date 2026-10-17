@@ -415,7 +415,7 @@ SermonAI wins on four things:
 - **FR-33:** Blank the projector with a single hotkey.
 - **FR-50 (new):** **Staging area.** Accepted or searched verses land in a staging slot on the operator screen first; a single action ("Go Live", Enter, or remote tap) sends the staged verse to output. Auto-live mode is available as an opt-in setting for hands-off operation.
 - **FR-51 (new):** Navigate the currently displayed passage verse by verse (next / previous) from keyboard and remote.
-- **FR-64 (new, 16 Oct 2026):** **Pinned detections.** A confirmed detection card can be pinned as an anchor verse. A pinned card never auto-dismisses, sits in its own section at the top of the detection column, and can be staged or sent live any number of times without unpinning; Go Live on a pinned card skips the staged slot, since the operator has already read it. Pinned cards are outside Enter's path, outside the waiting count, and outside auto-live. Pins last for the service and are written to the detection's row so the summary PDF can mark anchor verses (§13.11) and a recovered service can restore them (FR-34, M4). Keyboard: P pins the top waiting card; 1 to 9 send the Nth pinned card live (§13.18). The remote gains Pin in M7 (FR-54).
+- **FR-64 (new, 16 Oct 2026; revised 17 Oct):** **Pinned verses.** A confirmed detection card, or the verse in the Staged or Live slot, can be pinned as an anchor verse. Pins sit in a compact strip at the top of the detection column, numbered in pin order, scrolling sideways; a pin offers Go Live, straight to the projector since the operator has already read it, and Unpin. Pins are outside Enter's path, outside the waiting count, and outside auto-live. **Pins last until Unpin or Clear all** (a header control behind a quick confirm): they survive transcription being stopped and started. A pin made from a card is written to the detection's row so the summary PDF can mark anchor verses (§13.11) and a recovered service can restore them (FR-34, M4). Keyboard: P pins the top waiting card; 1 to 9 send the Nth pin live (§13.18). The remote gains Pin in M7 (FR-54).
 
 ### 8.7 Phone Remote *(new in v2.0)*
 
@@ -544,7 +544,7 @@ SermonAI is a single-machine desktop application built with **Tauri 2**. One com
 2. **Speech-to-Text** — Deepgram Nova-3 over `tokio-tungstenite` WebSocket online; `whisper-rs` (whisper.cpp) offline on both platforms when the Offline Speech Pack is installed.
 3. **Scripture Detection** — three stages in order: regex (under 5ms), in-binary vector search over quantized verse embeddings (under 5ms), Claude API paraphrase detection (online only, 1 to 2s).
 4. **Bible Text** — `rusqlite` cache seeded from bundled packs, YouVersion Platform downloads (per-verse HTML plus attribution metadata), and user imports.
-5. **Staging & Output** — staging slot on operator UI; outputs to projector webview, alternate webview, NDI, OBS overlay. Nothing reaches an output without passing through staging (unless auto-live is on).
+5. **Staging & Output** — staging slot on operator UI; outputs to projector webview, alternate webview, NDI, OBS overlay. Nothing reaches an output without passing through staging, with two exceptions the operator opts into: auto-live, and Go Live on a pinned verse (FR-64), which the operator has already read when they pinned it.
 6. **Phone Remote** — an `axum` server inside the binary serves a small React web app on the LAN only while remote is enabled; WebSocket keeps remote and operator UI in sync; pairing via short-lived token in a QR code.
 7. **Sermon Intelligence** — transcript store, summary pipeline (Claude online; template renderer offline; optional local model via `llama-cpp` bindings), PDF renderer, archive search (SQLite FTS5), Content Studio, series compiler.
 
@@ -756,7 +756,7 @@ sermonai/
 - Reference, verse text, translation, confidence, detection source (regex / semantic / AI).
 - Accept, Reject, Edit. Accept sends to staging (or live if auto-live). Auto-dismiss after 30s.
 - A reference that does not exist in the canon (chapter or verse beyond the book's count, unknown book) is refused wherever it is typed, with the count in the message, and never reaches a slot (17 Oct 2026).
-- **Pin** (FR-64): keeps the card for the service in a Pinned section above the waiting cards, marked and numbered. A pinned card offers Stage, Go Live (straight to the projector) and Unpin, never auto-dismisses, and is never touched by Enter or auto-live. Pins clear at End Service.
+- **Pin** (FR-64): moves the verse into the pinned strip above the waiting cards, numbered. A pin offers Go Live (straight to the projector) and Unpin, never auto-dismisses, and is never touched by Enter or auto-live. A staged or live verse can be pinned from its slot. Pins go only by Unpin or Clear all; stopping and restarting transcription keeps them (17 Oct 2026).
 
 ### 13.4 Translation Picker
 - 20+ bundled plus imported translations; search-as-you-type; download icon for uncached; per-service default and per-verse override.
