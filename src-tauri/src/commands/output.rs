@@ -78,10 +78,16 @@ pub fn go_live(app: AppHandle, state: State<'_, AppState>) -> Result<OutputState
         .expect("staging lock")
         .go_live(unix_ms())?
         .clone();
+    let locked = started.elapsed();
     broadcast(&app, &next);
+    // Split so a slow line names its part: the lock wait is ours, the
+    // broadcast is the windows' (17 Oct: one auto-live broadcast took 1.5 s
+    // with the state set in 4 ms, and this line could not say which).
     tracing::info!(
         reference = %next.live.as_ref().map(|v| v.reference.as_str()).unwrap_or(""),
         staged_to_broadcast_us = started.elapsed().as_micros() as u64,
+        lock_us = locked.as_micros() as u64,
+        broadcast_us = (started.elapsed() - locked).as_micros() as u64,
         "went live"
     );
     Ok(next)
@@ -290,10 +296,13 @@ pub fn auto_live(app: &AppHandle, state: &AppState, verse: Verse) -> bool {
         }
     };
     drop(staging);
+    let locked = started.elapsed();
     broadcast(app, &next);
     tracing::info!(
         reference = %next.live.as_ref().map(|v| v.reference.as_str()).unwrap_or(""),
         staged_to_broadcast_us = started.elapsed().as_micros() as u64,
+        lock_us = locked.as_micros() as u64,
+        broadcast_us = (started.elapsed() - locked).as_micros() as u64,
         "went live by auto-live"
     );
     true

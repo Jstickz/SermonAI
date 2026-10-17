@@ -9,7 +9,8 @@ the indicator showing; verses change by fade, slide or dissolve at the
 length you set; **B** blanks and unblanks instantly with nothing lost;
 arrows step the passage; pinned cards, the palette, Edit's translation
 choice and the measured fit each have their steps. Steps 1–27 passed on
-f261934 on 16 Oct; 28–39 are for the next run. Run on a second monitor;
+f261934 on 16 Oct; 28–39 passed on 8d09a9b on 17 Oct, nothing failing to
+match. The sheet stays as the regression run for later M3 changes. Run on a second monitor;
 the projector window is fullscreen and frameless, so keep the operator
 window on the primary.
 
